@@ -1,6 +1,6 @@
 'use strict';
 
-require('dotenv').config({path: __dirname + '/.env'})
+require('dotenv').config({ path: __dirname + '/.env' })
 
 let Client = require('ssh2-sftp-client');
 let sftp = new Client('Synctera-Client');
@@ -15,7 +15,9 @@ const { mainModule } = require('process');
 const moment = require('moment')
 let PROCESSING_DATE = moment().format('YYYYMMDD') + 'T' + moment().format('HHMMSS')
 let VENDOR_NAME = 'synctera'
-let DISABLE_WEBHOOKS = false
+let DISABLE_WEBHOOKS = true
+let DISABLE_SMTP = false
+let DISABLE_FILEPROCESSING = true
 
 const Slack = require('@slack/webhook');
 const slackUrl = process.env.SLACK_WEBHOOK_URL;
@@ -47,7 +49,7 @@ const logger = createLogger({
 process.on('unhandledRejection', (reason, promise) => {
     logger.error("Unhandled promise rejection.",
         { reason, promise });
-    process.error('Unhandled exception occured, please see the processing log for more details.')
+    console.error('Unhandled exception occured, please see the processing log for more details.')
 });
 
 let config = {}
@@ -75,29 +77,33 @@ folderMappings.push({ type: 'get', source: '/ach/outbound', destination: `C:\\SF
 folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\ach\\inbound`, destination: '/ach/inbound', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\ach\\inbound` })
 //folderMappings.push( {type: 'put', source: 'C:\\SFTP\\Synctera\\outbox\\ach', destination: '/inbox/ach', processed: 'C:\\SFTP\\Synctera\\processed\\outbox\\ach'} )
 
-async function main(sftp, logger) {
+async function main(sftp, logger, smtpTransporter) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing beginning...` })
 
-    logger.log({ level: 'info', message: `Attempting to connect to sftp server [${REMOTE_HOST}]...` })
-    await sftp.connect(config.synctera)
-    logger.log({ level: 'info', message: `Connection established to sftp server [${REMOTE_HOST}].` })
 
-    // ensure the proper folder structure is set
-    await initializeFolders(sftp, logger)
 
-    // pull the files from the remote SFTP server
-    await getFiles(sftp, logger, folderMappings);
+    if (!DISABLE_FILEPROCESSING) {
+        logger.log({ level: 'info', message: `Attempting to connect to sftp server [${REMOTE_HOST}]...` })
+        await sftp.connect(config.synctera)
+        logger.log({ level: 'info', message: `Connection established to sftp server [${REMOTE_HOST}].` })
 
-    // push the files to the remote SFTP server
-    await putFiles(sftp, logger, folderMappings);
+        // ensure the proper folder structure is set
+        await initializeFolders(sftp, logger)
 
-    logger.log({ level: 'info', message: `Ending the SFTP session with [${REMOTE_HOST}]...` })
-    await sftp.end();
+        // pull the files from the remote SFTP server
+        await getFiles(sftp, logger, folderMappings);
+
+        // push the files to the remote SFTP server
+        await putFiles(sftp, logger, folderMappings);
+
+        logger.log({ level: 'info', message: `Ending the SFTP session with [${REMOTE_HOST}]...` })
+        await sftp.end();
+    }
 
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing completed.` })
 }
 
-main(sftp, logger);
+main(sftp, logger, transporter);
 
 async function initializeFolders(sftp, logger) {
     logger.log({ level: 'info', message: `Checking if the required folders are on the destination server [${REMOTE_HOST}]...` })
@@ -129,10 +135,10 @@ async function getFiles(sftp, logger, folderMappings) {
 
             logger.log({ level: 'verbose', message: `The required GET folders have been process on the remote [${REMOTE_HOST}].` })
 
-            let remoteFiles = await sftp.list( mapping.source )
-            
+            let remoteFiles = await sftp.list(mapping.source)
+
             let remoteFilesArr = []
-            for (const obj of remoteFiles) { 
+            for (const obj of remoteFiles) {
                 remoteFilesArr.push(obj.name)
             }
 
@@ -146,31 +152,31 @@ async function getFiles(sftp, logger, folderMappings) {
                 let message = `${VENDOR_NAME}: SFTP <<< GET [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}]`
                 logger.log({ level: 'info', message: message + ' receiving...' })
 
-                try { 
+                try {
                     await sftp.get(mapping.source + '/' + filename, destinationFile)
 
                     // pull the file again and place in the processed folder for backup
                     await sftp.get(mapping.source + '/' + filename, processedFile)
-                    logger.log({level:'info', message: `${VENDOR_NAME}: SFTP GET PROCESSED [${PROCESSING_DATE + '_' + filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.processed}]`})
+                    logger.log({ level: 'info', message: `${VENDOR_NAME}: SFTP GET PROCESSED [${PROCESSING_DATE + '_' + filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.processed}]` })
 
                     let fileExists = await validateFileExistsOnLocal(logger, mapping.destination, filename)
 
                     // delete the remote file after transfer is confirmed
                     if (fileExists) {
                         await deleteRemoteFile(sftp, logger, mapping.source, filename)
-                        logger.log({level:'info', message: `${VENDOR_NAME}: SFTP CONFIRMED and DELETED file from [${REMOTE_HOST} ${mapping.source} ${filename}]`})
+                        logger.log({ level: 'info', message: `${VENDOR_NAME}: SFTP CONFIRMED and DELETED file from [${REMOTE_HOST} ${mapping.source} ${filename}]` })
                     }
-                    
+
                 } catch (err) {
-                    let errMessage = `${VENDOR_NAME}: GET [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}] failed! Receive failed!` 
-                    logger.error({ message: errMessage})
-                    await sendWebhook(logger, errMessage )
-                } 
+                    let errMessage = `${VENDOR_NAME}: GET [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}] failed! Receive failed!`
+                    logger.error({ message: errMessage })
+                    await sendWebhook(logger, errMessage)
+                }
             }
 
             let localOutboundFileCount = await checkLocalOutboundQueue(logger, mapping.destination)
 
-            if(localOutboundFileCount == 1) {
+            if (localOutboundFileCount == 1) {
                 await sendWebhook(logger, `${VENDOR_NAME}: GET - There is [${localOutboundFileCount}] file in the Outbound (Origination) Queue on LFNSRVFKNBANK01 at [${mapping.destination}]! Please connect to the server and process this file!`)
             } else if (localOutboundFileCount > 1) {
                 await sendWebhook(logger, `${VENDOR_NAME}: GET - There are [${localOutboundFileCount}] files in the Outbound (Origination) Queue on LFNSRVFKNBANK01 at [${mapping.destination}]! Please connect to the server and process these files!`)
@@ -205,9 +211,9 @@ async function putFiles(sftp, logger, folderMappings) {
                 if (fileExistsOnRemote && fileMovedToProcessed) {
                     await sendWebhook(logger, message + ' processed successfully.')
                 } else {
-                    let errMessage = `${VENDOR_NAME}: PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] failed to validate send to [${REMOTE_HOST} ${mapping.destination}]! Transfer failed!` 
-                    logger.error({ message: errMessage})
-                    await sendWebhook(logger, errMessage )
+                    let errMessage = `${VENDOR_NAME}: PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] failed to validate send to [${REMOTE_HOST} ${mapping.destination}]! Transfer failed!`
+                    logger.error({ message: errMessage })
+                    await sendWebhook(logger, errMessage)
                 }
             }
         }
@@ -222,9 +228,9 @@ async function getLocalFileList(directory) {
 }
 
 async function sendWebhook(logger, message) {
-    if (DISABLE_WEBHOOKS) { 
+    if (DISABLE_WEBHOOKS) {
         console.log('WEBHOOK DISABLED:', message)
-        return 
+        return
     }
 
     await slack.send({
@@ -255,19 +261,19 @@ async function validateFileExistsOnLocal(logger, localLocation, filename) {
 
 async function validateFileExistsOnRemote(sftp, logger, remoteLocation, filename) {
     try {
-        let remoteFiles = await sftp.list( remoteLocation )
+        let remoteFiles = await sftp.list(remoteLocation)
         let remoteFilesArr = []
-        for (const obj of remoteFiles) { 
+        for (const obj of remoteFiles) {
             remoteFilesArr.push(obj.name)
         }
-    
-        if(remoteFilesArr.includes(filename)) { 
-            logger.info( { message: `The file [${filename}] has been PUT on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]` } ) 
+
+        if (remoteFilesArr.includes(filename)) {
+            logger.info({ message: `The file [${filename}] has been PUT on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]` })
         }
-    
-        return remoteFilesArr.includes(filename) 
+
+        return remoteFilesArr.includes(filename)
     } catch (err) {
-        logger.error( { message: `The file [${filename}] was not successfully validated on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]!` } )
+        logger.error({ message: `The file [${filename}] was not successfully validated on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]!` })
         return false
     }
 }
@@ -278,18 +284,18 @@ async function checkLocalOutboundQueue(logger, location) {
 }
 
 async function deleteRemoteFile(sftp, logger, remoteLocation, filename) {
-    try{
+    try {
         await sftp.delete(remoteLocation + '/' + filename)
 
         let existOnRemote = await sftp.exists(remoteLocation + '/' + filename)
         existOnRemote = !(existOnRemote)
-        
+
         // return true if the file does not exist
         return existOnRemote;
     } catch (error) {
-        logger.error( { message: `The file [${filename}] was not successfully DELETED on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]!` } )
+        logger.error({ message: `The file [${filename}] was not successfully DELETED on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]!` })
         return false
-    }  
+    }
 }
 
 async function moveLocalFile(logger, filename, origin, destination, processingTimeStamp) {
@@ -297,9 +303,10 @@ async function moveLocalFile(logger, filename, origin, destination, processingTi
         await mv(origin + "\\" + filename, destination + "\\" + processingTimeStamp + "_" + filename);
         return true
     } catch (err) {
-        logger.error({ message: `There was an error moving the local file and renaming it from origin [${origin}] to destination [${ destination + "\\" + processingTimeStamp + "_" + filename }]` })
+        logger.error({ message: `There was an error moving the local file and renaming it from origin [${origin}] to destination [${destination + "\\" + processingTimeStamp + "_" + filename}]` })
         return false
-    } 
+    }
 }
+
 
 // https://github.com/moov-io/ach-node-sdk
