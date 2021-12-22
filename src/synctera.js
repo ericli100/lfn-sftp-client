@@ -15,9 +15,9 @@ const { mainModule } = require('process');
 const moment = require('moment')
 let PROCESSING_DATE = moment().format('YYYYMMDD') + 'T' + moment().format('HHMMSS')
 let VENDOR_NAME = 'synctera'
-let DISABLE_WEBHOOKS = true
+let DISABLE_WEBHOOKS = false
 let DISABLE_SMTP = false
-let DISABLE_FILEPROCESSING = true
+let DISABLE_FILEPROCESSING = false
 
 const Slack = require('@slack/webhook');
 const slackUrl = process.env.SLACK_WEBHOOK_URL;
