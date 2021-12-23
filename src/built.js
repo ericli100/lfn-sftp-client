@@ -50,6 +50,7 @@ process.on('unhandledRejection', (reason, promise) => {
     logger.error("Unhandled promise rejection.",
         { reason, promise });
     console.error('Unhandled exception occured, please see the processing log for more details.')
+    process.exit(1)
 });
 
 let config = {}
