@@ -70,6 +70,13 @@ const approvedRecipients = [
     "built.fis@lineagebank.com"
 ]
 
+const approvedAttachmentExtensions = [
+    "csv",
+    "pdf",
+    "xls",
+    "xlsx"
+]
+
 let folderMappings = []
 //folderMappings.push( {type: 'get', source: '/outbox', destination: 'C:\\SFTP\\Synctera\\inbox', processed: 'C:\\SFTP\\Synctera\\processed\\inbox' } )
 folderMappings.push({ to: 'synctera.ach@lineagebank.com', destination: `C:\\SFTP\\Synctera\\ach\\inbound` })
@@ -162,12 +169,19 @@ async function getSMTP(imap) {
 
             if (attachments.length) {
                 for (let attachment of attachments){
-                    console.log('Message:', seqId, `Writing the attachment [${attachment.filename}]... `)
-                    let fileWriter = fs.createWriteStream(attachmentPath.destination + '\\' + PROCESSING_DATE + '_' + attachment.filename)
-                    await fileWriter.write(attachment.content)
-                    console.log('Message:', seqId, `Wrote attachment [${attachment.filename}].`)
-                    await moveMessage(imap, seqId, "processed")
+                    let isApprovedAttachment = await approvedAttachment(attachment.filename, approvedAttachmentExtensions)
+
+                    if(isApprovedAttachment) {
+                        console.log('Message:', seqId, `Writing the attachment [${attachment.filename}]... `)
+                        let fileWriter = fs.createWriteStream(attachmentPath.destination + '\\' + PROCESSING_DATE + '_' + attachment.filename)
+                        await fileWriter.write(attachment.content)
+                        console.log('Message:', seqId, `Wrote attachment [${attachment.filename}].`)
+                    } else {
+                        console.error('Message:', seqId, `The attachment file type is not approved, skipping processing [${attachment.filename}]... `)
+                    }
                 }
+                // move the message after all attachments are processed
+                // await moveMessage(imap, seqId, "processed")
             } else {
                 console.error('Message:', seqId, `No attachment on the message, moving it to the rejected folder... `)
                 await moveMessage(imap, seqId, "rejected")
@@ -185,6 +199,17 @@ async function getSMTP(imap) {
 
 async function approvedSender (seqId, sender, approvedSenders){
     return approvedSenders.includes(sender)
+}
+
+async function approvedAttachment (filename, approvedAttachmentExtensions){
+    let returnVal = false
+
+    for (let extension of approvedAttachmentExtensions){
+        if (extension == filename.substr(filename.length - extension.length)){
+            returnVal = true
+        }
+    }
+    return returnVal
 }
 
 async function approvedRecipient (seqId, recipients, approvedRecipient){
