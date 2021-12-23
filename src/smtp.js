@@ -74,7 +74,8 @@ const approvedAttachmentExtensions = [
     "csv",
     "pdf",
     "xls",
-    "xlsx"
+    "xlsx",
+    "ach"
 ]
 
 let folderMappings = []
