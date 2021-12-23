@@ -111,6 +111,7 @@ async function getSMTP(imap) {
 
             let PROCESSING_DATE = msgDate.toISOString()
             PROCESSING_DATE = PROCESSING_DATE.replace(/:/g, '');
+            PROCESSING_DATE = PROCESSING_DATE.replace(/-/g, '');
 
             let isAchApprovedSender = await approvedSender(seqId, from, achApprovedSenders)
             let isAchApprovedRecipient = await approvedRecipient(seqId, to, achApprovedRecipients)
