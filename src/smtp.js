@@ -96,18 +96,36 @@ async function getSMTP(imap) {
     // Wait until client connects and authorizes
     await imap.connect();
 
+    let mailbox = await imap.mailboxOpen('INBOX');
+    let messageIds = [];
+
+    // fetch UID for all messages in a mailbox
+    for await (let msg of imap.fetch('1:*', {uid: true})){
+        messageIds.push( msg.uid );
+    }
+
+    if (messageIds.length == 0) {
+        console.log(`Exiting the getSMTP process as there are [${messageIds.length}] messages to process.`)
+        // log out and close connection
+        await imap.logout();
+        return
+    } else {
+        console.log(`There are [${messageIds.length}] mail messages to process...`)
+    }
     // Select and lock a mailbox. Throws if mailbox does not exist
     let lock = await imap.getMailboxLock('INBOX');
     try {
         // fetch latest message source
         // imap.mailbox includes information about currently selected mailbox
         // "exists" value is also the largest sequence number available in the mailbox
-        let lastSequence = imap.mailbox.exists;
+        let lastSequence = messageIds.length //imap.mailbox.exists;
 
-        for (let seqId=1;seqId<=lastSequence;seqId++){
-            console.log(`Processing message: ${seqId}...`)
+        for (let seqId=0;seqId<lastSequence;seqId++){
 
-            let {content} = await imap.download(seqId);
+            let msgUID = messageIds[seqId]
+            console.log(`Processing message UID: ${msgUID}...`)
+
+            let {content} = await imap.download(msgUID, undefined, {uid:true});
 
             let parsed = await simpleParser(content);
             let from = parsed.from.value[0].address.toLowerCase();
@@ -116,45 +134,45 @@ async function getSMTP(imap) {
             let subject = parsed.subject;
             let msgDate = parsed.date;
 
-            let PROCESSING_DATE = msgDate.toISOString()
-            PROCESSING_DATE = PROCESSING_DATE.replace(/:/g, '');
-            PROCESSING_DATE = PROCESSING_DATE.replace(/-/g, '');
+            let EMAIL_DATE = msgDate.toISOString()
+            EMAIL_DATE = EMAIL_DATE.replace(/:/g, '');
+            EMAIL_DATE = EMAIL_DATE.replace(/-/g, '');
 
-            let isAchApprovedSender = await approvedSender(seqId, from, achApprovedSenders)
-            let isAchApprovedRecipient = await approvedRecipient(seqId, to, achApprovedRecipients)
+            let isAchApprovedSender = await approvedSender(msgUID, from, achApprovedSenders)
+            let isAchApprovedRecipient = await approvedRecipient(msgUID, to, achApprovedRecipients)
 
             if (isAchApprovedRecipient){
                 if (isAchApprovedSender){
-                    console.log('Message:', seqId, 'Approved ACH Sender.')
+                    console.log('Message UID:', msgUID, 'Approved ACH Sender.')
                 } else {
-                    console.error('Message:', seqId, 'Not an Approved ACH Sender!!!')
-                    await achSenderError(seqId, from, achApprovedSenders)
-                    await moveMessage(imap, seqId, "rejected")
+                    console.error('Message UID:', msgUID, 'Not an Approved ACH Sender!!!')
+                    await achSenderError(msgUID, from, achApprovedSenders)
+                    await moveMessage(imap, msgUID, "rejected")
                     continue;
                 }
             }
 
-            let isApprovedSender = await approvedSender(seqId, from, emailApprovedSenders)
+            let isApprovedSender = await approvedSender(msgUID, from, emailApprovedSenders)
 
             // is the user approved to send at all
             if (isApprovedSender) {
-                console.log('Message:', seqId, 'Approved Sender.')
+                console.log('Message UID:', msgUID, 'Approved Sender.')
             } else {
-                console.error('Message:', seqId, 'Not an Approved Sender!!!')
-                await badSenderError(seqId, from, emailApprovedSenders)
-                await moveMessage(imap, seqId, "rejected")
+                console.error('Message UID:', msgUID, 'Not an Approved Sender!!!')
+                await badSenderError(msgUID, from, emailApprovedSenders)
+                await moveMessage(imap, msgUID, "rejected")
                 continue;
             }
 
-            let isApprovedRecipient = await approvedRecipient(seqId, to, approvedRecipients)
+            let isApprovedRecipient = await approvedRecipient(msgUID, to, approvedRecipients)
 
             // is the user approved to send at all
             if (isApprovedRecipient) {
-                console.log('Message:', seqId, `Approved Recipient matched ${isApprovedRecipient}.`)
+                console.log('Message UID:', msgUID, `Approved Recipient matched ${isApprovedRecipient}.`)
             } else {
-                console.error('Message:', seqId, 'Not an Approved Recipient!!!')
-                await badRecipientError(seqId, to, approvedRecipients)
-                await moveMessage(imap, seqId, "rejected")
+                console.error('Message UID:', msgUID, 'Not an Approved Recipient!!!')
+                await badRecipientError(msgUID, to, approvedRecipients)
+                await moveMessage(imap, msgUID, "rejected")
                 continue;
             }
 
@@ -162,8 +180,8 @@ async function getSMTP(imap) {
             let attachmentPath = folderMappings.find(x => x.to === isApprovedRecipient);
 
             if(!attachmentPath) {
-                console.error('Message:', seqId, `There is no attachment path defined on the SFTP server for the approved recipient [${isApprovedRecipient}]! `)
-                await badPathError(iseqId, sApprovedRecipient)
+                console.error('Message UID:', msgUID, `There is no attachment path defined on the SFTP server for the approved recipient [${isApprovedRecipient}]! `)
+                await badPathError(msgUID, sApprovedRecipient)
                 continue;
             }
 
@@ -172,32 +190,40 @@ async function getSMTP(imap) {
                     let isApprovedAttachment = await approvedAttachment(attachment.filename, approvedAttachmentExtensions)
 
                     if(isApprovedAttachment) {
-                        console.log('Message:', seqId, `Writing the attachment [${attachment.filename}]... `)
-                        let fileWriter = fs.createWriteStream(attachmentPath.destination + '\\' + PROCESSING_DATE + '_' + attachment.filename)
+                        console.log('Message UID:', msgUID, `Writing the attachment [${attachment.filename}]... `)
+                        let fileWriter = fs.createWriteStream(attachmentPath.destination + '\\' + EMAIL_DATE + '_' + attachment.filename)
                         await fileWriter.write(attachment.content)
-                        console.log('Message:', seqId, `Wrote attachment [${attachment.filename}].`)
+                        console.log('Message UID:', msgUID, `Wrote attachment [${attachment.filename}].`)
                     } else {
-                        console.error('Message:', seqId, `The attachment file type is not approved, skipping processing [${attachment.filename}]... `)
+                        console.error('Message UID:', msgUID, `The attachment file type is not approved, skipping processing for [${attachment.filename}]... `)
                     }
                 }
                 // move the message after all attachments are processed
-                // await moveMessage(imap, seqId, "processed")
+                await moveMessage(imap, msgUID, "processed")
             } else {
-                console.error('Message:', seqId, `No attachment on the message, moving it to the rejected folder... `)
-                await moveMessage(imap, seqId, "rejected")
+                console.error('Message UID:', msgUID, `No attachment on the message, moving it to the rejected folder... `)
+                await moveMessage(imap, msgUID, "rejected")
                 continue;
             }
+        }
+
+        if(messageIds.length == 1) {
+            console.log(`Processed [${messageIds.length}] mail message.`)
+        } else {
+            console.log(`Processed [${messageIds.length}] mail messages.`)
         }
     } finally {
         // Make sure lock is released, otherwise next `getMailboxLock()` never returns
         lock.release();
-    }
 
-    // log out and close connection
-    await imap.logout();
+         // log out and close connection
+         await imap.logout();
+    }
+    
+    return
 }
 
-async function approvedSender (seqId, sender, approvedSenders){
+async function approvedSender (msgUID, sender, approvedSenders){
     return approvedSenders.includes(sender)
 }
 
@@ -212,57 +238,55 @@ async function approvedAttachment (filename, approvedAttachmentExtensions){
     return returnVal
 }
 
-async function approvedRecipient (seqId, recipients, approvedRecipient){
+async function approvedRecipient (msgUID, recipients, approvedRecipient){
     // return the first approved recipient or undefined if no match
     for(let recipient of recipients) {
         let isApproved = approvedRecipient.includes( recipient.address.toLowerCase() )
         if (isApproved) {
-            console.log('Message:', seqId, `Approved Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
+            console.log('Message UID:', msgUID, `Approved Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
             return recipient.address.toLowerCase()
         }
     }
     return undefined
 }
 
-async function badSenderError (seqId, sender, approvedSenders){
+async function badSenderError (msgUID, sender, approvedSenders){
     // alert
     // reject
     // move the message
-    console.error('TODO:', 'Message:', seqId, 'write the badSenderError() code.', sender)
+    console.error('TODO:', 'Message UID:', msgUID, 'write the badSenderError() code.', sender)
     return
 }
 
-async function achSenderError (seqId, sender, approvedSenders){
+async function achSenderError (msgUID, sender, approvedSenders){
     // alert
     // reject
     // move the message
-    console.error('TODO:', 'Message:', seqId, 'ACH write the achSenderError() code.', sender)
+    console.error('TODO:', 'Message UID:', msgUID, 'ACH write the achSenderError() code.', sender)
     return
 }
 
-async function badPathError (seqId, sender, type){
+async function badPathError (msgUID, sender, type){
     // alert
     // reject
     // move the message
-    console.error('TODO:', 'Message:', seqId, 'write the badPathError() code.')
+    console.error('TODO:', 'Message UID:', msgUID, 'write the badPathError() code.')
     return
 }
 
-async function badRecipientError (seqId, to, approvedRecipients){
+async function badRecipientError (msgUID, to, approvedRecipients){
     // alert
     // reject
     // move the message
-    console.error('TODO:', 'Message:', seqId, 'write the badRecipientError() code.')
+    console.error('TODO:', 'Message UID:', msgUID, 'write the badRecipientError() code.')
     return
 }
 
-
-
-async function moveMessage(imap, seqId, destination){
-    let options = {uid:false}
-    let result = await imap.messageMove(seqId, destination, options);
-    console.log('Moved %s messages', result.uidMap.size);
-    return Promise.resolve({ result })
+async function moveMessage(imap, msgUID, destination){
+    let options = {uid:true}
+    let result = await imap.messageMove(msgUID, destination, options);
+    console.log('Message UID:', msgUID, 'Moved', result.uidMap.size,'message', 'to', destination);
+    return result
 }
 
 async function sendSMTP(transporter, to, subject, message, messageHTML) {
