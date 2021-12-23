@@ -67,7 +67,7 @@ const achApprovedRecipients = [
 
 const approvedRecipients = [
     "synctera.fis@lineagebank.com",
-    "built.ach@lineagebank.com"
+    "built.fis@lineagebank.com"
 ]
 
 let folderMappings = []
@@ -110,6 +110,7 @@ async function getSMTP(imap) {
             let msgDate = parsed.date;
 
             let PROCESSING_DATE = msgDate.toISOString()
+            PROCESSING_DATE = PROCESSING_DATE.replace(/:/g, '');
 
             let isAchApprovedSender = await approvedSender(seqId, from, achApprovedSenders)
             let isAchApprovedRecipient = await approvedRecipient(seqId, to, achApprovedRecipients)
