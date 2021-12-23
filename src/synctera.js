@@ -77,7 +77,7 @@ folderMappings.push({ type: 'get', source: '/ach/outbound', destination: `C:\\SF
 folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\ach\\inbound`, destination: '/ach/inbound', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\ach\\inbound` })
 //folderMappings.push( {type: 'put', source: 'C:\\SFTP\\Synctera\\outbox\\ach', destination: '/inbox/ach', processed: 'C:\\SFTP\\Synctera\\processed\\outbox\\ach'} )
 
-async function main(sftp, logger, smtpTransporter) {
+async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing beginning...` })
 
 
@@ -103,7 +103,7 @@ async function main(sftp, logger, smtpTransporter) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing completed.` })
 }
 
-main(sftp, logger, transporter);
+main(sftp, logger);
 
 async function initializeFolders(sftp, logger) {
     logger.log({ level: 'info', message: `Checking if the required folders are on the destination server [${REMOTE_HOST}]...` })

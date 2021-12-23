@@ -75,7 +75,7 @@ let folderMappings = []
 
 folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\fis`, destination: '/fis', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\fis` })
 
-async function main(sftp, logger, smtpTransporter) {
+async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing beginning...` })
 
 
@@ -101,7 +101,7 @@ async function main(sftp, logger, smtpTransporter) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing completed.` })
 }
 
-main(sftp, logger, transporter);
+main(sftp, logger);
 
 async function initializeFolders(sftp, logger) {
     logger.log({ level: 'info', message: `Checking if the required folders are on the destination server [${REMOTE_HOST}]...` })
