@@ -73,7 +73,7 @@ config.built = {
 
 let folderMappings = []
 
-folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\fis`, destination: '/fis', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\fis` })
+folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\fis`, destination: '/', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\fis` })
 
 async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing beginning...` })
@@ -107,7 +107,8 @@ async function initializeFolders(sftp, logger) {
     logger.log({ level: 'info', message: `Checking if the required folders are on the destination server [${REMOTE_HOST}]...` })
 
     try {
-        let folders = ['/fis']
+        // built does not allow us to create folders on their server
+        let folders = []
 
         for (const folder of folders) {
             let folderExists = await sftp.exists(folder);
