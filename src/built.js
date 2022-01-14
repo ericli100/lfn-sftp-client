@@ -74,7 +74,7 @@ config.built = {
 
 let folderMappings = []
 
-folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\fis`, destination: '/input', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\fis` })
+folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\fis`, destination: '/input/import', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\fis` })
 
 async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing beginning...` })
