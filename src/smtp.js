@@ -51,14 +51,16 @@ const emailApprovedSenders = [
     "jason.ezell@lineagefn.com",
     "cheryl.lamberth@lineagefn.com",
     "gloria.dodd@lineagebank.com",
-    "htc.reports@fisglobal.com"
+    "htc.reports@fisglobal.com",
+    "ellen.hartley@lineagefn.com"
 ]
 
 const achApprovedSenders = [
     "cheryl.lamberth@lineagefn.com",
     "gloria.dodd@lineagebank.com",
     "maria@citizensbankatwood.com",
-    "stephanie@citizensbankatwood.com"
+    "stephanie@citizensbankatwood.com",
+    "ellen.hartley@lineagefn.com"
 ]
 
 const achApprovedRecipients = [

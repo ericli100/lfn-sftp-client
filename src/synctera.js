@@ -76,12 +76,11 @@ let folderMappings = []
 //folderMappings.push( {type: 'get', source: '/outbox', destination: 'C:\\SFTP\\Synctera\\inbox', processed: 'C:\\SFTP\\Synctera\\processed\\inbox' } )
 folderMappings.push({ type: 'get', source: '/ach/outbound', destination: `C:\\SFTP\\${VENDOR_NAME}\\ach\\outbound`, processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\ach\\outbound` })
 folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\ach\\inbound`, destination: '/ach/inbound', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\ach\\inbound` })
+folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\fis`, destination: '/samples', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\fis` })
 //folderMappings.push( {type: 'put', source: 'C:\\SFTP\\Synctera\\outbox\\ach', destination: '/inbox/ach', processed: 'C:\\SFTP\\Synctera\\processed\\outbox\\ach'} )
 
 async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing beginning...` })
-
-
 
     if (!DISABLE_FILEPROCESSING) {
         logger.log({ level: 'info', message: `Attempting to connect to sftp server [${REMOTE_HOST}]...` })
@@ -110,7 +109,7 @@ async function initializeFolders(sftp, logger) {
     logger.log({ level: 'info', message: `Checking if the required folders are on the destination server [${REMOTE_HOST}]...` })
 
     try {
-        let folders = ['/ach', '/ach/inbound', '/ach/outbound', '/fis']
+        let folders = ['/ach', '/ach/inbound', '/ach/outbound', '/fis', '/samples']
 
         for (const folder of folders) {
             let folderExists = await sftp.exists(folder);
