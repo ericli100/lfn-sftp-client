@@ -203,15 +203,18 @@ async function putFiles(sftp, logger, folderMappings) {
                 let message = `${VENDOR_NAME}: SFTP >>> PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] to [${REMOTE_HOST} ${mapping.destination}]`
                 logger.log({ level: 'info', message: message + ' sending...' })
                 await sftp.put(file, remote);
+                logger.log({ level: 'info', message: message + ' Sent.' })
 
                 let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename)
+                logger.log({ level: 'info', message: message + ' File Exists on Remote Check - Status:' + fileExistsOnRemote })
 
                 let fileMovedToProcessed = await moveLocalFile(logger, filename, mapping.source, mapping.processed, PROCESSING_DATE)
+                logger.log({ level: 'info', message: message + ' File moved to the processing folder - Status:' + fileMovedToProcessed })
 
                 if (fileExistsOnRemote && fileMovedToProcessed) {
                     await sendWebhook(logger, message + ' processed successfully.')
                 } else {
-                    let errMessage = `${VENDOR_NAME}: PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] failed to validate send to [${REMOTE_HOST} ${mapping.destination}]! Transfer failed!`
+                    let errMessage = `${VENDOR_NAME}: PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] failed to validate send to [${REMOTE_HOST} ${mapping.destination}]! Transfer may have failed! {fileExistsOnRemote:${fileExistsOnRemote}, fileMovedToProcessed:${fileMovedToProcessed}}`
                     logger.error({ message: errMessage })
                     await sendWebhook(logger, errMessage)
                 }
