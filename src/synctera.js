@@ -276,7 +276,7 @@ async function validateFileExistsOnRemote(sftp, logger, remoteLocation, filename
 
         return remoteFilesArr.includes(filename)
     } catch (err) {
-        logger.error({ message: `The file [${filename}] was not successfully validated on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]!` })
+        logger.error({ message: `The file [${filename}] was NOT successfully validated on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]! With Error: [${err}]` })
         return false
     }
 }
