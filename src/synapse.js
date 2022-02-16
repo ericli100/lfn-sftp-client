@@ -29,6 +29,7 @@ const teams = new Teams.IncomingWebhook(teamsUrl);
 
 const { transports, createLogger, format } = require('winston');
 
+const openpgp = require('openpgp');
 
 /*
     TODO: Allow for updating the path in the config for the SFTP locations. Allow for processing from a UNC too.
@@ -91,10 +92,13 @@ async function main(sftp, logger) {
         await initializeFolders(sftp, logger)
 
         // pull the files from the remote SFTP server
-        await getFiles(sftp, logger, folderMappings);
+        await getFiles(sftp, logger, folderMappings, true);
 
         // push the files to the remote SFTP server
-        await putFiles(sftp, logger, folderMappings);
+        await putFiles(sftp, logger, folderMappings, true);
+
+        // check for GPG / PGP encrypted files and decrypt them
+        await decryptFiles(logger, folderMappings);
 
         logger.log({ level: 'info', message: `Ending the SFTP session with [${REMOTE_HOST}]...` })
         await sftp.end();
@@ -129,9 +133,13 @@ async function initializeFolders(sftp, logger) {
     return
 }
 
-async function getFiles(sftp, logger, folderMappings) {
+async function getFiles(sftp, logger, folderMappings, usePGP) {
     for (const mapping of folderMappings) {
         if (mapping.type == 'get') {
+            
+            if (usePGP) {
+                logger.log({ level: 'verbose', message: `Using *GPG Keys* for File Decryption on GET from the remote [${REMOTE_HOST}].` })
+            }
 
             logger.log({ level: 'verbose', message: `The required GET folders have been process on the remote [${REMOTE_HOST}].` })
 
@@ -153,13 +161,20 @@ async function getFiles(sftp, logger, folderMappings) {
                 logger.log({ level: 'info', message: message + ' receiving...' })
 
                 try {
-                    await sftp.get(mapping.source + '/' + filename, destinationFile)
-
-                    // pull the file again and place in the processed folder for backup
-                    await sftp.get(mapping.source + '/' + filename, processedFile)
+                    if (usePGP) {
+                        // for now, just pust a .gpg on the end of the file and process decription in a discrete step
+                        await sftp.get(mapping.source + '/' + filename + '.gpg', destinationFile)
+                        // pull the file again and place in the processed folder for backup
+                        await sftp.get(mapping.source + '/' + filename + '.gpg', processedFile)
+                    } else {
+                        await sftp.get(mapping.source + '/' + filename, destinationFile)
+                        // pull the file again and place in the processed folder for backup
+                        await sftp.get(mapping.source + '/' + filename, processedFile)
+                    }
+                    
                     logger.log({ level: 'info', message: `${VENDOR_NAME}: SFTP GET PROCESSED [${PROCESSING_DATE + '_' + filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.processed}]` })
 
-                    let fileExists = await validateFileExistsOnLocal(logger, mapping.destination, filename)
+                    let fileExists = await validateFileExistsOnLocal(logger, mapping.destination, filename, true)
 
                     // delete the remote file after transfer is confirmed
                     if (fileExists) {
@@ -187,9 +202,13 @@ async function getFiles(sftp, logger, folderMappings) {
     return
 }
 
-async function putFiles(sftp, logger, folderMappings) {
+async function putFiles(sftp, logger, folderMappings, usePGP) {
     for (const mapping of folderMappings) {
         if (mapping.type == 'put') {
+
+            if (usePGP) {
+                logger.log({ level: 'verbose', message: `Using *GPG Keys* for File Encryption on PUT to the remote [${REMOTE_HOST}].` })
+            }
 
             let filenames = await getLocalFileList(mapping.source)
 
@@ -204,20 +223,85 @@ async function putFiles(sftp, logger, folderMappings) {
                 logger.log({ level: 'info', message: message + ' sending...' })
                 await sftp.put(file, remote);
 
+                logger.log({ level: 'info', message: message + ' Sent.' })
+
                 let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename)
+                logger.log({ level: 'info', message: message + ' File Exists on Remote Check - Status:' + fileExistsOnRemote })
 
                 let fileMovedToProcessed = await moveLocalFile(logger, filename, mapping.source, mapping.processed, PROCESSING_DATE)
+                logger.log({ level: 'info', message: message + ' File moved to the processing folder - Status:' + fileMovedToProcessed })
 
                 if (fileExistsOnRemote && fileMovedToProcessed) {
                     await sendWebhook(logger, message + ' processed successfully.')
                 } else {
-                    let errMessage = `${VENDOR_NAME}: PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] failed to validate send to [${REMOTE_HOST} ${mapping.destination}]! Transfer failed!`
+                    let errMessage = `${VENDOR_NAME}: PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] failed to validate send to [${REMOTE_HOST} ${mapping.destination}]! Transfer may have failed! {fileExistsOnRemote:${fileExistsOnRemote}, fileMovedToProcessed:${fileMovedToProcessed}}`
                     logger.error({ message: errMessage })
                     await sendWebhook(logger, errMessage)
                 }
             }
         }
     }
+}
+
+async function decryptFiles(logger, folderMappings){
+    for (const mapping of folderMappings) {
+        if (mapping.type == 'get') {
+            // get an array of the local files to evaluate
+            let filenames = await getLocalFileList(mapping.destination)
+
+            for (const filename of filenames) {
+                let hasSuffixGPG = ( filename.split('.').pop().toLowerCase() == '.gpg' ) 
+
+                if (hasSuffixGPG) {
+                    logger.log({ level: 'info', message: `${VENDOR_NAME}: GPG DECRYPT [${filename}] located at ${mapping.destination}] on [LFNSRVFKNBANK01 attempting decrypt...` })
+                    // ** Procede to Decrypt the File **
+
+                    let filePath = mapping.destination + filename;
+
+                    //1. Decrypt
+                    let wasDecrypted = await decryptFile(logger, filePath)
+
+                    //2. Delete the original .gpg file
+                    if (wasDecrypted) { deleteLocalFile(logger, filePath) }
+                }
+            }
+        }
+    }
+}
+
+async function decryptFile(logger, filePath) {
+    const readableStream = fs.createReadStream(filePath);
+
+    readableStream.on('error', function (error) {
+        console.log(`error: ${error.message}`);
+    })
+
+    readableStream.on('data', (chunk) => {
+        console.log(chunk);
+    })
+
+    return true
+}
+
+async function deleteLocalFile(logger, filePath) {
+    fs.stat(filePath, function (err, stats) {
+        console.log(stats);//here we got all information of file in stats variable
+     
+        if (err) {
+            logger.log({ level: 'error', message: `${VENDOR_NAME}: Failed to get details before DELETE on file [${filename}] located at ${mapping.destination}]!` })
+            return false
+        }
+     
+        fs.unlink(filePath,function(err){
+            if (err) {
+                logger.log({ level: 'error', message: `${VENDOR_NAME}: Failed to DELETE file [${filename}] located at ${mapping.destination}]!` })
+                return false
+            }
+             logger.log({ level: 'info', message: `${VENDOR_NAME}: DELETED file [${filename}] located at ${mapping.destination}].` })
+        });  
+     });
+
+     return true
 }
 
 async function getLocalFileList(directory) {
@@ -254,9 +338,13 @@ async function sendWebhook(logger, message) {
     return true
 }
 
-async function validateFileExistsOnLocal(logger, localLocation, filename) {
+async function validateFileExistsOnLocal(logger, localLocation, filename, usePGP) {
     let localFiles = await getLocalFileList(localLocation)
-    return localFiles.includes(filename)
+    if(usePGP){
+        return localFiles.includes(filename + '.gpg')
+    } else {
+        return localFiles.includes(filename)
+    }
 }
 
 async function validateFileExistsOnRemote(sftp, logger, remoteLocation, filename) {
@@ -273,13 +361,13 @@ async function validateFileExistsOnRemote(sftp, logger, remoteLocation, filename
 
         return remoteFilesArr.includes(filename)
     } catch (err) {
-        logger.error({ message: `The file [${filename}] was not successfully validated on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]!` })
+        logger.error({ message: `The file [${filename}] was NOT successfully validated on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]! With Error: [${err}]` })
         return false
     }
 }
 
 async function checkLocalOutboundQueue(logger, location) {
-    const length = await fs.readdirSync(location).length
+    const length = fs.readdirSync(location).length
     return length
 }
 
