@@ -66,6 +66,9 @@ config.synapse = {
     username: USERNAME,
     privateKey: fs.readFileSync(`./certs/${VENDOR_NAME}/private_rsa.key`), // Buffer or string that contains
     passphrase: fs.readFileSync(`./certs/${VENDOR_NAME}/passphrase.key`), // string - For an encrypted private key
+    pgp_lineage_privateKey: fs.readFileSync(`./certs/${VENDOR_NAME}/lineage_pgp_private.key`),
+    pgp_lineage_publicKey: fs.readFileSync(`./certs/${VENDOR_NAME}/lineage_pgp_public.key`),
+    pgp_synapse_publicKey: fs.readFileSync(`./certs/${VENDOR_NAME}/synapse_pgp_public.key`),
     readyTimeout: 20000, // integer How long (in ms) to wait for the SSH handshake
     strictVendor: true, // boolean - Performs a strict server vendor check
     retries: 2, // integer. Number of times to retry connecting
@@ -256,29 +259,49 @@ async function decryptFiles(logger, folderMappings){
                     logger.log({ level: 'info', message: `${VENDOR_NAME}: GPG DECRYPT [${filename}] located at ${mapping.destination}] on [LFNSRVFKNBANK01 attempting decrypt...` })
                     // ** Procede to Decrypt the File **
 
-                    let filePath = mapping.destination + filename;
+                    const filePathInput = mapping.destination + filename;
+                    let filePathOutput = mapping.destination + filename;
+                    filePathOutput = filePathOutput.substring(0, filePathOutput.indexOf('.gpg'))
 
                     //1. Decrypt
-                    let wasDecrypted = await decryptFile(logger, filePath)
+                    let wasDecrypted = await decryptFile(logger, filePathInput, filePathOutput, config.synapse.pgp_lineage_publicKey, config.synapse.pgp_lineage_privateKey)
 
                     //2. Delete the original .gpg file
-                    if (wasDecrypted) { deleteLocalFile(logger, filePath) }
+                    if (wasDecrypted) { deleteLocalFile(logger, filePathInput) }
                 }
             }
         }
     }
 }
 
-async function decryptFile(logger, filePath) {
-    const readableStream = fs.createReadStream(filePath);
+async function decryptFile(logger, filePathInput, filePathOutput, PGP_PUBLIC_KEY, PGP_PRIVATE_KEY) {
+    const readStream = fs.createReadStream(filePathInput);
 
-    readableStream.on('error', function (error) {
-        console.log(`error: ${error.message}`);
-    })
+    const encrypted = await openpgp.encrypt({
+        message: await openpgp.createMessage({ text: readStream }), // input as Message object
+        encryptionKeys: PGP_PUBLIC_KEY
+    });
+    //console.log(encrypted); // ReadableStream containing '-----BEGIN PGP MESSAGE ... END PGP MESSAGE-----'
 
-    readableStream.on('data', (chunk) => {
-        console.log(chunk);
-    })
+    const message = await openpgp.readMessage({
+        armoredMessage: encrypted // parse armored message
+    });
+
+    const decrypted = await openpgp.decrypt({
+        message,
+        verificationKeys: PGP_PUBLIC_KEY, // optional
+        decryptionKeys: PGP_PRIVATE_KEY
+    });
+
+    const writeStream = fs.createWriteStream(filePathOutput)
+    readStream.pipe(writeStream);
+
+    // const chunks = [];
+    // for await (const chunk of decrypted.data) {
+    //     chunks.push(chunk);
+    // }
+    // const plaintext = chunks.join('');
+    // console.log(plaintext); 
 
     return true
 }
