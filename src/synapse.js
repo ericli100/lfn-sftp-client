@@ -132,7 +132,7 @@ async function test(logger) {
     config.synapse.pgp_lineage_publicKey = publicKey
 
 
-    await fs.promises.mkdir(process.cwd()+'/tmp/', { recursive: true }).catch(console.error);
+    await fs.promises.mkdir(process.cwd()+'/tmp/processed', { recursive: true }).catch(console.error);
 
     // 1. create a test file
     const content = 'This is some sweet test content\nreally\ncool\n!!!!!!!!'
@@ -161,11 +161,21 @@ async function test(logger) {
         // Either pipe the above stream somewhere, pass it to another function,
         // or read it manually as follows:
     console.log(encrypted);
+    // write the encrypted file out
     fs.writeFileSync(process.cwd()+'/tmp/encrypted.txt', encrypted, {encoding:'utf8', flag:'w'})
+
+    // write the encrypted file out again for GPG processing
+    fs.writeFileSync(process.cwd()+'/tmp/gpg_processing_encrypted.txt.gpg', encrypted, {encoding:'utf8', flag:'w'})
 
     // 3. decrypt the file
     let decryptedFile = await decryptFile(logger, encrypted, process.cwd()+'/tmp/decrypted.txt', publicKey, privateKey)
     // 4. read the file
+    console.log( fs.readFileSync(process.cwd()+'/tmp/decrypted.txt', {encoding:'utf8', flag:'r'}) )
+
+    let testFolderMappings = []
+    testFolderMappings.push({ type: 'get', source: process.cwd()+'/tmp', destination: process.cwd()+'/tmp', processed: process.cwd()+'/tmp/processed' })
+
+    decryptFiles(logger, testFolderMappings, publicKey, privateKey)
 }
 
 async function initializeFolders(sftp, logger) {
@@ -261,7 +271,7 @@ async function getFiles(sftp, logger, folderMappings, usePGP) {
     return
 }
 
-async function putFiles(sftp, logger, folderMappings, usePGP) {
+async function putFiles(sftp, logger, folderMappings, usePGP, publicKey, privateKey) {
     for (const mapping of folderMappings) {
         if (mapping.type == 'put') {
 
@@ -279,11 +289,10 @@ async function putFiles(sftp, logger, folderMappings, usePGP) {
                 let remote = mapping.destination + '/' + filename;
 
                 let message = `${VENDOR_NAME}: SFTP >>> PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] to [${REMOTE_HOST} ${mapping.destination}]`
-                
 
                 if (usePGP) {
                     logger.log({ level: 'info', message: message + ' sending *GPG/PGP* ENCRYPTED file...' })
-                    let encryptedFile = await encryptFile(logger, file, config.synapse.pgp_synapse_publicKey, config.synapse.pgp_lineage_privateKey)
+                    let encryptedFile = await encryptFile(logger, file, publicKey, privateKey)
                     await sftp.put(encryptedFile, remote);
                 } else {
                     logger.log({ level: 'info', message: message + ' sending...' })
@@ -311,25 +320,28 @@ async function putFiles(sftp, logger, folderMappings, usePGP) {
     }
 }
 
-async function decryptFiles(logger, folderMappings){
+async function decryptFiles(logger, folderMappings, publicKey, privateKey){
     for (const mapping of folderMappings) {
         if (mapping.type == 'get') {
             // get an array of the local files to evaluate
             let filenames = await getLocalFileList(mapping.destination)
 
             for (const filename of filenames) {
-                let hasSuffixGPG = ( filename.split('.').pop().toLowerCase() == '.gpg' ) 
+                let hasSuffixGPG = ( filename.split('.').pop().toLowerCase() == 'gpg' ) 
 
                 if (hasSuffixGPG) {
                     logger.log({ level: 'info', message: `${VENDOR_NAME}: GPG DECRYPT [${filename}] located at ${mapping.destination}] on [LFNSRVFKNBANK01 attempting decrypt...` })
                     // ** Procede to Decrypt the File **
 
-                    const filePathInput = mapping.destination + filename;
-                    let filePathOutput = mapping.destination + filename;
+                    const filePathInput = mapping.destination + '/' + filename;
+                    let filePathOutput = mapping.destination + '/' + filename;
                     filePathOutput = filePathOutput.substring(0, filePathOutput.indexOf('.gpg'))
 
+                    // pull the encrypted message into a file
+                    let encrypted = fs.readFileSync(filePathInput, {encoding:'utf8', flag:'r'})
+
                     //1. Decrypt
-                    let wasDecrypted = await decryptFile(logger, filePathInput, filePathOutput, config.synapse.pgp_lineage_publicKey, config.synapse.pgp_lineage_privateKey)
+                    let wasDecrypted = await decryptFile(logger, encrypted, filePathOutput, publicKey, privateKey)
 
                     //2. Delete the original .gpg file ( there is still a backup in the audit folder if it needs to process again )
                     if (wasDecrypted) { deleteLocalFile(logger, filePathInput) }
