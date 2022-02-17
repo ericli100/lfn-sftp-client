@@ -340,50 +340,42 @@ async function decryptFiles(logger, folderMappings){
 }
 
 async function encryptFile(logger, message, PGP_PUBLIC_KEY, PGP_PRIVATE_KEY){
-    //let message = await openpgp.createMessage({ binary: readStream })
     let encrypted = false;
 
     try {
         encrypted = await openpgp.encrypt({
             message: await openpgp.createMessage({ text: message }), // input as Message object
             encryptionKeys: PGP_PUBLIC_KEY,
-            signingKeys: PGP_PRIVATE_KEY // optional
+            signingKeys: PGP_PRIVATE_KEY // optional but we are choosing to sign the file
         });
     
     } catch(err) {
         console.error(err)
+        logger.log({ level: 'error', message: `${VENDOR_NAME}: GPG encrypt error [${err}]` })
+        return false
     }
 
     return encrypted
 }
 
 async function decryptFile(logger, encrypted, filePathOutput, PGP_PUBLIC_KEY, PGP_PRIVATE_KEY) {
-    // const readStream = fs.createReadStream(filePathInput);
-
-    // const encrypted = await openpgp.encrypt({
-    //     message: await openpgp.createMessage({ text: readStream }), // input as Message object
-    //     encryptionKeys: PGP_PUBLIC_KEY
-    // });
-    //console.log(encrypted); // ReadableStream containing '-----BEGIN PGP MESSAGE ... END PGP MESSAGE-----'
-
-    const message = await openpgp.readMessage({
-        armoredMessage: encrypted // parse armored message
-    });
-
-    const decrypted = await openpgp.decrypt({
-        message: message,
-        verificationKeys: PGP_PUBLIC_KEY, // optional
-        decryptionKeys: PGP_PRIVATE_KEY
-    });
-
-    fs.writeFileSync(filePathOutput, decrypted.data, {encoding:'utf8', flag:'w'})
-
-    // const chunks = [];
-    // for await (const chunk of decrypted.data) {
-    //     chunks.push(chunk);
-    // }
-    // const plaintext = chunks.join('');
-    // console.log(plaintext); 
+    try{
+        const message = await openpgp.readMessage({
+            armoredMessage: encrypted // parse armored message
+        });
+    
+        const decrypted = await openpgp.decrypt({
+            message: message,
+            verificationKeys: PGP_PUBLIC_KEY, // optional
+            decryptionKeys: PGP_PRIVATE_KEY
+        });
+    
+        fs.writeFileSync(filePathOutput, decrypted.data, {encoding:'utf8', flag:'w'})
+    } catch(err) {
+        console.error(err)
+        logger.log({ level: 'error', message: `${VENDOR_NAME}: GPG decrypt error [${err}]` })
+        return false
+    }
 
     return true
 }
