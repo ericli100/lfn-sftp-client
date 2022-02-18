@@ -50,12 +50,12 @@ const logger = createLogger({
     ]
 });
 
-// process.on('unhandledRejection', (reason, promise) => {
-//     logger.error("Unhandled promise rejection.",
-//         { reason, promise });
-//     console.error('Unhandled exception occured, please see the processing log for more details.')
-//     process.exit(1)
-// });
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error("Unhandled promise rejection.",
+        { reason, promise });
+    console.error('Unhandled exception occured, please see the processing log for more details.')
+    process.exit(1)
+});
 
 let config = {}
 
@@ -69,9 +69,6 @@ config.synapse = {
     username: USERNAME,
  //   privateKey: fs.readFileSync(`./certs/${VENDOR_NAME}/private_rsa.key`), // Buffer or string that contains
  //   passphrase: fs.readFileSync(`./certs/${VENDOR_NAME}/passphrase.key`), // string - For an encrypted private key
-    pgp_lineage_privateKey: '',
-    pgp_lineage_publicKey: '',
-    pgp_synapse_publicKey: fs.readFileSync(`./certs/${VENDOR_NAME}/synapse_pgp_public.key`).toString(),
     readyTimeout: 20000, // integer How long (in ms) to wait for the SSH handshake
     strictVendor: true, // boolean - Performs a strict server vendor check
     retries: 2, // integer. Number of times to retry connecting
@@ -88,6 +85,23 @@ folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\fis`, dest
 
 async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing beginning...` })
+    
+    logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} processing GPG/PGP Keys...` })
+    const publicKeyArmored = fs.readFileSync(`./certs/${VENDOR_NAME}/lineage_pgp_public.key`).toString()
+    const privateKeyArmored = fs.readFileSync(`./certs/${VENDOR_NAME}/lineage_pgp_private.key`).toString() // encrypted private key
+    
+    const synapse_publicKeyArmored = fs.readFileSync(`./certs/${VENDOR_NAME}/synapse_pgp_public.key`).toString()
+
+    const passphrase = process.env.PGP_PASSPHRASE; // what the private key is encrypted with
+
+    const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
+    const privateKey = await openpgp.decryptKey({
+        privateKey: await openpgp.readPrivateKey({ armoredKey: privateKeyArmored }),
+        passphrase
+    });
+
+   const synapse_publicKey = await openpgp.readKey({ armoredKey: synapse_publicKeyArmored });
+
 
     if (!DISABLE_FILEPROCESSING) {
         logger.log({ level: 'info', message: `Attempting to connect to sftp server [${REMOTE_HOST}]...` })
@@ -101,10 +115,10 @@ async function main(sftp, logger) {
         await getFiles(sftp, logger, folderMappings, true);
 
         // push the files to the remote SFTP server
-        await putFiles(sftp, logger, folderMappings, true);
+        await putFiles(sftp, logger, folderMappings, true, synapse_publicKey, privateKey);
 
         // check for GPG / PGP encrypted files and decrypt them
-        await decryptFiles(logger, folderMappings);
+        await decryptFiles(logger, folderMappings, publicKey, privateKey);
 
         logger.log({ level: 'info', message: `Ending the SFTP session with [${REMOTE_HOST}]...` })
         await sftp.end();
@@ -113,13 +127,16 @@ async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing completed.` })
 }
 
-// main(sftp, logger);
+main(sftp, logger);
 
-test(logger);
+// test(logger);
 
 async function test(logger) {
     const publicKeyArmored = fs.readFileSync(`./certs/${VENDOR_NAME}/lineage_pgp_public.key`).toString()
     const privateKeyArmored = fs.readFileSync(`./certs/${VENDOR_NAME}/lineage_pgp_private.key`).toString() // encrypted private key
+    
+    const synapse_publicKeyArmored = fs.readFileSync(`./certs/${VENDOR_NAME}/synapse_pgp_public.key`).toString()
+
     const passphrase = process.env.PGP_PASSPHRASE; // what the private key is encrypted with
 
     const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
@@ -128,9 +145,7 @@ async function test(logger) {
         passphrase
     });
 
-    config.synapse.pgp_lineage_privateKey = privateKey
-    config.synapse.pgp_lineage_publicKey = publicKey
-
+   const synapse_publicKey = await openpgp.readKey({ armoredKey: synapse_publicKeyArmored });
 
     await fs.promises.mkdir(process.cwd()+'/tmp/processed', { recursive: true }).catch(console.error);
 
@@ -142,39 +157,36 @@ async function test(logger) {
     // 2. encrypt the file
     let file = fs.readFileSync(process.cwd()+'/tmp/source.txt', {encoding:'utf8', flag:'r'})
 
-    let encryptedFile = await encryptFile(logger, file, publicKey, privateKey)
+    let synapseEncrypted = await encryptFile(logger, file, synapse_publicKey, privateKey)
 
-    //console.log(encryptedFile)
-    // const readableStream = new ReadableStream({
-    //     start(controller) {
-    //         controller.enqueue(new Uint8Array([0x01, 0x02, 0x03]));
-    //         controller.close();
-    //     }
-    // });
+    // write the encrypted file out again for GPG processing
+    fs.writeFileSync(process.cwd()+'/tmp/synapse_encrypted.txt', synapseEncrypted, {encoding:'utf8', flag:'w'})
+
+    // this decryption SHOULD fail because it is the synapse key
+    await decryptFile(logger, synapseEncrypted, process.cwd()+'/tmp/synapse_encrypted.txt', publicKey, privateKey)
+
+    // encrypted with our key so we can test all paths
     const encrypted = await openpgp.encrypt({
         message: await openpgp.createMessage({ text: file }), // input as Message object
         encryptionKeys: publicKey,
         signingKeys: privateKey // optional
     });
     
-    // 2.a read encrypted file
-        // Either pipe the above stream somewhere, pass it to another function,
-        // or read it manually as follows:
+    // 2.a output the encrypted file
     console.log(encrypted);
     // write the encrypted file out
     fs.writeFileSync(process.cwd()+'/tmp/encrypted.txt', encrypted, {encoding:'utf8', flag:'w'})
 
-    // write the encrypted file out again for GPG processing
-    fs.writeFileSync(process.cwd()+'/tmp/gpg_processing_encrypted.txt.gpg', encrypted, {encoding:'utf8', flag:'w'})
-
     // 3. decrypt the file
     let decryptedFile = await decryptFile(logger, encrypted, process.cwd()+'/tmp/decrypted.txt', publicKey, privateKey)
+    
     // 4. read the file
     console.log( fs.readFileSync(process.cwd()+'/tmp/decrypted.txt', {encoding:'utf8', flag:'r'}) )
 
     let testFolderMappings = []
     testFolderMappings.push({ type: 'get', source: process.cwd()+'/tmp', destination: process.cwd()+'/tmp', processed: process.cwd()+'/tmp/processed' })
 
+    // 5. test the main processing function for decrypting files with the .gpg extension that we set on inbound files.
     decryptFiles(logger, testFolderMappings, publicKey, privateKey)
 }
 
@@ -298,7 +310,6 @@ async function putFiles(sftp, logger, folderMappings, usePGP, publicKey, private
                     logger.log({ level: 'info', message: message + ' sending...' })
                     await sftp.put(encryptedFile, remote);
                 }
-                
 
                 logger.log({ level: 'info', message: message + ' Sent.' })
 
@@ -354,6 +365,8 @@ async function decryptFiles(logger, folderMappings, publicKey, privateKey){
 async function encryptFile(logger, message, PGP_PUBLIC_KEY, PGP_PRIVATE_KEY){
     let encrypted = false;
 
+    logger.log({ level: 'info', message: 'processing file encryption...' })
+
     try {
         encrypted = await openpgp.encrypt({
             message: await openpgp.createMessage({ text: message }), // input as Message object
@@ -371,6 +384,8 @@ async function encryptFile(logger, message, PGP_PUBLIC_KEY, PGP_PRIVATE_KEY){
 }
 
 async function decryptFile(logger, encrypted, filePathOutput, PGP_PUBLIC_KEY, PGP_PRIVATE_KEY) {
+    logger.log({ level: 'info', message: `processing file decryption to file path [${filePathOutput}]...` })
+
     try{
         const message = await openpgp.readMessage({
             armoredMessage: encrypted // parse armored message
@@ -503,55 +518,6 @@ async function moveLocalFile(logger, filename, origin, destination, processingTi
         logger.error({ message: `There was an error moving the local file and renaming it from origin [${origin}] to destination [${destination + "\\" + processingTimeStamp + "_" + filename}]` })
         return false
     }
-}
-
-
-
-async function sample() {
-
-    const publicKeyArmored = `-----BEGIN PGP PUBLIC KEY BLOCK-----
-...
------END PGP PUBLIC KEY BLOCK-----`; // Public key
-    const privateKeyArmored = `-----BEGIN PGP PRIVATE KEY BLOCK-----
-...
------END PGP PRIVATE KEY BLOCK-----`; // Encrypted private key
-    const passphrase = `yourPassphrase`; // Password that private key is encrypted with
-
-    const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
-
-    const privateKey = await openpgp.decryptKey({
-        privateKey: await openpgp.readPrivateKey({ armoredKey: privateKeyArmored }),
-        passphrase
-    });
-
-    const readableStream = new ReadableStream({
-        start(controller) {
-            controller.enqueue('Hello, world!');
-            controller.close();
-        }
-    });
-
-    const encrypted = await openpgp.encrypt({
-        message: await openpgp.createMessage({ text: readableStream }), // input as Message object
-        encryptionKeys: publicKey,
-        signingKeys: privateKey // optional
-    });
-    console.log(encrypted); // ReadableStream containing '-----BEGIN PGP MESSAGE ... END PGP MESSAGE-----'
-
-    const message = await openpgp.readMessage({
-        armoredMessage: encrypted // parse armored message
-    });
-    const decrypted = await openpgp.decrypt({
-        message,
-        verificationKeys: publicKey, // optional
-        decryptionKeys: privateKey
-    });
-    const chunks = [];
-    for await (const chunk of decrypted.data) {
-        chunks.push(chunk);
-    }
-    const plaintext = chunks.join('');
-    console.log(plaintext); // 'Hello, World!'
 }
 
 // https://github.com/moov-io/ach-node-sdk
