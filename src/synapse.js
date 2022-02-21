@@ -63,12 +63,30 @@ let REMOTE_HOST = 'sftp.synapsefi.com'
 let PORT = '2022'
 let USERNAME = 'lineage'
 
+let ENVIRONMENT = 'UAT' // or PRD
+let SSH_PASSPHRASE
+let SSH_PRIVATEKEY
+
+if (ENVIRONMENT == 'PRD') {
+    REMOTE_HOST = 'prd.synapsefi.com'
+    PORT = 22
+    USERNAME = 'lfn'
+    SSH_PASSPHRASE = fs.readFileSync(`./certs/${VENDOR_NAME}/prd_passphrase.key`)
+    SSH_PRIVATEKEY = fs.readFileSync(`./certs/${VENDOR_NAME}/id_rsa_synapse_prd_private.key`)
+} else if (ENVIRONMENT == 'UAT') {
+    REMOTE_HOST = 'uat.synapsefi.com'
+    PORT = 22
+    USERNAME = 'lfn'
+    SSH_PASSPHRASE = fs.readFileSync(`./certs/${VENDOR_NAME}/uat_passphrase.key`)
+    SSH_PRIVATEKEY = fs.readFileSync(`./certs/${VENDOR_NAME}/id_rsa_synapse_uat_private.key`)
+}
+
 config.synapse = {
     host: REMOTE_HOST,
     port: PORT,
     username: USERNAME,
- //   privateKey: fs.readFileSync(`./certs/${VENDOR_NAME}/private_rsa.key`), // Buffer or string that contains
- //   passphrase: fs.readFileSync(`./certs/${VENDOR_NAME}/passphrase.key`), // string - For an encrypted private key
+    privateKey: SSH_PRIVATEKEY, // Buffer or string that contains
+    passphrase: SSH_PASSPHRASE, // string - For an encrypted private key
     readyTimeout: 20000, // integer How long (in ms) to wait for the SSH handshake
     strictVendor: true, // boolean - Performs a strict server vendor check
     retries: 2, // integer. Number of times to retry connecting
@@ -94,8 +112,8 @@ async function main(sftp, logger) {
 
     const passphrase = process.env.PGP_PASSPHRASE; // what the private key is encrypted with
 
-    const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
-    const privateKey = await openpgp.decryptKey({
+    const lineage_publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
+    const lineage_privateKey = await openpgp.decryptKey({
         privateKey: await openpgp.readPrivateKey({ armoredKey: privateKeyArmored }),
         passphrase
     });
@@ -115,10 +133,10 @@ async function main(sftp, logger) {
         await getFiles(sftp, logger, folderMappings, true);
 
         // push the files to the remote SFTP server
-        await putFiles(sftp, logger, folderMappings, true, synapse_publicKey, privateKey);
+        await putFiles(sftp, logger, folderMappings, true, synapse_publicKey, lineage_privateKey);
 
         // check for GPG / PGP encrypted files and decrypt them
-        await decryptFiles(logger, folderMappings, publicKey, privateKey);
+        await decryptFiles(logger, folderMappings, lineage_publicKey, lineage_privateKey);
 
         logger.log({ level: 'info', message: `Ending the SFTP session with [${REMOTE_HOST}]...` })
         await sftp.end();
@@ -139,8 +157,8 @@ async function test(logger) {
 
     const passphrase = process.env.PGP_PASSPHRASE; // what the private key is encrypted with
 
-    const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
-    const privateKey = await openpgp.decryptKey({
+    const lineage_publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
+    const lineage_privateKey = await openpgp.decryptKey({
         privateKey: await openpgp.readPrivateKey({ armoredKey: privateKeyArmored }),
         passphrase
     });
@@ -157,13 +175,13 @@ async function test(logger) {
     // 2. encrypt the file
     let file = fs.readFileSync(process.cwd()+'/tmp/source.txt', {encoding:'utf8', flag:'r'})
 
-    let synapseEncrypted = await encryptFile(logger, file, synapse_publicKey, privateKey)
+    let synapseEncrypted = await encryptFile(logger, file, synapse_publicKey, lineage_privateKey)
 
     // write the encrypted file out again for GPG processing
     fs.writeFileSync(process.cwd()+'/tmp/synapse_encrypted.txt', synapseEncrypted, {encoding:'utf8', flag:'w'})
 
     // this decryption SHOULD fail because it is the synapse key
-    await decryptFile(logger, synapseEncrypted, process.cwd()+'/tmp/synapse_encrypted.txt', publicKey, privateKey)
+    await decryptFile(logger, synapseEncrypted, process.cwd()+'/tmp/synapse_encrypted.txt', lineage_publicKey, lineage_privateKey)
 
     // encrypted with our key so we can test all paths
     const encrypted = await openpgp.encrypt({
@@ -178,7 +196,7 @@ async function test(logger) {
     fs.writeFileSync(process.cwd()+'/tmp/encrypted.txt', encrypted, {encoding:'utf8', flag:'w'})
 
     // 3. decrypt the file
-    let decryptedFile = await decryptFile(logger, encrypted, process.cwd()+'/tmp/decrypted.txt', publicKey, privateKey)
+    let decryptedFile = await decryptFile(logger, encrypted, process.cwd()+'/tmp/decrypted.txt', lineage_publicKey, lineage_privateKey)
     
     // 4. read the file
     console.log( fs.readFileSync(process.cwd()+'/tmp/decrypted.txt', {encoding:'utf8', flag:'r'}) )
@@ -187,7 +205,7 @@ async function test(logger) {
     testFolderMappings.push({ type: 'get', source: process.cwd()+'/tmp', destination: process.cwd()+'/tmp', processed: process.cwd()+'/tmp/processed' })
 
     // 5. test the main processing function for decrypting files with the .gpg extension that we set on inbound files.
-    decryptFiles(logger, testFolderMappings, publicKey, privateKey)
+    decryptFiles(logger, testFolderMappings, lineage_publicKey, lineage_privateKey)
 }
 
 async function initializeFolders(sftp, logger) {
