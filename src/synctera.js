@@ -214,7 +214,7 @@ async function putFiles(sftp, logger, folderMappings) {
 
                 let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename)
                 logger.log({ level: 'info', message: message + ' File Exists on Remote Check - Status:' + fileExistsOnRemote })
-                await wait(1000) //wait a second...
+                await wait(5000) //wait a second...
 
                 let fileMovedToProcessed
                 if (fileExistsOnRemote) {
@@ -329,7 +329,7 @@ async function moveFile(oldPath, newPath) {
         fs.copyFileSync(oldPath, newPath);
 
         // Windows AV is dumb and slow... best to take a break
-        await wait(5000) // yeah, wait 5 seconds otherwise thing will likely fail :( :: RACE CONDITION
+        await wait(10000) // yeah, wait 5 seconds otherwise thing will likely fail :( :: RACE CONDITION
 
         // Remove the old file
         fs.unlinkSync(oldPath);
