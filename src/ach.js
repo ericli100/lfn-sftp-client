@@ -2,6 +2,8 @@ const util = require('util');
 const path = require('path');
 const exec = util.promisify(require('child_process').exec);
 
+const DEBUG = false
+
 const achFiles = process.argv.slice(2);
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -9,13 +11,21 @@ process.on('unhandledRejection', (reason, promise) => {
     process.exit(1)
 });
 
+let cli_interactive = false
+
+if (achFiles.length >= 1) {
+    cli_interactive = true
+    main(achFiles)
+}
+
 async function main(args) {
-    console.log('DEM ARGS:', args, args.length)
+    if (DEBUG) console.log('DEM ARGS:', args, args.length)
     if(achFiles.length == 0 & args.length == 0) throw("Error: Please pass in the path to an ACH file as an argument.")
     var achPath = args[0] || achFiles[0] 
-    achPath = achPath.replace('.', process.cwd())
 
-    console.log('FILEPATH:', achPath)
+    achPath = path.resolve(achPath)
+
+    if (DEBUG) console.log('FILEPATH:', achPath)
 
     var achtool
     switch(process.platform){
@@ -28,11 +38,18 @@ async function main(args) {
         default:
             throw('Error: OS not implemented for the ACH tool.');
     }
+    achtool = path.resolve(achtool)
+
+    if (DEBUG) console.log('ACH_CLI:',`${achtool} ${achPath}`)
     const { stdout, stderr } = await exec(`${achtool} ${achPath}`);
   
     if (stderr) {
       console.error(`error: ${stderr}`);
       throw stderr
+    }
+
+    if (cli_interactive) {
+        console.log(stdout)
     }
 
     return stdout
