@@ -577,7 +577,7 @@ async function moveLocalFile(logger, filename, origin, destination, processingTi
     let newPath = destination + "\\" + processingTimeStamp + "_" + filename
    
     try {
-        await  await moveFile(oldPath, newPath);
+        await moveFile(oldPath, newPath);
         return true
     } catch (err) {
         logger.error({ message: `There was an error moving the local file and renaming it from origin [${origin}] to destination [${destination + "\\" + processingTimeStamp + "_" + filename}]` })
