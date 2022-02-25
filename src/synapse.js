@@ -469,21 +469,23 @@ async function deleteLocalFile(logger, filePath) {
 async function moveFile(oldPath, newPath) {
     // 1. Create the destination directory
     // Set the `recursive` option to `true` to create all the subdirectories
-    await fs.mkdir(path.dirname(newPath), { recursive: true });
+    fs.mkdirSync(path.dirname(newPath), { recursive: true });
     try {
       // 2. Rename the file (move it to the new directory)
-      await fs.rename(oldPath, newPath);
+      fs.renameSync(oldPath, newPath);
     } catch (error) {
       if (error.code === 'EXDEV') {
         // 3. Copy the file as a fallback
-        await fs.copyFile(oldPath, newPath);
+        fs.copyFileSync(oldPath, newPath);
         // Remove the old file
-        await fs.unlink(oldPath);
+        fs.unlinkSync(oldPath);
       } else {
         // Throw any other error
         throw error;
       }
     }
+
+    return
   }
 
 async function getLocalFileList(directory) {
