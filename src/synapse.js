@@ -489,7 +489,7 @@ async function sendWebhook(logger, message, requireIntervention = false) {
             "@type": "MessageCard",
             "@context": "https://schema.org/extensions",
             "summary": "Lineage SFTP",
-            "themeColor": "0078D7",
+            "themeColor": "FFBF00",
             "title": `${VENDOR_NAME} - File Transfer`,
             "sections": [
                 {
