@@ -157,8 +157,8 @@ async function getSMTP(imap) {
                     await achSenderError(msgUID, from, achApprovedSenders)
                     await moveMessage(imap, msgUID, "rejected")
 
-                    let messageBody = `ACH Inbound Email Sent TO:[${to}] \n FROM:[${from}] \n\n But this user is not in the ALLOWED ACH SENDERS: [${achApprovedSenders}]`
-                    await sendSMTP(smtpTransporter, "baas.ach.advice@lineagebank.com", "BaaS: ACH Inbound - REJECTED!", messageBody)
+                    let messageBody = `ACH Inbound Email Sent TO:[${JSON.stringify(to)}] \n FROM:[${from}] \n\n But this user is not in the ALLOWED ACH SENDERS: [${achApprovedSenders}]`
+                    await sendSMTP(transporter, "baas.ach.advice@lineagebank.com", "BaaS: ACH Inbound - REJECTED!", messageBody)
                     continue;
                 }
             }
