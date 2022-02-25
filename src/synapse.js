@@ -490,7 +490,7 @@ async function moveFile(oldPath, newPath) {
     }
 
     return
-  }
+}
 
 async function getLocalFileList(directory) {
     let filenames = await fs.readdirSync(directory, { withFileTypes: true })
