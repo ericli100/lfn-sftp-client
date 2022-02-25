@@ -10,7 +10,6 @@ var path = require('path');
 const util = require('util')
 let mvCallback = require('mv');
 const mv = util.promisify(mvCallback);
-const path = require('path');
 
 const { mainModule } = require('process');
 const moment = require('moment')
