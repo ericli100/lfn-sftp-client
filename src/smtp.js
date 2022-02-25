@@ -60,7 +60,8 @@ const achApprovedSenders = [
     "gloria.dodd@lineagebank.com",
     "maria@citizensbankatwood.com",
     "stephanie@citizensbankatwood.com",
-    "ellen.hartley@lineagefn.com"
+    "ellen.hartley@lineagefn.com",
+    "paul.hignutt@lineagefn.com"
 ]
 
 const achApprovedRecipients = [
