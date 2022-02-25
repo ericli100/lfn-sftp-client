@@ -10,6 +10,7 @@ var path = require('path');
 const util = require('util')
 let mvCallback = require('mv');
 const mv = util.promisify(mvCallback);
+const path = require('path');
 
 const { mainModule } = require('process');
 const moment = require('moment')
@@ -466,6 +467,26 @@ async function deleteLocalFile(logger, filePath) {
      return true
 }
 
+async function moveFile(oldPath, newPath) {
+    // 1. Create the destination directory
+    // Set the `recursive` option to `true` to create all the subdirectories
+    await fs.mkdir(path.dirname(newPath), { recursive: true });
+    try {
+      // 2. Rename the file (move it to the new directory)
+      await fs.rename(oldPath, newPath);
+    } catch (error) {
+      if (error.code === 'EXDEV') {
+        // 3. Copy the file as a fallback
+        await fs.copyFile(oldPath, newPath);
+        // Remove the old file
+        await fs.unlink(oldPath);
+      } else {
+        // Throw any other error
+        throw error;
+      }
+    }
+  }
+
 async function getLocalFileList(directory) {
     let filenames = await fs.readdirSync(directory, { withFileTypes: true })
         .filter(item => !item.isDirectory())
@@ -553,8 +574,11 @@ async function deleteRemoteFile(sftp, logger, remoteLocation, filename) {
 }
 
 async function moveLocalFile(logger, filename, origin, destination, processingTimeStamp) {
+    let oldPath = origin + "\\" + filename
+    let newPath = destination + "\\" + processingTimeStamp + "_" + filename
+   
     try {
-        await mv(origin + "\\" + filename, destination + "\\" + processingTimeStamp + "_" + filename);
+        await  await moveFile(oldPath, newPath);
         return true
     } catch (err) {
         logger.error({ message: `There was an error moving the local file and renaming it from origin [${origin}] to destination [${destination + "\\" + processingTimeStamp + "_" + filename}]` })
