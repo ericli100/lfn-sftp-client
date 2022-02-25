@@ -32,8 +32,8 @@ async function main(args) {
   
     if (stderr) {
       console.error(`error: ${stderr}`);
+      throw stderr
     }
-    console.log(`${stdout}`);
 
     return stdout
   }
