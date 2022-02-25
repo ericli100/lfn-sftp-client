@@ -474,7 +474,7 @@ async function moveFile(oldPath, newPath) {
       // 2. Rename the file (move it to the new directory)
       fs.renameSync(oldPath, newPath);
     } catch (error) {
-      if (error.code === 'EXDEV') {
+      if (error.code === 'EXDEV' || error.code === 'EPERM') {
         // 3. Copy the file as a fallback
         fs.copyFileSync(oldPath, newPath);
 
