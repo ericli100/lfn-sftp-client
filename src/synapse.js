@@ -60,46 +60,46 @@ process.on('unhandledRejection', (reason, promise) => {
 let config = {}
 
 let REMOTE_HOST = 'sftp.synapsefi.com'
-let PORT = '2022'
-let USERNAME = 'lineage'
+let PORT = '22'
+let USERNAME = 'lfn'
 
 let ENVIRONMENT = 'UAT' // or PRD
 let SSH_PASSPHRASE
 let SSH_PRIVATEKEY
 
 if (ENVIRONMENT == 'PRD') {
-    REMOTE_HOST = 'prd.synapsefi.com'
+    REMOTE_HOST = 's-da0d661869a04283a.server.transfer.us-west-2.amazonaws.com'
     PORT = 22
     USERNAME = 'lfn'
-    SSH_PASSPHRASE = fs.readFileSync(`./certs/${VENDOR_NAME}/prd_passphrase.key`)
-    SSH_PRIVATEKEY = fs.readFileSync(`./certs/${VENDOR_NAME}/id_rsa_synapse_prd_private.key`)
+//    SSH_PASSPHRASE = fs.readFileSync(`./certs/${VENDOR_NAME}/prd_passphrase.key`)
+    SSH_PRIVATEKEY = fs.readFileSync(`./certs/${VENDOR_NAME}/synapse_lfn_prod_rsa_pem.key`)
 } else if (ENVIRONMENT == 'UAT') {
-    REMOTE_HOST = 'uat.synapsefi.com'
+    REMOTE_HOST = 's-00cf6a49dae04eba8.server.transfer.us-west-2.amazonaws.com'
     PORT = 22
     USERNAME = 'lfn'
-    SSH_PASSPHRASE = fs.readFileSync(`./certs/${VENDOR_NAME}/uat_passphrase.key`)
-    SSH_PRIVATEKEY = fs.readFileSync(`./certs/${VENDOR_NAME}/id_rsa_synapse_uat_private.key`)
+    SSH_PASSPHRASE = ''
+    SSH_PRIVATEKEY = fs.readFileSync(`./certs/${VENDOR_NAME}/synapse_lfn_uat_rsa_pem.key`)
 }
 
 config.synapse = {
     host: REMOTE_HOST,
     port: PORT,
     username: USERNAME,
-    privateKey: SSH_PRIVATEKEY, // Buffer or string that contains
-    passphrase: SSH_PASSPHRASE, // string - For an encrypted private key
+    privateKey: SSH_PRIVATEKEY,
+    //passphrase: SSH_PASSPHRASE, // string - For an encrypted private key
     readyTimeout: 20000, // integer How long (in ms) to wait for the SSH handshake
     strictVendor: true, // boolean - Performs a strict server vendor check
     retries: 2, // integer. Number of times to retry connecting
     retry_factor: 2, // integer. Time factor used to calculate time between retries
     retry_minTimeout: 2000, // integer. Minimum timeout between attempts
+    //debug: console.log,
 };
 
 let folderMappings = []
-//folderMappings.push( {type: 'get', source: '/outbox', destination: 'C:\\SFTP\\Synapse\\inbox', processed: 'C:\\SFTP\\Synapse\\processed\\inbox' } )
-folderMappings.push({ type: 'get', source: '/ach/outbound', destination: `C:\\SFTP\\${VENDOR_NAME}\\ach\\outbound`, processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\ach\\outbound` })
-folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\ach\\inbound`, destination: '/ach/inbound', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\ach\\inbound` })
-folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\fis`, destination: '/fis', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\fis` })
-//folderMappings.push( {type: 'put', source: 'C:\\SFTP\\Synapse\\outbox\\ach', destination: '/inbox/ach', processed: 'C:\\SFTP\\Synapse\\processed\\outbox\\ach'} )
+
+folderMappings.push({ type: 'get', source: '/bank/lfn/fromsynapse', destination: `C:\\SFTP\\${VENDOR_NAME}\\fromsynapse`, processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\fromsynapse` })
+folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\tosynapse`, destination: '/bank/lfn/tosynapse', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\tosynapse` })
+folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\manual`, destination: '/bank/lfn/manual', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\manual` })
 
 async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing beginning...` })
@@ -123,20 +123,26 @@ async function main(sftp, logger) {
 
     if (!DISABLE_FILEPROCESSING) {
         logger.log({ level: 'info', message: `Attempting to connect to sftp server [${REMOTE_HOST}]...` })
-        await sftp.connect(config.synapse)
-        logger.log({ level: 'info', message: `Connection established to sftp server [${REMOTE_HOST}].` })
+        
+        try {
+            await sftp.connect(config.synapse)
+            logger.log({ level: 'info', message: `Connection established to sftp server [${REMOTE_HOST}].` })
 
-        // ensure the proper folder structure is set
-        await initializeFolders(sftp, logger)
+            // ensure the proper folder structure is set
+            await initializeFolders(sftp, logger)
 
-        // pull the files from the remote SFTP server
-        await getFiles(sftp, logger, folderMappings, true);
+            // pull the files from the remote SFTP server
+            await getFiles(sftp, logger, folderMappings, true);
 
-        // push the files to the remote SFTP server
-        await putFiles(sftp, logger, folderMappings, true, synapse_publicKey, lineage_privateKey);
+            // push the files to the remote SFTP server
+            await putFiles(sftp, logger, folderMappings, true, synapse_publicKey, lineage_privateKey);
 
-        // check for GPG / PGP encrypted files and decrypt them
-        await decryptFiles(logger, folderMappings, lineage_publicKey, lineage_privateKey);
+            // check for GPG / PGP encrypted files and decrypt them
+            await decryptFiles(logger, folderMappings, lineage_publicKey, lineage_privateKey);
+        } catch (err) {
+            logger.log({ level: 'error', message: `ERROR [${REMOTE_HOST}] error:[${err}]` })
+            process.exit(1)
+        }
 
         logger.log({ level: 'info', message: `Ending the SFTP session with [${REMOTE_HOST}]...` })
         await sftp.end();
