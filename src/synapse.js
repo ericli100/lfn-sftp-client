@@ -57,6 +57,13 @@ process.on('unhandledRejection', (reason, promise) => {
     process.exit(1)
 });
 
+
+function wait(milisec) {
+    return new Promise(resolve => {
+        setTimeout(() => { resolve('') }, milisec);
+    })
+}
+
 let config = {}
 
 let REMOTE_HOST = 'sftp.synapsefi.com'
@@ -278,8 +285,9 @@ async function getFiles(sftp, logger, folderMappings, usePGP) {
                     }
                     
                     logger.log({ level: 'info', message: `${VENDOR_NAME}: SFTP GET PROCESSED [${PROCESSING_DATE + '_' + filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.processed}]` })
-
+                    
                     let fileExists = await validateFileExistsOnLocal(logger, mapping.destination, filename, true)
+                    await wait(1000) // wait a second... 
 
                     // delete the remote file after transfer is confirmed
                     if (fileExists) {
@@ -340,15 +348,20 @@ async function putFiles(sftp, logger, folderMappings, usePGP, publicKey, private
                 let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename)
                 logger.log({ level: 'info', message: message + ' File Exists on Remote Check - Status:' + fileExistsOnRemote })
 
-                let fileMovedToProcessed = await moveLocalFile(logger, filename, mapping.source, mapping.processed, PROCESSING_DATE)
-                logger.log({ level: 'info', message: message + ' File moved to the processing folder - Status:' + fileMovedToProcessed })
+                await wait(1000) // wait a second... 
+                let fileMovedToProcessed
+
+                if(fileExistsOnRemote) {
+                    fileMovedToProcessed = await moveLocalFile(logger, filename, mapping.source, mapping.processed, PROCESSING_DATE)
+                    logger.log({ level: 'info', message: message + ' File moved to the processing folder - Status:' + fileMovedToProcessed })
+                }
 
                 if (fileExistsOnRemote && fileMovedToProcessed) {
-                    await sendWebhook(logger, message + ' processed successfully.')
+                    await sendWebhook(logger, message + ' processed successfully.', false)
                 } else {
                     let errMessage = `${VENDOR_NAME}: PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] failed to validate send to [${REMOTE_HOST} ${mapping.destination}]! Transfer may have failed! {fileExistsOnRemote:${fileExistsOnRemote}, fileMovedToProcessed:${fileMovedToProcessed}}`
                     logger.error({ message: errMessage })
-                    await sendWebhook(logger, errMessage)
+                    await sendWebhook(logger, errMessage, true)
                 }
             }
         }
@@ -459,29 +472,33 @@ async function getLocalFileList(directory) {
     return filenames
 }
 
-async function sendWebhook(logger, message) {
+async function sendWebhook(logger, message, requireIntervention = false) {
     if (DISABLE_WEBHOOKS) {
         console.log('WEBHOOK DISABLED:', message)
         return
     }
 
-    await slack.send({
-        text: message,
-    });
+    if (requireIntervention == true) {
+        // update the normal file procesing path
+        await slack.send({
+            text: message,
+        });
 
-    await teams.send(JSON.stringify({
-        "@type": "MessageCard",
-        "@context": "https://schema.org/extensions",
-        "summary": "Lineage SFTP",
-        "themeColor": "0078D7",
-        "title": `${VENDOR_NAME} - File Transfer`,
-        "sections": [
-            {
-                "text": message
-            }
-        ]
-    })
-    );
+        await teams.send(JSON.stringify({
+            "@type": "MessageCard",
+            "@context": "https://schema.org/extensions",
+            "summary": "Lineage SFTP",
+            "themeColor": "0078D7",
+            "title": `${VENDOR_NAME} - File Transfer`,
+            "sections": [
+                {
+                    "text": message
+                }
+            ]
+        })
+        );
+    }
+
 
     return true
 }
