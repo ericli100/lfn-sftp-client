@@ -31,7 +31,7 @@ const { transports, createLogger, format } = require('winston');
 
 const openpgp = require('openpgp');
 
-
+const ach = require('./ach')
 
 
 /*
@@ -162,6 +162,13 @@ async function main(sftp, logger) {
 main(sftp, logger);
 
 // test(logger);
+// ach_test(logger);
+
+async function ach_test(logger){
+    let ach_data = await ach("./src/tools/ACH_TEST.ach")
+    console.log( ach_data )
+}
+
 
 async function test(logger) {
     const publicKeyArmored = fs.readFileSync(`./certs/${VENDOR_NAME}/lineage_pgp_public.key`).toString()
