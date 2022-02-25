@@ -5,6 +5,8 @@ Promise.longStackTraces();
 const fs = require('fs');
 var path = require('path');
 
+const ach = require('./ach')
+
 require('dotenv').config({ path: __dirname + '/.env' })
 // process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0;
 
@@ -65,12 +67,13 @@ const achApprovedSenders = [
 ]
 
 const achApprovedRecipients = [
-    "synctera.ach@lineagebank.com"
+    "synctera.ach@lineagebank.com",
+    "synapse.ach@lineagebank.com"
 ]
 
 const approvedRecipients = [
     "synctera.fis@lineagebank.com",
-    "built.fis@lineagebank.com"
+    "built.fis@lineagebank.com",
 ]
 
 const approvedAttachmentExtensions = [
@@ -84,6 +87,7 @@ const approvedAttachmentExtensions = [
 let folderMappings = []
 //folderMappings.push( {type: 'get', source: '/outbox', destination: 'C:\\SFTP\\Synctera\\inbox', processed: 'C:\\SFTP\\Synctera\\processed\\inbox' } )
 folderMappings.push({ to: 'synctera.ach@lineagebank.com', destination: `C:\\SFTP\\Synctera\\ach\\inbound` })
+folderMappings.push({ to: 'synapse.ach@lineagebank.com', destination: `C:\\SFTP\\Synapse\\tosynapse` })
 folderMappings.push({ to: 'synctera.fis@lineagebank.com', destination: `C:\\SFTP\\Synctera\\fis` })
 folderMappings.push({ to: 'built.fis@lineagebank.com', destination: `C:\\SFTP\\Built\\fis` })
 //folderMappings.push( {type: 'put', source: 'C:\\SFTP\\Synctera\\outbox\\ach', destination: '/inbox/ach', processed: 'C:\\SFTP\\Synctera\\processed\\outbox\\ach'} )
@@ -152,6 +156,9 @@ async function getSMTP(imap) {
                     console.error('Message UID:', msgUID, 'Not an Approved ACH Sender!!!')
                     await achSenderError(msgUID, from, achApprovedSenders)
                     await moveMessage(imap, msgUID, "rejected")
+
+                    let messageBody = `ACH Inbound Email Sent TO:[${to}] \n FROM:[${from}] \n\n But this user is not in the ALLOWED ACH SENDERS: [${achApprovedSenders}]`
+                    await sendSMTP(smtpTransporter, "baas.ach.advice@lineagebank.com", "BaaS: ACH Inbound - REJECTED!", messageBody)
                     continue;
                 }
             }
@@ -195,8 +202,15 @@ async function getSMTP(imap) {
 
                     if(isApprovedAttachment) {
                         console.log('Message UID:', msgUID, `Writing the attachment [${attachment.filename}]... `)
-                        let fileWriter = fs.createWriteStream(attachmentPath.destination + '\\' + EMAIL_DATE + '_' + attachment.filename)
+                        let fileName = attachmentPath.destination + '\\' + EMAIL_DATE + '_' + attachment.filename
+                        let fileWriter = fs.createWriteStream( fileName )
                         await fileWriter.write(attachment.content)
+
+                        // if the attachement is an ACH file, send an advice to the internal distribution list
+                        if(isAchApprovedRecipient && isAchApprovedSender){
+                           await send_ach_advice (fileName, "baas.ach.advice@lineagebank.com", to, from) 
+                        }
+                        
                         console.log('Message UID:', msgUID, `Wrote attachment [${attachment.filename}].`)
                     } else {
                         console.error('Message UID:', msgUID, `The attachment file type is not approved, skipping processing for [${attachment.filename}]... `)
@@ -293,14 +307,41 @@ async function moveMessage(imap, msgUID, destination){
     return result
 }
 
-async function sendSMTP(transporter, to, subject, message, messageHTML) {
+async function sendSMTP(smtpTransporter, to, subject, message, messageHTML) {
+    if (!smtpTransporter) smtpTransporter = transporter;
     // send mail with defined transport object
-    let info = await transporter.sendMail({
-        from: 'baas@lineagebank.com', // sender address
-        to: to, // list of receivers
-        subject: subject, // Subject line
-        text: message, // plain text body
-        html: messageHTML, // html body
-    });
+    try{
+        let info = await smtpTransporter.sendMail({
+            from: 'baas@lineagebank.com', // sender address
+            to: to, // list of receivers
+            subject: subject, // Subject line
+            text: message, // plain text body
+            html: messageHTML, // html body
+        });
+
+        return info
+    } catch (err) {
+        throw err
+    }
 }
 
+async function send_ach_advice(achFile, NotificationDL, achEmailRecipient, achFileSender){
+    let ach_data = await ach( achFile )
+    console.log( ach_data )
+
+    let messageBody = `****************************************************************************************************\n`
+    messageBody += `BaaS ACH Inbound - Notification - For:${achEmailRecipient}\n`
+    messageBody += `Sent By:${achFileSender}\n`
+    messageBody += `ACH File:${achFile}\n`
+    messageBody += `****************************************************************************************************\n`
+    messageBody += `\n\n`
+    messageBody += `ACH FILE DETAILS:\n`
+    messageBody += ach_data
+    messageBody += `\n\n`
+
+    await sendSMTP(smtpTransporter, NotificationDL, `BaaS: ACH Inbound - Notification - For:${achEmailRecipient}`, messageBody)
+}
+
+module.exports.send = (to, subject, message, messageHTML) => {
+    return sendSMTP(null, to, subject, message, messageHTML)
+}
