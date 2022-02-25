@@ -477,6 +477,10 @@ async function moveFile(oldPath, newPath) {
       if (error.code === 'EXDEV') {
         // 3. Copy the file as a fallback
         fs.copyFileSync(oldPath, newPath);
+
+        // Windows AV is dumb and slow... best to take a break
+        await wait(5000) // yeah, wait 5 seconds otherwise thing will likely fail :( :: RACE CONDITION
+
         // Remove the old file
         fs.unlinkSync(oldPath);
       } else {
