@@ -581,6 +581,7 @@ async function moveLocalFile(logger, filename, origin, destination, processingTi
         return true
     } catch (err) {
         logger.error({ message: `There was an error moving the local file and renaming it from origin [${origin}] to destination [${destination + "\\" + processingTimeStamp + "_" + filename}]` })
+        console.error(err);
         return false
     }
 }
