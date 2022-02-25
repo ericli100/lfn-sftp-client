@@ -97,9 +97,10 @@ config.synapse = {
 
 let folderMappings = []
 
-folderMappings.push({ type: 'get', source: '/bank/lfn/fromsynapse', destination: `C:\\SFTP\\${VENDOR_NAME}\\fromsynapse`, processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\fromsynapse` })
-folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\tosynapse`, destination: '/bank/lfn/tosynapse', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\tosynapse` })
-folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\manual`, destination: '/bank/lfn/manual', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\manual` })
+folderMappings.push({ type: 'get', source: '/fromsynapse', destination: `C:\\SFTP\\${VENDOR_NAME}\\fromsynapse`, processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\fromsynapse` })
+folderMappings.push({ type: 'get', source: '/manual', destination: `C:\\SFTP\\${VENDOR_NAME}\\manual`, processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\manual` })
+folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\tosynapse`, destination: '/tosynapse', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\tosynapse` })
+folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\manual`, destination: '/manual', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\manual` })
 
 async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing beginning...` })
@@ -218,7 +219,7 @@ async function initializeFolders(sftp, logger) {
     logger.log({ level: 'info', message: `Checking if the required folders are on the destination server [${REMOTE_HOST}]...` })
 
     try {
-        let folders = ['/ach', '/ach/inbound', '/ach/outbound', '/fis']
+        let folders = ['/fromsynapse', '/tosynapse', '/manual']
 
         for (const folder of folders) {
             let folderExists = await sftp.exists(folder);
