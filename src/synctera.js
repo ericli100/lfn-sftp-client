@@ -316,12 +316,42 @@ async function deleteRemoteFile(sftp, logger, remoteLocation, filename) {
     }
 }
 
-async function moveLocalFile(logger, filename, origin, destination, processingTimeStamp) {
+async function moveFile(oldPath, newPath) {
+    // 1. Create the destination directory
+    // Set the `recursive` option to `true` to create all the subdirectories
+    fs.mkdirSync(path.dirname(newPath), { recursive: true });
     try {
-        await mv(origin + "\\" + filename, destination + "\\" + processingTimeStamp + "_" + filename);
+      // 2. Rename the file (move it to the new directory)
+      fs.renameSync(oldPath, newPath);
+    } catch (error) {
+      if (error.code === 'EXDEV' || error.code === 'EPERM') {
+        // 3. Copy the file as a fallback
+        fs.copyFileSync(oldPath, newPath);
+
+        // Windows AV is dumb and slow... best to take a break
+        await wait(5000) // yeah, wait 5 seconds otherwise thing will likely fail :( :: RACE CONDITION
+
+        // Remove the old file
+        fs.unlinkSync(oldPath);
+      } else {
+        // Throw any other error
+        throw error;
+      }
+    }
+
+    return
+}
+
+async function moveLocalFile(logger, filename, origin, destination, processingTimeStamp) {
+    let oldPath = origin + "\\" + filename
+    let newPath = destination + "\\" + processingTimeStamp + "_" + filename
+   
+    try {
+        await moveFile(oldPath, newPath);
         return true
     } catch (err) {
         logger.error({ message: `There was an error moving the local file and renaming it from origin [${origin}] to destination [${destination + "\\" + processingTimeStamp + "_" + filename}]` })
+        console.error(err);
         return false
     }
 }
