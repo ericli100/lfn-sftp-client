@@ -334,7 +334,6 @@ async function send_ach_advice(achFile, NotificationDL, achEmailRecipient, achFi
     let messageBody = `****************************************************************************************************\n`
     messageBody += `BaaS ACH Inbound - Notification - For:${achEmailRecipient}\n`
     messageBody += `Sent By:${achFileSender}\n`
-    messageBody += `ACH File:${achFile}\n`
     messageBody += `****************************************************************************************************\n`
     messageBody += `\n\n`
     messageBody += `ACH FILE DETAILS:\n`
