@@ -340,7 +340,7 @@ async function send_ach_advice(achFile, NotificationDL, achEmailRecipient, achFi
     messageBody += ach_data
     messageBody += `\n\n`
 
-    await sendSMTP(transporter, NotificationDL, `BaaS: ACH Inbound - Notification - For:${JSON.toString(achEmailRecipient)}`, messageBody)
+    await sendSMTP(transporter, NotificationDL, `BaaS: ACH Inbound - Notification - For:${achEmailRecipient[0].address}`, messageBody)
 
     return true
 }
