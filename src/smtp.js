@@ -179,8 +179,8 @@ async function getSMTP(imap) {
             let isApprovedRecipient = await approvedRecipient(msgUID, to, approvedRecipients)
 
             // is the user approved to send at all
-            if (isApprovedRecipient) {
-                console.log('Message UID:', msgUID, `Approved Recipient matched ${isApprovedRecipient}.`)
+            if (isApprovedRecipient || (isAchApprovedSender && !!isAchApprovedRecipient )) {
+                console.log('Message UID:', msgUID, `Approved Recipient matched ${isApprovedRecipient} or ACH approve${isAchApprovedRecipient}.`)
             } else {
                 console.error('Message UID:', msgUID, 'Not an Approved Recipient!!!')
                 await badRecipientError(msgUID, to, approvedRecipients)
@@ -189,7 +189,8 @@ async function getSMTP(imap) {
             }
 
             // capture where the attachement should be written
-            let attachmentPath = folderMappings.find(x => x.to === isApprovedRecipient);
+            let approved = isAchApprovedRecipient || isApprovedRecipient 
+            let attachmentPath = folderMappings.find(x => x.to === approved);
 
             if(!attachmentPath) {
                 console.error('Message UID:', msgUID, `There is no attachment path defined on the SFTP server for the approved recipient [${isApprovedRecipient}]! `)
@@ -340,7 +341,9 @@ async function send_ach_advice(achFile, NotificationDL, achEmailRecipient, achFi
     messageBody += ach_data
     messageBody += `\n\n`
 
-    await sendSMTP(smtpTransporter, NotificationDL, `BaaS: ACH Inbound - Notification - For:${achEmailRecipient}`, messageBody)
+    await sendSMTP(transporter, NotificationDL, `BaaS: ACH Inbound - Notification - For:${JSON.toString(achEmailRecipient)}`, messageBody)
+
+    return true
 }
 
 module.exports.send = (to, subject, message, messageHTML) => {
