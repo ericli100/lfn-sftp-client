@@ -214,7 +214,7 @@ async function putFiles(sftp, logger, folderMappings) {
 
                 let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename)
                 logger.log({ level: 'info', message: message + ' File Exists on Remote Check - Status:' + fileExistsOnRemote })
-                await wait(5000) //wait a second...
+                await wait(10000) // wait a second... or 10.
 
                 let fileMovedToProcessed
                 if (fileExistsOnRemote) {
