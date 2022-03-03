@@ -159,9 +159,9 @@ async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing completed.` })
 }
 
-main(sftp, logger);
+//main(sftp, logger);
 
-// test(logger);
+test(logger);
 // ach_test(logger);
 
 async function ach_test(logger){
@@ -196,7 +196,7 @@ async function test(logger) {
     // 2. encrypt the file
     let file = fs.readFileSync(process.cwd()+'/tmp/source.txt', {encoding:'utf8', flag:'r'})
 
-    let synapseEncrypted = await encryptFile(logger, file, synapse_publicKey, lineage_privateKey)
+    let synapseEncrypted = await encryptFile(logger, file.toString(), synapse_publicKey, lineage_privateKey)
 
     // write the encrypted file out again for GPG processing
     fs.writeFileSync(process.cwd()+'/tmp/synapse_encrypted.txt', synapseEncrypted, {encoding:'utf8', flag:'w'})
@@ -206,9 +206,9 @@ async function test(logger) {
 
     // encrypted with our key so we can test all paths
     const encrypted = await openpgp.encrypt({
-        message: await openpgp.createMessage({ text: file }), // input as Message object
-        encryptionKeys: publicKey,
-        signingKeys: privateKey // optional
+        message: await openpgp.createMessage({ text: file.toString() }), // input as Message object
+        encryptionKeys: lineage_publicKey,
+        signingKeys: lineage_privateKey // optional
     });
     
     // 2.a output the encrypted file
@@ -414,7 +414,7 @@ async function encryptFile(logger, message, PGP_PUBLIC_KEY, PGP_PRIVATE_KEY){
 
     try {
         encrypted = await openpgp.encrypt({
-            message: await openpgp.createMessage({ text: message }), // input as Message object
+            message: await openpgp.createMessage({ text: message.toString() }), // input as Message object
             encryptionKeys: PGP_PUBLIC_KEY,
             signingKeys: PGP_PRIVATE_KEY // optional but we are choosing to sign the file
         });
