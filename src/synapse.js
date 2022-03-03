@@ -355,11 +355,11 @@ async function putFiles(sftp, logger, folderMappings, usePGP, publicKey, private
                     let encryptedFileStream = fs.createReadStream(mapping.source + '/' + filename + '.gpg')
                     
                     logger.log({ level: 'info', message: message + ' sending *GPG/PGP* encrypted file...' })
-                    await sftp.put(encryptedFileStream, remote);
+                    await sftp.put(encryptedFileStream, remote + '.gpg');
                 } else {
                     let file = fs.createReadStream(mapping.source + '/' + filename)
                     logger.log({ level: 'info', message: message + ' sending file...' })
-                    await sftp.put(encryptedFile, remote);
+                    await sftp.put(file, remote);
                 }
 
                 logger.log({ level: 'info', message: message + ' Sent.' })
