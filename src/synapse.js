@@ -295,7 +295,7 @@ async function getFiles(sftp, logger, folderMappings, usePGP) {
                     logger.log({ level: 'info', message: `${VENDOR_NAME}: SFTP GET PROCESSED [${PROCESSING_DATE + '_' + filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.processed}]` })
                     
                     let fileExists = await validateFileExistsOnLocal(logger, mapping.destination, filename, true)
-                    await wait(1000) // wait a second... 
+                    await wait(5000) // wait a second... or 5.
 
                     // delete the remote file after transfer is confirmed
                     if (fileExists) {
