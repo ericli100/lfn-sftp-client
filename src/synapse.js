@@ -414,7 +414,7 @@ async function encryptFile(logger, message, PGP_PUBLIC_KEY, PGP_PRIVATE_KEY){
 
     try {
         encrypted = await openpgp.encrypt({
-            message: await openpgp.createMessage({ text: message.toString() }), // input as Message object
+            message: await openpgp.createMessage({ text: message }), // input as Message object
             encryptionKeys: PGP_PUBLIC_KEY,
             signingKeys: PGP_PRIVATE_KEY // optional but we are choosing to sign the file
         });
