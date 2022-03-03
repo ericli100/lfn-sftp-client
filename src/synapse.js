@@ -337,14 +337,15 @@ async function putFiles(sftp, logger, folderMappings, usePGP, publicKey, private
             // for each filename
             for (const filename of filenames) {
                 // put the file
-                let file = fs.createReadStream(mapping.source + '/' + filename)
+                let file = fs.readFileSync(mapping.source + '/' + filename, 'utf8');
+                //let file = fs.createReadStream(mapping.source + '/' + filename)
                 let remote = mapping.destination + '/' + filename;
 
                 let message = `${VENDOR_NAME}: SFTP >>> PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] to [${REMOTE_HOST} ${mapping.destination}]`
 
                 if (usePGP) {
                     logger.log({ level: 'info', message: message + ' sending *GPG/PGP* ENCRYPTED file...' })
-                    let encryptedFile = await encryptFile(logger, file.toString(), publicKey, privateKey)
+                    let encryptedFile = await encryptFile(logger, file, publicKey, privateKey)
                     await sftp.put(encryptedFile, remote);
                 } else {
                     logger.log({ level: 'info', message: message + ' sending...' })
@@ -409,12 +410,13 @@ async function decryptFiles(logger, folderMappings, publicKey, privateKey){
 
 async function encryptFile(logger, message, PGP_PUBLIC_KEY, PGP_PRIVATE_KEY){
     let encrypted = false;
+    let file_text = message.toString()
 
     logger.log({ level: 'info', message: 'processing file encryption...' })
 
     try {
         encrypted = await openpgp.encrypt({
-            message: await openpgp.createMessage({ text: message }), // input as Message object
+            message: await openpgp.createMessage({ text: file_text }), // input as Message object
             encryptionKeys: PGP_PUBLIC_KEY,
             signingKeys: PGP_PRIVATE_KEY // optional but we are choosing to sign the file
         });
