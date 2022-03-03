@@ -344,7 +344,7 @@ async function putFiles(sftp, logger, folderMappings, usePGP, publicKey, private
 
                 if (usePGP) {
                     logger.log({ level: 'info', message: message + ' sending *GPG/PGP* ENCRYPTED file...' })
-                    let encryptedFile = await encryptFile(logger, file, publicKey, privateKey)
+                    let encryptedFile = await encryptFile(logger, file.toString(), publicKey, privateKey)
                     await sftp.put(encryptedFile, remote);
                 } else {
                     logger.log({ level: 'info', message: message + ' sending...' })
