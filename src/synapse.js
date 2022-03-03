@@ -159,9 +159,9 @@ async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing completed.` })
 }
 
-//main(sftp, logger);
+main(sftp, logger);
 
-test(logger);
+// test(logger);
 // ach_test(logger);
 
 async function ach_test(logger){
