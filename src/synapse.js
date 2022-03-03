@@ -377,7 +377,7 @@ async function putFiles(sftp, logger, folderMappings, usePGP, publicKey, private
                 let fileMovedToProcessed
 
                 if(fileExistsOnRemote) {
-                    if(useGPG){
+                    if(usePGP){
                         await moveLocalFile(logger, filename + '.gpg', mapping.source, mapping.processed, PROCESSING_DATE)
                         logger.log({ level: 'info', message: message + ' .gpg Encrypted File moved to the processing folder - Status:' + fileMovedToProcessed })
                     }
