@@ -75,6 +75,7 @@ const achApprovedRecipients = [
 const approvedRecipients = [
     "synctera.fis@lineagebank.com",
     "built.fis@lineagebank.com",
+    "hawthorn.river@lineagebank.com"
 ]
 
 const approvedAttachmentExtensions = [
@@ -91,6 +92,7 @@ folderMappings.push({ to: 'synctera.ach@lineagebank.com', destination: `C:\\SFTP
 folderMappings.push({ to: 'synapse.ach@lineagebank.com', destination: `C:\\SFTP\\Synapse\\tosynapse` })
 folderMappings.push({ to: 'synctera.fis@lineagebank.com', destination: `C:\\SFTP\\Synctera\\fis` })
 folderMappings.push({ to: 'built.fis@lineagebank.com', destination: `C:\\SFTP\\Built\\fis` })
+folderMappings.push({ to: 'hawthorn.river@lineagebank.com', destination: `C:\\SFTP\\HawthornRiver\\toHawthorn` })
 //folderMappings.push( {type: 'put', source: 'C:\\SFTP\\Synctera\\outbox\\ach', destination: '/inbox/ach', processed: 'C:\\SFTP\\Synctera\\processed\\outbox\\ach'} )
 
 async function main(smtpTransporter, imap) {
