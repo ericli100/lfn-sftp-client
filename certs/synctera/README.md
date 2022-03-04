@@ -4,6 +4,9 @@
 1. The private key for the SFTP connection will be loaded in a text file called **private_rsa.key** and the appropriate information can be located in 1Password. If this is a new connection, you can generate it, store it for the connection and pass on the public key to the SFTP partner.
 1. NEVER upload the private key information in the code repo!
 
+## Manually Connect
+```sftp -v -i ./synctera_rsa -P 2022 lineage@sftp.synctera.com```
+
 
 
 ## Synapse
