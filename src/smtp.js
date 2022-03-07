@@ -350,3 +350,7 @@ async function send_ach_advice(achFile, NotificationDL, achEmailRecipient, achFi
 module.exports.send = (to, subject, message, messageHTML) => {
     return sendSMTP(null, to, subject, message, messageHTML)
 }
+
+module.exports.sendACH = (achFile, NotificationDL, achEmailRecipient, achFileSender) => {
+    return send_ach_advice(achFile, NotificationDL, achEmailRecipient, achFileSender)
+}
