@@ -258,7 +258,7 @@ async function approvedAttachment (filename, approvedAttachmentExtensions){
                 returnVal = true
             }
         } catch (error) {
-            console.error('Message UID:', msgUID, `Error: Approved attachment check failed.`)
+            console.error('File Name:', filename, `Error: Approved attachment check failed.`)
         }
     }
     return returnVal
