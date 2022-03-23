@@ -184,19 +184,24 @@ async function getFiles(sftp, logger, folderMappings) {
                     if (fileExists) {
                         await deleteRemoteFile(sftp, logger, mapping.source, filename)
                         logger.log({ level: 'info', message: `${VENDOR_NAME}: SFTP CONFIRMED and DELETED file from [${REMOTE_HOST} ${mapping.source} ${filename}]` })
-                    }
+                    } 
+                } catch (err) {
+                    let errMessage = `${VENDOR_NAME}: GET [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}] failed! Receive failed!`
+                    logger.error({ message: errMessage })
+                    await sendWebhook(logger, errMessage)
+                }
 
+                try{
                     let isAch = ( filename.split('.').pop().toLowerCase() == 'ach' ) 
                     if (isAch) {
                         let achFile = filename;
                         let ach_email_sent = await achSMTP.sendOutboundACH( [`-reformat json', '-mask', '${achFile}`], 'baas.ach.advice@lineagebank.com')
                         if (!ach_email_sent) logger.log({ level: 'error', message: `${VENDOR_NAME}: SFTP ACH OUTBOUND ADVICE EMAIL FAILED! [${REMOTE_HOST} ${mapping.source} ${filename}]` })
                     }
-
-                } catch (err) {
-                    let errMessage = `${VENDOR_NAME}: GET [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}] failed! Receive failed!`
+                } catch (error) {
+                    let errMessage = `${VENDOR_NAME}: GET with ACH Parse for file [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}] failed! Could not parse the ACH file and send an email advice to the group!`
                     logger.error({ message: errMessage })
-                    await sendWebhook(logger, errMessage)
+                    await sendWebhook(logger, errMessage, true)
                 }
             }
 
