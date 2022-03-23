@@ -49,6 +49,8 @@ process.on('unhandledRejection', (reason, promise) => {
     logger.error("Unhandled promise rejection.",
         { reason, promise });
     console.error('Unhandled exception occured, please see the processing log for more details.')
+
+    await sendWebhook(logger, `${VENDOR_NAME}: ERROR: Unhandled exception occured, please see the processing log for more details. Reason:[${ reason }]`, true)
     process.exit(1)
 });
 
@@ -108,9 +110,9 @@ async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing completed.` })
 }
 
-// main(sftp, logger);
+main(sftp, logger);
 
-ach_test()
+// ach_test()
 
 async function ach_test(){
     //let ach_data = await ach("./src/tools/ACH_TEST.ach")
