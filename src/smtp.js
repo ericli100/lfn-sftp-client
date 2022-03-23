@@ -75,7 +75,9 @@ const achApprovedRecipients = [
 const approvedRecipients = [
     "synctera.fis@lineagebank.com",
     "built.fis@lineagebank.com",
-    "hawthorn.river@lineagebank.com"
+    "hawthorn.river@lineagebank.com",
+    "hawthorn.river@lineagefn.com",
+    "baas.ach.advice@lineagebank.com"
 ]
 
 const approvedAttachmentExtensions = [
@@ -87,18 +89,16 @@ const approvedAttachmentExtensions = [
 ]
 
 let folderMappings = []
-//folderMappings.push( {type: 'get', source: '/outbox', destination: 'C:\\SFTP\\Synctera\\inbox', processed: 'C:\\SFTP\\Synctera\\processed\\inbox' } )
+
 folderMappings.push({ to: 'synctera.ach@lineagebank.com', destination: `C:\\SFTP\\Synctera\\ach\\inbound` })
 folderMappings.push({ to: 'synapse.ach@lineagebank.com', destination: `C:\\SFTP\\Synapse\\tosynapse` })
 folderMappings.push({ to: 'synctera.fis@lineagebank.com', destination: `C:\\SFTP\\Synctera\\fis` })
 folderMappings.push({ to: 'built.fis@lineagebank.com', destination: `C:\\SFTP\\Built\\fis` })
 folderMappings.push({ to: 'hawthorn.river@lineagebank.com', destination: `C:\\SFTP\\HawthornRiver\\toHawthorn` })
-//folderMappings.push( {type: 'put', source: 'C:\\SFTP\\Synctera\\outbox\\ach', destination: '/inbox/ach', processed: 'C:\\SFTP\\Synctera\\processed\\outbox\\ach'} )
+folderMappings.push({ to: 'hawthorn.river@lineagefn.com', destination: `C:\\SFTP\\HawthornRiver\\toHawthorn` })
 
 async function main(smtpTransporter, imap) {
         await getSMTP(imap)
-
-        // await sendSMTP(smtpTransporter, "brandon.hedge@lineagebank.com", "BaaS Test Send", "This is the body", "<b>this is the body</b>")
 }
 
 main(transporter, imap);
@@ -212,7 +212,7 @@ async function getSMTP(imap) {
 
                         // if the attachement is an ACH file, send an advice to the internal distribution list
                         if(isAchApprovedRecipient && isAchApprovedSender){
-                           await send_ach_advice (fileName, "baas.ach.advice@lineagebank.com", to, from) 
+                           await send_ach_advice (fileName, "baas.ach.advice@lineagebank.com", false) 
                         }
                         
                         console.log('Message UID:', msgUID, `Wrote attachment [${attachment.filename}].`)
@@ -329,28 +329,77 @@ async function sendSMTP(smtpTransporter, to, subject, message, messageHTML) {
     }
 }
 
-async function send_ach_advice(achFile, NotificationDL, achEmailRecipient, achFileSender){
-    let ach_data = await ach( achFile )
+async function send_ach_advice(args, NotificationDL, isOutbound){
+    let ach_data = await ach( args )
+
+    let isJSON = false
+    let achJSON = {}
+
+    try {
+        achJSON = JSON.parse(ach_data);
+        isJSON = true
+    } catch (e) {
+        console.error("Parsing the ACH JSON failed. Check the output.");
+    }
+
     console.log( ach_data )
 
+    let direction = "INBOUND"
+
+    if (isOutbound) {direction = "OUTBOUND"}
+
     let messageBody = `****************************************************************************************************\n`
-    messageBody += `BaaS ACH Inbound - Notification - For:${achEmailRecipient}\n`
-    messageBody += `Sent By:${achFileSender}\n`
+    messageBody += `BaaS: ${direction} ACH Advice - Notification\n`
     messageBody += `****************************************************************************************************\n`
     messageBody += `\n\n`
+
+    if (isJSON) {
+        let spacing = "   "
+        messageBody += `******** ACH Batch Details ********\n`
+        messageBody += spacing + `FileControl:[ Total Debit: ${ach.formatMoney(achJSON.fileControl.totalDebit, 2)}, `// achJSON.fileControl
+        messageBody += `Total Credit: ${ach.formatMoney("-" + achJSON.fileControl.totalCredit, 2)} ]\n`
+        messageBody += '\n'
+        let batchTotals = await parseBatchACH(achJSON, spacing)
+        messageBody += batchTotals
+
+        messageBody += `******** ACH Batch Details End ****\n`
+       messageBody += `\n\n`
+    }
+
     messageBody += `ACH FILE DETAILS:\n`
     messageBody += ach_data
     messageBody += `\n\n`
 
-    await sendSMTP(transporter, NotificationDL, `BaaS: ACH Inbound - Notification - For:${achEmailRecipient[0].address}`, messageBody)
+    await sendSMTP(transporter, NotificationDL, `BaaS: ${direction} ACH Notification - For:${NotificationDL}`, messageBody)
 
     return true
+}
+
+async function parseBatchACH(achJSON, spacing) {
+    let output = ""
+    let batchArray = achJSON.batches
+
+    for (const batch of batchArray) {
+        console.log(batch)
+        output += spacing + 'Batch Number: (' + batch.batchHeader.batchNumber + `) [ ${batch.batchHeader.companyName} (${batch.batchHeader.companyEntryDescription}) ] `
+        output += '- Effective Date: ' + batch.batchHeader.effectiveEntryDate + '\n' 
+        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Debit: ` + ach.formatMoney(batch.batchControl.totalDebit, 2) + '\n' 
+        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Credit: ` + ach.formatMoney('-' + batch.batchControl.totalCredit, 2) + '\n' 
+        output += '\n'
+    }
+
+
+    return output
 }
 
 module.exports.send = (to, subject, message, messageHTML) => {
     return sendSMTP(null, to, subject, message, messageHTML)
 }
 
-module.exports.sendACH = (achFile, NotificationDL, achEmailRecipient, achFileSender) => {
-    return send_ach_advice(achFile, NotificationDL, achEmailRecipient, achFileSender)
+module.exports.sendOutboundACH = (args, NotificationDL) => {
+    return send_ach_advice(args, NotificationDL, true)
+}
+
+module.exports.sendInboundACH = (args, NotificationDL) => {
+    return send_ach_advice(args, NotificationDL, false)
 }

@@ -165,7 +165,7 @@ main(sftp, logger);
 // ach_test(logger);
 
 async function ach_test(logger){
-    let ach_data = await ach("./src/tools/ACH_TEST.ach")
+    let ach_data = await ach("./src/tools/lineage_ach_test.ach")
     console.log( ach_data )
 }
 

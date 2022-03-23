@@ -27,6 +27,7 @@ const teams = new Teams.IncomingWebhook(teamsUrl);
 
 const { transports, createLogger, format } = require('winston');
 
+const achSMTP = require('./smtp')
 
 /*
     TODO: Allow for updating the path in the config for the SFTP locations. Allow for processing from a UNC too.
@@ -107,7 +108,18 @@ async function main(sftp, logger) {
     logger.log({ level: 'verbose', message: `${PROCESSING_DATE} - ${VENDOR_NAME} sftp processing completed.` })
 }
 
-main(sftp, logger);
+// main(sftp, logger);
+
+ach_test()
+
+async function ach_test(){
+    //let ach_data = await ach("./src/tools/ACH_TEST.ach")
+
+    // 20220308T155501.082_OUTBOUND.ach
+    // let ach_data = await achSMTP.sendOutboundACH( './src/tools/lineage_ach_test.ach', 'baas.ach.advice@lineagebank.com')
+    let ach_data = await achSMTP.sendOutboundACH( ['-reformat json', '-mask', './src/tools/20220302T100375_20220302T155501.118_OUTBOUND.ach'], 'baas.ach.advice@lineagebank.com')
+    console.log( ach_data )
+}
 
 async function initializeFolders(sftp, logger) {
     logger.log({ level: 'info', message: `Checking if the required folders are on the destination server [${REMOTE_HOST}]...` })
@@ -172,6 +184,13 @@ async function getFiles(sftp, logger, folderMappings) {
                         logger.log({ level: 'info', message: `${VENDOR_NAME}: SFTP CONFIRMED and DELETED file from [${REMOTE_HOST} ${mapping.source} ${filename}]` })
                     }
 
+                    let isAch = ( filename.split('.').pop().toLowerCase() == 'ach' ) 
+                    if (isAch) {
+                        let achFile = filename;
+                        let ach_email_sent = await achSMTP.sendOutboundACH( [`-reformat json', '-mask', '${achFile}`], 'baas.ach.advice@lineagebank.com')
+                        if (!ach_email_sent) logger.log({ level: 'error', message: `${VENDOR_NAME}: SFTP ACH OUTBOUND ADVICE EMAIL FAILED! [${REMOTE_HOST} ${mapping.source} ${filename}]` })
+                    }
+
                 } catch (err) {
                     let errMessage = `${VENDOR_NAME}: GET [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}] failed! Receive failed!`
                     logger.error({ message: errMessage })
@@ -222,6 +241,13 @@ async function putFiles(sftp, logger, folderMappings) {
 
                 if (fileExistsOnRemote && fileMovedToProcessed) {
                     await sendWebhook(logger, message + ' processed successfully.', false)
+
+                    let isAch = ( filename.split('.').pop().toLowerCase() == 'ach' ) 
+                    if (isAch) {
+                        let achFile = path.resolve(mapping.processed + "\\" + PROCESSING_DATE + "_" + filename);
+                        let ach_email_sent = await achSMTP.sendOutboundACH( [`-reformat json', '-mask', '${achFile}`], 'baas.ach.advice@lineagebank.com')
+                        if (!ach_email_sent) logger.log({ level: 'error', message: `${VENDOR_NAME}: SFTP ACH INBOUND ADVICE EMAIL FAILED! [${REMOTE_HOST} ${mapping.source} ${filename}]` })
+                    }
                 } else {
                     let errMessage = `${VENDOR_NAME}: PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] failed to validate send to [${REMOTE_HOST} ${mapping.destination}]! Transfer may have failed! {fileExistsOnRemote:${fileExistsOnRemote}, fileMovedToProcessed:${fileMovedToProcessed}}`
                     logger.error({ message: errMessage })
