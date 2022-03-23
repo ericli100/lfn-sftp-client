@@ -253,8 +253,12 @@ async function approvedAttachment (filename, approvedAttachmentExtensions){
     let returnVal = false
 
     for (let extension of approvedAttachmentExtensions){
-        if (extension == filename.substr(filename.length - extension.length)){
-            returnVal = true
+        try{
+            if (extension == filename.substr(filename.length - extension.length)){
+                returnVal = true
+            }
+        } catch (error) {
+            console.error('Message UID:', msgUID, `Error: Approved attachment check failed.`)
         }
     }
     return returnVal
