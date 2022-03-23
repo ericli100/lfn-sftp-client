@@ -356,9 +356,10 @@ async function send_ach_advice(args, NotificationDL, isOutbound){
     if (isJSON) {
         let spacing = "   "
         messageBody += `******** ACH Batch Details ********\n`
-        messageBody += spacing + `FileControl:[ Total Debit: ${ach.formatMoney(achJSON.fileControl.totalDebit, 2)}, `// achJSON.fileControl
-        messageBody += `Total Credit: ${ach.formatMoney("-" + achJSON.fileControl.totalCredit, 2)} ]\n`
-        messageBody += '\n'
+        messageBody += spacing + `FileControl: [ Immediate Origin:(${achJSON.fileHeader.immediateOriginName}) - Total Debit: ${ach.formatMoney(achJSON.fileControl.totalDebit, 2)} `// achJSON.fileControl
+        messageBody += `Total Credit: ${ach.formatMoney("-" + achJSON.fileControl.totalCredit, 2)} `
+        messageBody += `- fileCreationDate: ${achJSON.fileHeader.fileCreationDate} `
+        messageBody += ']\n'
         let batchTotals = await parseBatchACH(achJSON, spacing)
         messageBody += batchTotals
 
