@@ -194,7 +194,7 @@ async function getFiles(sftp, logger, folderMappings) {
                 try{
                     let isAch = ( filename.split('.').pop().toLowerCase() == 'ach' ) 
                     if (isAch) {
-                        let achFile = filename;
+                        let achFile = path.resolve(mapping.processed + "\\" + PROCESSING_DATE + "_" + filename);
                         let ach_email_sent = await achSMTP.sendOutboundACH( [`-reformat json', '-mask', '${achFile}`], 'baas.ach.advice@lineagebank.com')
                         if (!ach_email_sent) logger.log({ level: 'error', message: `${VENDOR_NAME}: SFTP ACH OUTBOUND ADVICE EMAIL FAILED! [${REMOTE_HOST} ${mapping.source} ${filename}]` })
                     }
