@@ -50,7 +50,7 @@ process.on('unhandledRejection', (reason, promise) => {
         { reason, promise });
     console.error('Unhandled exception occured, please see the processing log for more details.')
 
-    await sendWebhook(logger, `${VENDOR_NAME}: ERROR: Unhandled exception occured, please see the processing log for more details. Reason:[${ reason }]`, true)
+    sendWebhook(logger, `${VENDOR_NAME}: ERROR: Unhandled exception occured, please see the processing log for more details. Reason:[${ reason }]`, true)
     process.exit(1)
 });
 
