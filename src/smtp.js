@@ -352,18 +352,20 @@ async function send_ach_advice(args, NotificationDL, isOutbound){
 
     if (isOutbound) {direction = "OUTBOUND"}
 
-    let messageBody = `****************************************************************************************************\n`
+    let messageBody = `*********************************************\n`
     messageBody += `BaaS: ${direction} ACH Advice - Notification\n`
-    messageBody += `****************************************************************************************************\n`
+    messageBody += `*********************************************\n`
     messageBody += `\n\n`
 
     if (isJSON) {
         let spacing = "   "
         messageBody += `******** ACH Batch Details ********\n`
-        messageBody += spacing + `FileControl: [ Immediate Origin:(${achJSON.fileHeader.immediateOriginName}) - Total Debit: ${ach.formatMoney(achJSON.fileControl.totalDebit, 2)} `// achJSON.fileControl
-        messageBody += `Total Credit: ${ach.formatMoney("-" + achJSON.fileControl.totalCredit, 2)} `
-        messageBody += `- fileCreationDate: ${achJSON.fileHeader.fileCreationDate} `
-        messageBody += ']\n'
+        messageBody += `\n`
+        messageBody += spacing + `Total File Control: [Immediate Origin:(${achJSON.fileHeader.immediateOriginName})]: \n`
+        messageBody += spacing + spacing + `Total Debit: ${ach.formatMoney(achJSON.fileControl.totalDebit, 2)} \n`// achJSON.fileControl
+        messageBody += spacing + spacing + `Total Credit: ${ach.formatMoney("-" + achJSON.fileControl.totalCredit, 2) } \n`
+        messageBody += spacing + spacing + `fileCreationDate: ${achJSON.fileHeader.fileCreationDate} `
+        messageBody += '\n\n'
         let batchTotals = await parseBatchACH(achJSON, spacing)
         messageBody += batchTotals
 
