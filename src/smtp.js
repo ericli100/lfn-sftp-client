@@ -333,7 +333,7 @@ async function sendSMTP(smtpTransporter, to, subject, message, messageHTML) {
     }
 }
 
-async function send_ach_advice(args, NotificationDL, isOutbound){
+async function send_ach_advice(args, NotificationDL, isOutbound, filename = ''){
     let ach_data = await ach( args )
 
     let isJSON = false
@@ -355,6 +355,8 @@ async function send_ach_advice(args, NotificationDL, isOutbound){
     let messageBody = `*********************************************\n`
     messageBody += `BaaS: ${direction} ACH Advice - Notification\n`
     messageBody += `*********************************************\n`
+    messageBody += `\n\n`
+    messageBody += `Filename: ` + filename
     messageBody += `\n\n`
 
     if (isJSON) {
@@ -403,10 +405,10 @@ module.exports.send = (to, subject, message, messageHTML) => {
     return sendSMTP(null, to, subject, message, messageHTML)
 }
 
-module.exports.sendOutboundACH = (args, NotificationDL) => {
-    return send_ach_advice(args, NotificationDL, true)
+module.exports.sendOutboundACH = (args, NotificationDL, filename = '') => {
+    return send_ach_advice(args, NotificationDL, true, filename)
 }
 
-module.exports.sendInboundACH = (args, NotificationDL) => {
-    return send_ach_advice(args, NotificationDL, false)
+module.exports.sendInboundACH = (args, NotificationDL, filename = '') => {
+    return send_ach_advice(args, NotificationDL, false, filename)
 }

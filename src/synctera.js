@@ -253,7 +253,7 @@ async function putFiles(sftp, logger, folderMappings) {
                     let isAch = ( filename.split('.').pop().toLowerCase() == 'ach' ) 
                     if (isAch) {
                         let achFile = path.resolve(mapping.processed + "\\" + PROCESSING_DATE + "_" + filename);
-                        let ach_email_sent = await achSMTP.sendOutboundACH( [`-reformat json`, `-mask`, `${achFile}`], 'baas.ach.advice@lineagebank.com')
+                        let ach_email_sent = await achSMTP.sendOutboundACH( [`-reformat json`, `-mask`, `${achFile}`], 'baas.ach.advice@lineagebank.com', filename)
                         if (!ach_email_sent) logger.log({ level: 'error', message: `${VENDOR_NAME}: SFTP ACH INBOUND ADVICE EMAIL FAILED! [${REMOTE_HOST} ${mapping.source} ${filename}]` })
                     }
                 } else {
