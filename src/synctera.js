@@ -340,7 +340,11 @@ async function deleteRemoteFile(sftp, logger, remoteLocation, filename) {
         await sftp.delete(remoteLocation + '/' + filename)
 
         let existOnRemote = await sftp.exists(remoteLocation + '/' + filename)
-        existOnRemote = !(existOnRemote)
+        if(existOnRemote == true || existOnRemote == '-') {
+            existOnRemote = true
+        } else {
+            existOnRemote = false
+        }
 
         // return true if the file does not exist
         return existOnRemote;
@@ -352,10 +356,14 @@ async function deleteRemoteFile(sftp, logger, remoteLocation, filename) {
 
 async function moveRemoteFile(sftp, logger, remoteLocation, remoteDestination, filename) {
     try {
-        await sftp.move(remoteLocation + '/' + filename, remoteDestination + '/' + filename);
+        await sftp.rename(remoteLocation + '/' + filename, remoteDestination + '/' + filename);
 
         let existOnRemote = await sftp.exists(remoteDestination + '/' + filename)
-        existOnRemote = !(existOnRemote)
+        if(existOnRemote == true || existOnRemote == '-') {
+            existOnRemote = true
+        } else {
+            existOnRemote = false
+        }
 
         // return true if the file does not exist
         return existOnRemote;
