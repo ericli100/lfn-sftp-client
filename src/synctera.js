@@ -127,7 +127,7 @@ async function initializeFolders(sftp, logger) {
     logger.log({ level: 'info', message: `Checking if the required folders are on the destination server [${REMOTE_HOST}]...` })
 
     try {
-        let folders = ['/ach', '/ach/inbound', '/ach/outbound', '/fis', '/samples']
+        let folders = ['/ach', '/ach/inbound', '/ach/outbound', '/ach/outbound/processed', '/ach/inbound/processed','/fis', '/samples']
 
         for (const folder of folders) {
             let folderExists = await sftp.exists(folder);
