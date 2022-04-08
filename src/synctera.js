@@ -180,11 +180,11 @@ async function getFiles(sftp, logger, folderMappings) {
 
                     let fileExists = await validateFileExistsOnLocal(logger, mapping.destination, filename)
 
-                    // delete the remote file after transfer is confirmed
+                    // move the remote file after transfer is confirmed
                     if (fileExists) {
                         logger.log({ level: 'info', message: `${VENDOR_NAME}: Moving the file to the processed folder on the remote SFTP server... [${REMOTE_HOST} ${mapping.source} ${filename}]` })
-                        await deleteRemoteFile(sftp, logger, mapping.source, filename)
-                        logger.log({ level: 'info', message: `${VENDOR_NAME}: SFTP CONFIRMED and DELETED file from [${REMOTE_HOST} ${mapping.source} ${filename}]` })
+                        await moveRemoteFile(sftp, logger, mapping.source, mapping.source + '/processed', filename)
+                        logger.log({ level: 'info', message: `${VENDOR_NAME}: SFTP CONFIRMED and MOVED file to PROCESSED folder from [${REMOTE_HOST} ${mapping.source} ${filename}]` })
                     } 
                 } catch (err) {
                     let errMessage = `${VENDOR_NAME}: GET [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}] failed! Receive failed!`
