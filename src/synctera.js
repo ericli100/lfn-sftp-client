@@ -157,7 +157,9 @@ async function getFiles(sftp, logger, folderMappings) {
 
             let remoteFilesArr = []
             for (const obj of remoteFiles) {
-                remoteFilesArr.push(obj.name)
+                if(obj.type == '-') {
+                    remoteFilesArr.push(obj.name)
+                }
             }
 
             console.log('getFiles.remoteFiles:', remoteFilesArr)
