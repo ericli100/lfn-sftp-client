@@ -182,6 +182,7 @@ async function getFiles(sftp, logger, folderMappings) {
 
                     // delete the remote file after transfer is confirmed
                     if (fileExists) {
+                        logger.log({ level: 'info', message: `${VENDOR_NAME}: Moving the file to the processed folder on the remote SFTP server... [${REMOTE_HOST} ${mapping.source} ${filename}]` })
                         await deleteRemoteFile(sftp, logger, mapping.source, filename)
                         logger.log({ level: 'info', message: `${VENDOR_NAME}: SFTP CONFIRMED and DELETED file from [${REMOTE_HOST} ${mapping.source} ${filename}]` })
                     } 
@@ -343,6 +344,21 @@ async function deleteRemoteFile(sftp, logger, remoteLocation, filename) {
         return existOnRemote;
     } catch (error) {
         logger.error({ message: `The file [${filename}] was not successfully DELETED on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]!` })
+        return false
+    }
+}
+
+async function moveRemoteFile(sftp, logger, remoteLocation, remoteDestination, filename) {
+    try {
+        await sftp.move(remoteLocation + '/' + filename, remoteDestination + '/' + filename);
+
+        let existOnRemote = await sftp.exists(remoteDestination + '/' + filename)
+        existOnRemote = !(existOnRemote)
+
+        // return true if the file does not exist
+        return existOnRemote;
+    } catch (error) {
+        logger.error({ message: `The file [${filename}] was not successfully MOVED on the remote server [${REMOTE_HOST + ' ' + remoteLocation} to destination [${remoteDestination}] ]!` })
         return false
     }
 }
