@@ -243,7 +243,7 @@ async function putFiles(sftp, logger, folderMappings) {
                 logger.log({ level: 'info', message: message + ' File Exists on Remote Check - Status:' + fileExistsOnRemote })
                 await wait(10000) // wait a second... or 10.
 
-                let fileMovedToProcessed
+                let fileMovedToProcessed = false
                 if (fileExistsOnRemote) {
                     fileMovedToProcessed = await moveLocalFile(logger, filename, mapping.source, mapping.processed, PROCESSING_DATE)
                     logger.log({ level: 'info', message: message + ' File moved to the processing folder - Status:' + fileMovedToProcessed })
