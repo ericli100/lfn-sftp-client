@@ -10,9 +10,11 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@slack/webhook": "^6.0.0",
+    "biguint-format": "^1.0.2",
     "bluebird": "^3.7.2",
     "debug": "^4.3.4",
     "dotenv": "^10.0.0",
+    "flake-idgen": "^1.4.0",
     "imapflow": "^1.0.78",
     "mailparser": "^3.4.0",
     "moment": "^2.29.1",
@@ -22,6 +24,7 @@
     "nodemailer": "^6.7.2",
     "openpgp": "^5.1.0",
     "ssh2-sftp-client": "^7.2.0",
+    "string": "^3.3.3",
     "winston": "^3.3.3"
   }
 }
