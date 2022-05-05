@@ -7,6 +7,8 @@ let sftp = new Client('Synapse-Client');
 const fs = require('fs');
 var path = require('path');
 
+let mssql = require('./db')()
+
 const util = require('util')
 let mvCallback = require('mv');
 const mv = util.promisify(mvCallback);
@@ -163,10 +165,43 @@ main(sftp, logger);
 
 // test(logger);
 // ach_test(logger);
+// mssql_test();
 
 async function ach_test(logger){
     let ach_data = await ach("./src/tools/lineage_ach_test.ach")
     console.log( ach_data )
+}
+
+async function mssql_test(){
+    let param = {}
+    param.params = []
+    param.tsql = `SELECT [entityId]
+    ,[tenantId]
+    ,[name]
+    ,[accountingCutoffTime]
+    ,[companyIdentification]
+    ,[parentEntityId]
+    ,[isSystemOwner]
+    ,[allowLogin]
+    ,[allowAadLogin]
+    ,[azureActiveDirectoryDomains]
+    ,[tenantEnabled]
+    ,[dataJSON]
+    ,[versionNumber]
+    ,[hierarchyId]
+    ,[mutatedBy]
+    ,[mutatedDate]
+    ,[correlationId]
+FROM [baas].[organizations]`
+
+    try {
+        let results = await mssql.sqlQuery(param);
+        console.log(results)
+    } catch (err) {
+        console.error(err)
+    }
+
+    await mssql.close();
 }
 
 
