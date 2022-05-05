@@ -14,15 +14,12 @@ CONFIG.db = {
     pool: {
         max: 200,
         min: 1,
-        idleTimeoutMillis: 30000,
-        evictionRunIntervalMillis: 5000,
-        testOnBorrow: true
+        idleTimeoutMillis: 60000
     },
     options: {
         encrypt: true,
         appName: 'baas_sftp_client',
         abortTransactionOnError: true,
-        tdsVersion: '7_4',
         useUTC: true
     }
 }
@@ -33,15 +30,22 @@ debug.log = console.log.bind(console);
 
 const S = require('string');
 
-var pool = createPool(CONFIG.db);
+let pool = createPool(CONFIG.db);
 
 function createPool(options) {
    return new sql.ConnectionPool(options);
 }
 
-let poolConnect = function(pool) {
+let poolConnect = async function(pool) {
     if (pool.connected === true) {
         debug('Connected to SQL server.');
+    } else {
+        try {
+            await pool.connect();
+        } catch (err) {
+            console.error('Failed to connect to SQL with error:', err)
+            throw(err)
+        }
     }
 }
 
@@ -73,7 +77,6 @@ async function mssqlQuery(param) {
     try {
         if(pool.connected === false && pool.connecting === false) {
             debug('Connecting to the SQL server...');
-            await pool.connect();
             await poolConnect(pool);
         }
         const request = pool.request();
@@ -309,6 +312,12 @@ async function populateParameters (data, params) {
     return await paramList;
 }
 
+async function close () {
+    debug('Closing SQL connections...');
+    await pool.close()
+    debug('SQL Connections closed.');
+}
+
 module.exports = function constructor () {
     function sqlExecute(data) {
         return Promise.resolve(mssqlExecute(data));
@@ -330,7 +339,8 @@ module.exports = function constructor () {
         sqlExecute,
         sqlQuery,
         sql,
-        populateParams
+        populateParams,
+        close
     }
 };
 
