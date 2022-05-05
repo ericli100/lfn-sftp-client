@@ -14,6 +14,7 @@ async function main() {
     console.log(newId)
 }
 
+// adds a main function call to export a FlakeId on demand from the command line.
 main()
 
 module.exports = function constructor () {
