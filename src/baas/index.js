@@ -24,6 +24,10 @@ async function main (args) {
     await sql.disconnect()
     console.log('sql: disconnected.')
 
+
+    let pgp = require('./pgp')
+    baas.pgp = pgp
+
     return baas
 }
 
