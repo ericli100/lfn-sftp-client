@@ -49,19 +49,122 @@ async function decrypt(VENDOR, encrypted) {
     //logger.log({ level: 'info', message: `processing file decryption to file path [${filePathOutput}]...` })
     let keys = await getKeys(VENDOR)
 
-    const message = await openpgp.readMessage({
-        armoredMessage: encrypted // parse armored message
-    });
+    let message
+    let decrypted
 
-    const decrypted = await openpgp.decrypt({
-        message: message,
-        verificationKeys: keys.lineage.publicKey, // optional
-        decryptionKeys: keys.lineage.privateKey
-    });
+    try {
+        message = await openpgp.readMessage({
+            armoredMessage: encrypted // parse armored message
+        });
 
-    // fs.writeFileSync(filePathOutput, decrypted.data, {encoding:'utf8', flag:'w'})
-    console.log('decrypted:', decrypted)
-    return decrypted.data
+        decrypted = await openpgp.decrypt({
+            message: message,
+            verificationKeys: keys.lineage.publicKey, // optional
+            decryptionKeys: keys.lineage.privateKey
+        });
+
+        console.log('decrypted:', decrypted)
+        return decrypted.data
+    } catch (error) {
+        if(error.message != 'Misformed armored text') {
+            throw (error.message)
+        } else {
+            throw (error)
+        }
+    }
+}
+
+async function decryptBinary(VENDOR, sourceFilePath) {
+    let asciiArmorMessage = fs.readFileSync(sourceFilePath, {encoding: 'base64'})
+    asciiArmorMessage = `-----BEGIN PGP MESSAGE-----\n\n` + asciiArmorMessage + `\n-----END PGP MESSAGE-----`
+
+    let keys = await getKeys(VENDOR)
+
+    let message
+    let decrypted
+
+    // try {
+        message = await openpgp.readMessage({
+            armoredMessage: asciiArmorMessage // parse armored message
+        });
+
+        decrypted = await openpgp.decrypt({
+            message: message,
+            verificationKeys: keys.lineage.publicKey, // optional
+            decryptionKeys: keys.lineage.privateKey
+        });
+
+        console.log('decrypted:', decrypted)
+        return decrypted.data
+    // } catch (error) {
+    //     if(error.message != 'Misformed armored text') {
+    //         throw (error.message)
+    //     } else {
+    //         throw (error)
+    //     }
+    // }
+
+    // var binaryMessage = await openpgp.readMessage({binaryMessage: binaryEncrypted});
+    //let encryptedUint8 = new TextEncoder().encode(binaryEncrypted);
+    // var encryptedMessage = openpgp.message.read(encryptedUint8)
+
+    // const encryptedMessage = await openpgp.readMessage({ 
+    //     binaryMessage: encryptedUint8
+    // })
+
+    // const encryptedMessage = await openpgp.readMessage({
+    //       binaryMessage: binaryEncrypted // parse encrypted bytes
+    // });
+
+//     const {data} = await openpgp.decrypt({
+//         message: encryptedMessage,
+//         decryptionKeys: keys.lineage.privateKey, // for decryption,
+//         format: 'binary'
+//    });
+
+    // const { data: decrypted } = await openpgp.decrypt({
+    //     message: binaryMessage,
+    //     decryptionKeys: keys.lineage.privateKey,
+    //     config: {
+    //         allowInsecureDecryptionWithSigningKeys: true,
+    //     },
+    //     format: 'binary' // output as Uint8Array
+    // });
+
+   // return data
+}
+
+async function encryptFile(VENDOR, sourceFilePath, destinationFilePath) {
+    if (!destinationFilePath) destinationFilePath = sourceFilePath + '.gpg'
+    let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
+    let encryptedFile = await encrypt(VENDOR, sourceFile)
+    fs.writeFileSync(destinationFilePath, encryptedFile, {encoding:'utf8', flag:'w'})
+    return true
+}
+
+async function decryptFile(VENDOR, sourceFilePath, destinationFilePath) {
+    if (!destinationFilePath) {
+        let hasSuffixGPG = ( sourceFilePath.split('.').pop().toLowerCase() == 'gpg' ) 
+        if (hasSuffixGPG) {
+            destinationFilePath = sourceFilePath.substring(0, sourceFilePath.indexOf('.gpg'))
+        } else {
+            destinationFilePath = sourceFilePath + '_DECRYPTED'
+        }
+    }
+
+    let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
+    try{
+        let decryptedFile = await decrypt(VENDOR, sourceFile)
+        fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
+        return true
+    } catch (error) {
+        if (error.message != 'Misformed armored text') throw (error.message)
+
+        /* perform a binary decrypt, the file may not be ASCII armored */
+        let decryptedFile = await decryptBinary(VENDOR, sourceFilePath)
+        fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
+        return true
+    }
 }
 
 module.exports.encrypt = (VENDOR, message) => {
@@ -71,6 +174,19 @@ module.exports.encrypt = (VENDOR, message) => {
 module.exports.decrypt = (VENDOR, message) => {
     return decrypt(VENDOR, message)
 }
+
+module.exports.decryptBinary = (VENDOR, binaryMessage) => {
+    return decrypt(VENDOR, binaryMessage)
+}
+
+module.exports.encryptFile = (VENDOR, sourceFilePath, destinationFilePath = null) => {
+    return encryptFile(VENDOR, sourceFilePath, destinationFilePath)
+}
+
+module.exports.decryptFile = (VENDOR, sourceFilePath, destinationFilePath = null) => {
+    return decryptFile(VENDOR, sourceFilePath, destinationFilePath)
+}
+
 
 // async function decryptFiles(logger, folderMappings, publicKey, privateKey){
 //     for (const mapping of folderMappings) {
