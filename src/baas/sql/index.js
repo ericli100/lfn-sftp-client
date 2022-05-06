@@ -91,7 +91,7 @@ async function params(){
 }
 
 async function disconnect() {
-    mssql.close()
+    await mssql.close()
 }
 
 module.exports.connect = () => {
