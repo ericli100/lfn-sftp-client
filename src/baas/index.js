@@ -10,23 +10,25 @@ async function main (args) {
     let baas = {}
     
     /* add the tsql to the baas object */
-    let sql = require('./sql')
+    const sql = require('./sql')
+    baas.sql = sql
 
     try{
         console.log('sql: connecting...')
-        baas.sql = await sql.connect()
+        baas.schema = await baas.sql.connect()
         console.log('sql: connected.')
     } catch (err) {
         console.error(err)
     }
 
-    console.log('sql: disconnecting...')
-    await sql.disconnect()
-    console.log('sql: disconnected.')
-
-
-    let pgp = require('./pgp')
+    const pgp = require('./pgp')
     baas.pgp = pgp
+
+    const input = require('./input')
+    baas.input = input
+
+    const ach = require('./ach')
+    baas.ach = ach
 
     return baas
 }

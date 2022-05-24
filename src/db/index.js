@@ -91,7 +91,7 @@ async function mssqlQuery(param) {
         delete result.recordsets;
         result.data = result.recordset;
         delete result.recordset;
-        return await result;
+        return result;
     } catch (err) {
         debug('Error: Connection to the database server failed.');
         debug('database error: ', err);
