@@ -5,8 +5,9 @@
 
 const crypto = require('crypto');
 const fs = require('fs');
+const path = require('path');
 
-async function ach(baas, VENDOR, sql, date, accountNumber, inputFile) {
+async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile) {
     let output = {};
 
     // check db if sha256 exists
@@ -23,9 +24,32 @@ async function ach(baas, VENDOR, sql, date, accountNumber, inputFile) {
         let achJSON = await baas.ach.parseACH( inputFile, false )
         let achAdvice = await baas.ach.achAdvice ( inputFile, true )
 
-        let sqlStatements = []
         // create the SQL statements for the transaction
+        let sqlStatements = []
+        
+        const {size: fileSize} = fs.statSync( inputFile );
+
         // - create new File Entity -- EntityType == 603c213fba000000
+        // entityId, contextOrganizationId, fromOrganizationId, toOrganizaitonId, fileType, fileName, fileBinary, sizeInBytes, sha256
+        let fileInsert = {
+            entityId: baas.id.generate(),
+            contextOrganizationId: 'lineage',
+            fromOrganizationId: 'synapse',
+            toOrganizationId: 'lineage',
+            fileType: path.extname( inputFile ),
+            fileName: path.basename( inputFile ),
+            fileBinary: null,
+            sizeInBytes: fileSize,
+            sha256: sha256,
+        }
+        let sql1 = await sql.file.insert( fileInsert )
+
+        let param = {}
+        param.params = []
+        param.tsql = sql1
+
+        sqlStatements.push( param )
+
         // - create new File (File Type Id (ACH) == 603c2e56cf800000 )
         // - create new File Batches Entity -- EntityType == 603c233ebe400000
         // - create new File Batch (loop)
@@ -33,6 +57,7 @@ async function ach(baas, VENDOR, sql, date, accountNumber, inputFile) {
         // - create new File Transactions (loop) 
 
         // call SQL and run the SQL transaction to import the ach file
+        let output = await sql.execute( sqlStatements )
     }
 
     // output the status
@@ -49,6 +74,4 @@ async function generateSHA256(inputFile){
     return sha256
 }
 
-module.exports.ach = (baas, VENDOR, sql, date, accountNumber, inputFile) => {
-    return ach(baas, VENDOR, sql, date, accountNumber, inputFile)
-}
+module.exports.ach = ach
