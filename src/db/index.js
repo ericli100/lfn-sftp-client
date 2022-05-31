@@ -1,5 +1,7 @@
 'user strict';
 const sql = require('mssql');
+const isJSON = require('is-json');
+
 const CONFIG = {}
 CONFIG.db = {
     user: process.env.BAAS_DB_USER,
@@ -144,15 +146,20 @@ async function mssqlExecute(param) {
                         }
                     }
                 }
-                result = await request.execute(param[k].storedProcedure);
+
+                if(!param[k].storedProcedure){
+                    debug(param[k].tsql)
+                    result = await request.query(param[k].tsql);
+                } else {
+                    result = await request.execute(param[k].storedProcedure);
+                }
+                
                 // return only a single recordset.  delete the recordsets array
                 delete result.recordsets;
 
                 // rename the recordset key to data
                 result.data = result.recordset;
                 delete result.recordset;
-
-                let isJSON = require('is-json');
 
                 if (result.data) {
                     for(let i=0;i<result.data.length;i++){
@@ -206,8 +213,6 @@ async function mssqlExecute(param) {
 
 async function validJSONcheck (keyName, JSONdata) {
     let isValid = false;
-
-    let isJSON = require('is-json');
 
     try {
         if (JSONdata) {
