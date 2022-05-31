@@ -16,6 +16,7 @@
     "dotenv": "^10.0.0",
     "flake-idgen": "^1.4.0",
     "imapflow": "^1.0.78",
+    "is-json": "^2.0.1",
     "mailparser": "^3.4.0",
     "moment": "^2.29.1",
     "ms-teams-webhook": "^1.0.4",
