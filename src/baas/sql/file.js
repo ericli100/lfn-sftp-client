@@ -26,7 +26,7 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function fileInsert(entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256){
+    Handler.insert = async function fileInsert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
@@ -48,13 +48,14 @@ function Handler(mssql) {
                ('${entityId}'
                ,'${tenantId}'
                ,'${contextOrganizationId}'
-               ,${fromOrganizationId}
-               ,${toOrganizationId}
-               ,${fileType}
-               ,${fileName}
+               ,'${fromOrganizationId}'
+               ,'${toOrganizationId}'
+               ,'${fileType}'
+               ,'${fileName}'
                ,${fileBinary}
-               ,${sizeInBytes}
-               ,${sha256}`
+               ,'${sizeInBytes}'
+               ,'${sha256}'
+               )`
     
         return sqlStatement
     }
