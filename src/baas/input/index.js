@@ -6,16 +6,16 @@
 const crypto = require('crypto');
 const fs = require('fs');
 
-async function ach(baas, VENDOR, SQL, date, accountNumber, inputFile) {
+async function ach(baas, VENDOR, sql, date, accountNumber, inputFile) {
     let output = {};
 
     // check db if sha256 exists
     let sha256 = await generateSHA256( inputFile )
-    let fileExists = await SQL.fileExists(sha256)
+    let fileExistsInDB = await sql.file.exists( sha256 )
 
 
     // if not sha256 parse the file input
-    if (!fileExists) {
+    if (!fileExistsInDB) {
         // parse ACH file
         let isACH = await baas.ach.isACH( inputFile )
         if (!isACH) throw ("No valid ACH file detected during parsing, exiting the baas.input.ach function and not writing to the database.")
@@ -49,6 +49,6 @@ async function generateSHA256(inputFile){
     return sha256
 }
 
-module.exports.ach = (baas, VENDOR, SQL, date, accountNumber, inputFile) => {
-    return ach(baas, VENDOR, SQL, date, accountNumber, inputFile)
+module.exports.ach = (baas, VENDOR, sql, date, accountNumber, inputFile) => {
+    return ach(baas, VENDOR, sql, date, accountNumber, inputFile)
 }
