@@ -21,6 +21,9 @@ async function main (args) {
         console.error(err)
     }
 
+    const entityId = require('../entityId')
+    baas.id = entityId
+
     const pgp = require('./pgp')
     baas.pgp = pgp
 
