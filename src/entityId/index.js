@@ -9,6 +9,10 @@ async function generateFlakeId () {
   return newFlakeId;
 }
 
+function generate() {
+    return intformat(flakeId.next(), 'hex')
+}
+
 async function main() {
     let newId = await generateFlakeId()
     console.log(newId)
@@ -26,3 +30,5 @@ module.exports = function constructor () {
         getFlakeId
     };
 };
+
+module.exports.generate = generate
