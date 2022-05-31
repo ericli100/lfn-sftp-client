@@ -49,7 +49,7 @@ function Handler(mssql) {
                ,'${tenantId}'
                ,'${contextOrganizationId}'
                ,${fromOrganizationId}
-               ,${toOrganizaitonId}
+               ,${toOrganizationId}
                ,${fileType}
                ,${fileName}
                ,${fileBinary}
