@@ -47,6 +47,8 @@ async function connect () {
     } catch (err) {
         console.error(err)
     }
+    
+    sql.mssql = mssql
 
     return sql
 }
@@ -136,6 +138,11 @@ module.exports.disconnect = () => {
 
 module.exports.entityInsert = (entityId, contextOrganizationId, entityTypeId) => {
     return entityInsert(entityId, contextOrganizationId, entityTypeId)
+}
+
+module.exports.execute = (param) => {
+    let results = mssql.sqlExecute(param);
+    return results
 }
 
 
