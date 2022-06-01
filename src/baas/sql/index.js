@@ -10,6 +10,7 @@ module.exports.entityType = require('./entityType')(mssql);
 module.exports.entity = require('./entity')(mssql);
 module.exports.fileType = require('./fileType')(mssql);
 module.exports.file = require('./file')(mssql);
+module.exports.fileBatch = require('./fileBatch')(mssql);
 
 async function connect () {
     const sql = {}
