@@ -30,7 +30,7 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, dataJSON, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, dataJSON, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
@@ -51,6 +51,7 @@ function Handler(mssql) {
                ,[sizeInBytes]
                ,[sha256]
                ,[dataJSON]
+               ,[isOutbound]
                ,[correlationId])
          VALUES
                ('${entityId}'
@@ -64,6 +65,7 @@ function Handler(mssql) {
                ,'${sizeInBytes}'
                ,'${sha256}'
                ,'${JSON.stringify(dataJSON)}'
+               ,'${isOutbound}'
                ,'${correlationId}'
                )`
     

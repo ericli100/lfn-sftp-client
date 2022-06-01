@@ -96,6 +96,7 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
             fileBinary: null,
             sizeInBytes: fileSize,
             sha256: sha256,
+            isOutbound: isOutbound,
             correlationId: correlationId,
         }
         let sql1 = await sql.file.insert( fileInsert )
@@ -367,11 +368,8 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
             if (CreditBatchRunningTotal != batch.batchControl.totalCredit) throw('baas.input.ach batch total from the individual credit transacitons does not match the batch.batchControl.totalCredit! Aborting because something is wrong.')
             if (DebitBatchRunningTotal != batch.batchControl.totalDebit) throw('baas.input.ach batch total from the individual debit transacitons does not match the batch.batchControl.totalDebit! Aborting because something is wrong.')
             
-        }
+        } 
 
-
-
-        
         // - create new File Batches Entity -- EntityType == 603c233ebe400000
         // - create new File Batch (loop)
         // - - check the totals of the Batch
@@ -383,6 +381,8 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
         output = await sql.execute( sqlStatements )
 
        console.log ( output )
+    } else {
+        throw(`baas.input.ach: ERROR the ACH file named: ${ path.basename( inputFile ) } is already present in the database with SHA256: ${ sha256 }`)
     }
 
     // output the status
