@@ -8,6 +8,7 @@ const mssql = require('../../db')()
 // import the modules
 module.exports.file = require('./file')(mssql);
 module.exports.entity = require('./entity')(mssql);
+module.exports.entityType = require('./entityType')(mssql);
 
 async function connect () {
     const sql = {}
@@ -94,35 +95,6 @@ async function params(){
         default:
             throw ('db.js populateParameters had not implemented this param.type.');
     }
-}
-
-async function entityInsert(entityId, contextOrganizationId, entityTypeId){
-    if (!entityId) throw ('entityId required')
-    if (!contextOrganizationId) throw ('contextOrganizationId required')
-    if (!entityTypeId) throw ('entityTypeId required')
-
-    let tenantId = `3e2e6220-edf2-439a-91e4-cef6de2e8b7b`
-    let sqlStatement = `
-    INSERT INTO [baas].[entities]
-           ([entityId]
-           ,[tenantId]
-           ,[contextOrganizationId]
-           ,[entityTypeId]
-           ,[isDeleted]
-           ,[versionNumber]
-           ,[mutatedBy]
-           ,[correlationId])
-     VALUES
-           ('${entityId}'
-           ,${tenantId}
-           ,'${contextOrganizationId}'
-           ,'${entityTypeId}'
-           ,0
-           ,0
-           ,'SYSTEM'
-           ,'SYSTEM'`
-
-    return sqlStatement
 }
 
 async function disconnect() {
