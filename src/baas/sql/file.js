@@ -43,7 +43,7 @@ function Handler(mssql) {
                ,[contextOrganizationId]
                ,[fromOrganizationId]
                ,[toOrganizationId]
-               ,[fileType]
+               ,[fileTypeId]
                ,[fileName]
                ,[fileBinary]
                ,[sizeInBytes]
