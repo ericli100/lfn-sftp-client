@@ -32,7 +32,8 @@ async function main(){
     // call the new file processing code
     // import
     let input = baas.input
-    let ach = await input.ach(baas, 'synapse', baas.sql,'20220524','lineage', 'synapse', 'lineage', `${process.cwd()}/src/tools/lineage_ach_test.ach`)
+    // 6022d1b33f000000 === Lineage Bank
+    let ach = await input.ach(baas, 'synapse', baas.sql,'20220524','6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/tools/lineage_ach_test.ach`)
     console.log('ach:', ach)
 
     console.log('sql: disconnecting...')
