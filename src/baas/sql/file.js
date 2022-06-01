@@ -64,6 +64,17 @@ function Handler(mssql) {
         return sqlStatement
     }
 
+    Handler.updateJSON = async function updateJSON(entityId, jsonVal){
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        let sqlStatement = `
+        UPDATE [baas].[files]
+            SET [dataJSON] = '${jsonVal}'
+        WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}';`
+    
+        return sqlStatement
+    }
+
     Handler.generateSHA256 = async function generateSHA256(inputFile){
         // create sha256 hash
         const fileBuffer = fs.readFileSync( inputFile );
