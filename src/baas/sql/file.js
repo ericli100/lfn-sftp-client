@@ -30,11 +30,12 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function fileInsert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, dataJSON}){
+    Handler.insert = async function fileInsert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, dataJSON, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
         if (!dataJSON) dataJSON = {}
+        if (!correlationId) correlationId = 'SYSTEM'
     
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
@@ -49,7 +50,8 @@ function Handler(mssql) {
                ,[fileBinary]
                ,[sizeInBytes]
                ,[sha256]
-               ,[dataJSON])
+               ,[dataJSON]
+               ,[correlationId])
          VALUES
                ('${entityId}'
                ,'${tenantId}'
@@ -62,17 +64,21 @@ function Handler(mssql) {
                ,'${sizeInBytes}'
                ,'${sha256}'
                ,'${JSON.stringify(dataJSON)}'
+               ,'${correlationId}'
                )`
     
         return sqlStatement
     }
 
-    Handler.updateJSON = async function updateJSON({entityId, dataJSON}){
+    Handler.updateJSON = async function updateJSON({entityId, dataJSON, correlationId}){
         if (!entityId) throw ('entityId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!correlationId) correlationId = 'SYSTEM'
+        
         let sqlStatement = `
         UPDATE [baas].[files]
-            SET [dataJSON] = '${JSON.stringify(dataJSON)}'
+            SET [dataJSON] = '${JSON.stringify(dataJSON)}',
+                [correlationId] = '${correlationId}'
         WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}';`
     
         return sqlStatement

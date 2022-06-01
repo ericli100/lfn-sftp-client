@@ -60,6 +60,7 @@ function Handler(mssql) {
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
+        
         let sqlStatement = `
         SELECT [entityId]
             ,[contextOrganizationId]

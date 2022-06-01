@@ -73,12 +73,15 @@ function Handler(mssql) {
         return sqlStatement
     }
 
-    Handler.updateJSON = async function updateJSON({entityId, dataJSON}){
+    Handler.updateJSON = async function updateJSON({entityId, dataJSON, correlationId}){
         if (!entityId) throw ('entityId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!correlationId) correlationId = 'SYSTEM'
+        
         let sqlStatement = `
         UPDATE [baas].[fileBatches]
-            SET [dataJSON] = '${JSON.stringify(dataJSON)}'
+            SET [dataJSON] = '${JSON.stringify(dataJSON)}',
+                [correlationId] = '${correlationId}'
         WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}';`
     
         return sqlStatement

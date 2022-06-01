@@ -55,6 +55,7 @@ function Handler(mssql) {
     Handler.read = async function read({entityId}){
         if (!entityId) throw ('entityId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
+        
         let sqlStatement = `
         SELECT [entityId]
             ,[licensePlate]
