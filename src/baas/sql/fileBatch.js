@@ -33,7 +33,7 @@ function Handler(mssql) {
     Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileId, batchSubId, batchType, batchName, batchCredits, batchDebits, dataJSON, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
-        if (!fileName) throw ('fileName required')
+        if (!fileId) throw ('fileId required')
         if (!dataJSON) dataJSON = {}
         if (!correlationId) correlationId = 'SYSTEM'
     
