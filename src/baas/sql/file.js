@@ -60,6 +60,16 @@ function Handler(mssql) {
         return sqlStatement
     }
 
+    Handler.generateSHA256 = async function generateSHA256(inputFile){
+        // create sha256 hash
+        const fileBuffer = fs.readFileSync( inputFile );
+        const hashSum = crypto.createHash('sha256');
+        hashSum.update(fileBuffer);
+        const sha256 = hashSum.digest('hex');
+    
+        return sha256
+    }
+
     return Handler
 }
 
