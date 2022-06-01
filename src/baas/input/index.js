@@ -29,6 +29,11 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
         
         const {size: fileSize} = fs.statSync( inputFile );
 
+        // TODO: implement fileType Lookup for the ContextOrganizationId
+        let fileType = path.extname( inputFile ).substring(1, path.extname( inputFile ).length)
+        let fileTypeId = '603c2e56cf800000'
+
+        // TODO: Implement Vault structure to store Encrypted Data cert based on ContextOrganization and upload file to varbinary.
         // - create new File Entity -- EntityType == 603c213fba000000
         // entityId, contextOrganizationId, fromOrganizationId, toOrganizaitonId, fileType, fileName, fileBinary, sizeInBytes, sha256
         let fileInsert = {
@@ -36,7 +41,7 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
             contextOrganizationId: 'lineage',
             fromOrganizationId: 'synapse',
             toOrganizationId: 'lineage',
-            fileType: path.extname( inputFile ),
+            fileType: fileTypeId,
             fileName: path.basename( inputFile ),
             fileBinary: null,
             sizeInBytes: fileSize,
@@ -58,6 +63,8 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
 
         // call SQL and run the SQL transaction to import the ach file
         let output = await sql.execute( sqlStatements )
+
+        console.log ( output )
     }
 
     // output the status

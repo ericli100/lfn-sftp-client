@@ -7,6 +7,7 @@ const mssql = require('../../db')()
 
 // import the modules
 module.exports.file = require('./file')(mssql);
+module.exports.entity = require('./entity')(mssql);
 
 async function connect () {
     const sql = {}
