@@ -120,6 +120,8 @@ async function mssqlExecute(param) {
         }
         const transaction = new sql.Transaction(pool);
         const request = transaction.request();
+        
+        let results = [];
         let result;
 
         debug('Transaction BEGIN...');
@@ -153,9 +155,6 @@ async function mssqlExecute(param) {
                 } else {
                     result = await request.execute(param[k].storedProcedure);
                 }
-                
-                // return only a single recordset.  delete the recordsets array
-                delete result.recordsets;
 
                 // rename the recordset key to data
                 result.data = result.recordset;
@@ -196,14 +195,15 @@ async function mssqlExecute(param) {
                 }
                 await request.execute(param[k].storedProcedure);
             }
+
+            if( !result ) { result = {}; }
+            results.push( result )
         }
 
         debug('Transaction COMMIT...');
         await transaction.commit();
 
-        if(!result) { result = {}; }
-
-        return await result;
+        return results;
     } catch (err) {
         debug('DB Error: ' + err.message);
         debug('Transaction ROLLBACK via XACT_ABORT...');
