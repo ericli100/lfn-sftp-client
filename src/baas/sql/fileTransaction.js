@@ -33,7 +33,7 @@ function Handler(mssql) {
     Handler.insert = async function insert({entityId, contextOrganizationId, batchId, fromAccountId, toAccountId, paymentRelatedInformation, postingDate, effectiveDate, transactionType, tracenumber, transactionCredit, transactionDebit, dataJSON, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
-        if (!fileId) throw ('fileId required')
+        if (!batchId) throw ('batchId required')
         if (!dataJSON) dataJSON = {}
         if (!correlationId) correlationId = 'SYSTEM'
     
@@ -72,8 +72,8 @@ function Handler(mssql) {
            ,'${effectiveDate}'
            ,'${transactionType}'
            ,'${tracenumber}'
-           ,'${transactionCredit}'
-           ,'${transactionDebit}'
+           ,${transactionCredit}
+           ,${transactionDebit}
            ,null
            ,null
            ,'${JSON.stringify(dataJSON)}'
