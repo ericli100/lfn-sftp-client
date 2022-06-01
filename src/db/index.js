@@ -126,14 +126,8 @@ async function mssqlExecute(param) {
 
         debug('Transaction BEGIN...');
         await transaction.begin();
- 
-        /* if it is an object add it to an array for further processing.  this is so we can 
-           add multiple sql execute statements to the same transaction if needed.           */
-        if (typeof param === 'object' && Array.isArray(param) === false) {
-            let newArray = [];
-            newArray.push(param);
-            param = newArray;
-        }
+
+        param = convertToArray(param)
 
         for(let k=0;k<param.length;k++){
             /* the first one is what is returned to the caller (for now) */
@@ -217,6 +211,21 @@ async function mssqlExecute(param) {
     }
 }
 
+function convertToArray (param) {
+    let output = []
+    /* if it is an object add it to an array for further processing.  this is so we can 
+        add multiple sql execute statements to the same transaction if needed.           */
+    if (typeof param === 'object' && Array.isArray(param) === false) {
+        let newArray = [];
+        newArray.push(param);
+        output = newArray;
+    } else {
+        output = param
+    }
+
+    return output
+}
+
 async function validJSONcheck (keyName, JSONdata) {
     let isValid = false;
 
@@ -236,7 +245,7 @@ async function validJSONcheck (keyName, JSONdata) {
         isValid = false;
     }
 
-    return await isValid;
+    return isValid;
 }
 
 async function populateParameters (data, params) {
@@ -341,10 +350,6 @@ module.exports = function constructor () {
     function populateParams(data, params) {
         return Promise.resolve(populateParameters(data, params));
     }
-
-    // function sql() {
-    //     return Promise.resolve(sql);
-    // }
     
     return {
         sqlExecute,
@@ -354,7 +359,3 @@ module.exports = function constructor () {
         close
     }
 };
-
-// module.exports = {
-//     sqlQuery, sqlExecute, sql
-// };
