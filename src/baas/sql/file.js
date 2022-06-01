@@ -30,10 +30,11 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function fileInsert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256}){
+    Handler.insert = async function fileInsert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, dataJSON}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
+        if (!dataJSON) dataJSON = {}
     
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
@@ -47,7 +48,8 @@ function Handler(mssql) {
                ,[fileName]
                ,[fileBinary]
                ,[sizeInBytes]
-               ,[sha256])
+               ,[sha256]
+               ,[dataJSON])
          VALUES
                ('${entityId}'
                ,'${tenantId}'
@@ -59,6 +61,7 @@ function Handler(mssql) {
                ,${fileBinary}
                ,'${sizeInBytes}'
                ,'${sha256}'
+               ,'${JSON.stringify(dataJSON)}'
                )`
     
         return sqlStatement
