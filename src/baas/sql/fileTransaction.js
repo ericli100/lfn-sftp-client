@@ -3,9 +3,6 @@
     FileTransaction handler module
 */
 
-const fs = require('fs');
-const crypto = require('crypto');
-
 function Handler(mssql) {
     Handler.exists = async function exists(entityId) {
         if (!entityId) throw ('entityId required')

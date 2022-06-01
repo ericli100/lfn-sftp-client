@@ -7,7 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 function Handler(mssql) {
-    Handler.exists = async function fileExists(sha256) {
+    Handler.exists = async function exists(sha256) {
         if (!sha256) throw ('sha256 required')
         let tenantId = process.env.PRIMAY_TENANT_ID
     
@@ -30,7 +30,7 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function fileInsert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, dataJSON, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, dataJSON, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
@@ -74,7 +74,7 @@ function Handler(mssql) {
         if (!entityId) throw ('entityId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
         if (!correlationId) correlationId = 'SYSTEM'
-        
+
         let sqlStatement = `
         UPDATE [baas].[files]
             SET [dataJSON] = '${JSON.stringify(dataJSON)}',
