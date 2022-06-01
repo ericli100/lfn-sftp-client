@@ -118,4 +118,12 @@ module.exports.execute = (param) => {
     return results
 }
 
+module.exports.executeTSQL = (tsql) => {
+    let param = {}
+        param.params = []
+        param.tsql = tsql
+    let results = mssql.sqlExecute(param);
+    return results
+}
+
 
