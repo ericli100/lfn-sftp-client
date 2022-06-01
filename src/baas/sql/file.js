@@ -2,6 +2,9 @@
 /*
     File handler module
 */
+
+const fs = require('fs');
+
 function Handler(mssql) {
     Handler.exists = async function fileExists(sha256) {
         if (!sha256) throw ('sha256 required')
