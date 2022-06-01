@@ -64,12 +64,12 @@ function Handler(mssql) {
         return sqlStatement
     }
 
-    Handler.updateJSON = async function updateJSON(entityId, jsonVal){
+    Handler.updateJSON = async function updateJSON({entityId, dataJSON}){
         if (!entityId) throw ('entityId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
         UPDATE [baas].[files]
-            SET [dataJSON] = '${jsonVal}'
+            SET [dataJSON] = '${JSON.stringify(dataJSON)}'
         WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}';`
     
         return sqlStatement
