@@ -193,7 +193,13 @@ async function mssqlExecute(param) {
                         }
                     }
                 }
-                await request.execute(param[k].storedProcedure);
+               
+                if(!param[k].storedProcedure){
+                    debug(param[k].tsql)
+                    result = await request.query(param[k].tsql);
+                } else {
+                    result = await request.execute(param[k].storedProcedure);
+                }
             }
 
             if( !result ) { result = {}; }
