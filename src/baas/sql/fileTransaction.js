@@ -30,7 +30,7 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, batchId, fromAccountId, toAccountId, paymentRelatedInformation, postingDate, effectiveDate, transactionType, transactionName, tracenumber, transactionCredit, transactionDebit, dataJSON, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, batchId, fromAccountId, toAccountId, paymentRelatedInformation, postingDate, effectiveDate, transactionType, tracenumber, transactionCredit, transactionDebit, dataJSON, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileId) throw ('fileId required')
@@ -50,7 +50,6 @@ function Handler(mssql) {
            ,[postingDate]
            ,[effectiveDate]
            ,[transactionType]
-           ,[transactionName]
            ,[tracenumber]
            ,[transactionCredit]
            ,[transactionDebit]
@@ -72,7 +71,6 @@ function Handler(mssql) {
            ,'${postingDate}'
            ,'${effectiveDate}'
            ,'${transactionType}'
-           ,'${transactionName}'
            ,'${tracenumber}'
            ,'${transactionCredit}'
            ,'${transactionDebit}'
