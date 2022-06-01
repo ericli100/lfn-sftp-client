@@ -62,7 +62,6 @@ function Handler(mssql) {
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
         SELECT [entityId]
-            ,[tenantId]
             ,[contextOrganizationId]
             ,[entityType]
             ,[tableName]
@@ -92,7 +91,6 @@ function Handler(mssql) {
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
         SELECT [entityId]
-            ,[tenantId]
             ,[contextOrganizationId]
             ,[entityType]
             ,[tableName]
