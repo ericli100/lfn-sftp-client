@@ -225,6 +225,34 @@ async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrg
     return param
 }
 
+async function createUpdateFileJsonSQL( { sql, fileEntityId, correlationId, achJSON } ) {
+    let output = {}
+
+    let jsonFileData = {}
+    jsonFileData.fileHeader  = achJSON.fileHeader
+    jsonFileData.fileControl  = achJSON.fileControl
+    jsonFileData.fileADVControl  = achJSON.fileADVControl
+    jsonFileData.IATBatches  = achJSON.IATBatches
+    jsonFileData.id  = achJSON.id
+    jsonFileData.NotificationOfChange  = achJSON.NotificationOfChange
+    jsonFileData.ReturnEntries  = achJSON.ReturnEntries
+
+    let jsonUpdate = {
+        entityId: fileEntityId,
+        dataJSON: jsonFileData,
+        correlationId: correlationId,
+    }
+    let sql2 = await sql.file.updateJSON( jsonUpdate )
+
+    param = {}
+    param.params = []
+    param.tsql = sql2
+
+    output.param = param;
+    output.jsonFileData = jsonFileData;
+    return output
+}
+
 async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound) {
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
@@ -275,28 +303,10 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
         let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId } )
         sqlStatements.push( fileSQL )
 
-        let jsonFileData = {}
-        jsonFileData.fileHeader  = achJSON.fileHeader
-        jsonFileData.fileControl  = achJSON.fileControl
-        jsonFileData.fileADVControl  = achJSON.fileADVControl
-        jsonFileData.IATBatches  = achJSON.IATBatches
-        jsonFileData.id  = achJSON.id
-        jsonFileData.NotificationOfChange  = achJSON.NotificationOfChange
-        jsonFileData.ReturnEntries  = achJSON.ReturnEntries
-
-        let jsonUpdate = {
-            entityId: fileEntityId,
-            dataJSON: jsonFileData,
-            correlationId: correlationId,
-        }
-        let sql2 = await sql.file.updateJSON( jsonUpdate )
-
-        param = {}
-        param.params = []
-        param.tsql = sql2
-
-        sqlStatements.push( param )
-
+        // update the file record with the achJSON data
+        let updateFileJsonSQL = await createUpdateFileJsonSQL( { sql, fileEntityId, correlationId, achJSON } )
+        sqlStatements.push( updateFileJsonSQL.param )
+        let jsonFileData = updateFileJsonSQL.jsonFileData;
 
         // BATCH DETAIL PROCESSING *********
         let jsonBatchData = {}
