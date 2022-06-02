@@ -7,6 +7,148 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+function achTypeCheck( transaction ) {
+    let output = {}
+
+    // transaction processing
+    let isCredit = null;
+    let isDebit = null;
+    let transactionCredit = null;
+    let transactionDebit = null;
+
+    switch(transaction.transactionCode) {
+        case 22:
+            // 22 Checking Deposit (Credit)
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+
+        case 32:
+            // 32 Share Deposit (Credit)
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+
+        case 42:
+            // 42 GL Deposit (Credit)
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+        
+        case 52:
+            // 52 Loan Deposit (Credit)
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+
+        case 55:
+            // 55 Loan Reversal (Debit) (used rarely; reverses code 52)
+            isCredit = false
+            isDebit = true
+            transactionCredit = 0
+            transactionDebit = transaction.amount
+            break;
+        
+        case 27:
+            // 27 Checking Withdrawal (Debit)
+            isCredit = false
+            isDebit = true
+            transactionCredit = 0
+            transactionDebit = transaction.amount
+            break;
+
+        case 37:
+            // 37 Share Withdrawal (Debit)
+            isCredit = false
+            isDebit = true
+            transactionCredit = 0
+            transactionDebit = transaction.amount
+            break;
+
+        case 47:
+            // 47 GL Withdrawal (Debit)
+            isCredit = false
+            isDebit = true
+            transactionCredit = 0
+            transactionDebit = transaction.amount
+            break;
+
+        case 23:
+            // 23 Pre-Note: Checking Deposit (Credit)
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+
+        case 33:
+            // 33 Pre-Note: Share Deposit (Credit)
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+    
+        case 43:
+            // 43 Pre-Note: GL Deposit (Credit)
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+
+        case 53:
+            // 53 Pre-Note: Loan Deposit (Credit)
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+
+        case 28:
+            // 28 Pre-Note: Checking Withdrawal (Debit)
+            isCredit = false
+            isDebit = true
+            transactionCredit = 0
+            transactionDebit = transaction.amount
+            break;
+        
+        case 38:
+            // 38 Pre-Note: Share Withdrawal (Debit)
+            isCredit = false
+            isDebit = true
+            transactionCredit = 0
+            transactionDebit = transaction.amount
+            break;
+        
+        case 48:
+            // 48 Pre-Note: GL Withdrawal (Credit)
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+
+        default:
+            throw ('baas.input.ach transaction type unknown with value: ' + transaction.transactionCode)
+    }
+
+    output.isCredit = isCredit;
+    output.isDebit = isDebit;
+    output.transactionCredit = transactionCredit;
+    output.transactionDebit = transactionDebit;
+
+    return output
+}
+
 async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound) {
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
@@ -201,142 +343,15 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
                 sqlStatements.push( transactionEntityParam )
         
                 // transaction processing
-                let isCredit = null;
-                let isDebit = null;
-                let transactionCredit = null;
-                let transactionDebit = null;
-
-                switch(transaction.transactionCode) {
-                    case 22:
-                        // 22 Checking Deposit (Credit)
-                        isCredit = true
-                        isDebit = false
-                        transactionCredit = transaction.amount
-                        transactionDebit = 0
-                        break;
-
-                    case 32:
-                        // 32 Share Deposit (Credit)
-                        isCredit = true
-                        isDebit = false
-                        transactionCredit = transaction.amount
-                        transactionDebit = 0
-                        break;
-
-                    case 42:
-                        // 42 GL Deposit (Credit)
-                        isCredit = true
-                        isDebit = false
-                        transactionCredit = transaction.amount
-                        transactionDebit = 0
-                        break;
-                    
-                    case 52:
-                        // 52 Loan Deposit (Credit)
-                        isCredit = true
-                        isDebit = false
-                        transactionCredit = transaction.amount
-                        transactionDebit = 0
-                        break;
-
-                    case 55:
-                        // 55 Loan Reversal (Debit) (used rarely; reverses code 52)
-                        isCredit = false
-                        isDebit = true
-                        transactionCredit = 0
-                        transactionDebit = transaction.amount
-                        break;
-                    
-                    case 27:
-                        // 27 Checking Withdrawal (Debit)
-                        isCredit = false
-                        isDebit = true
-                        transactionCredit = 0
-                        transactionDebit = transaction.amount
-                        break;
-
-                    case 37:
-                        // 37 Share Withdrawal (Debit)
-                        isCredit = false
-                        isDebit = true
-                        transactionCredit = 0
-                        transactionDebit = transaction.amount
-                        break;
-
-                    case 47:
-                        // 47 GL Withdrawal (Debit)
-                        isCredit = false
-                        isDebit = true
-                        transactionCredit = 0
-                        transactionDebit = transaction.amount
-                        break;
-
-                    case 23:
-                        // 23 Pre-Note: Checking Deposit (Credit)
-                        isCredit = true
-                        isDebit = false
-                        transactionCredit = transaction.amount
-                        transactionDebit = 0
-                        break;
-
-                    case 33:
-                        // 33 Pre-Note: Share Deposit (Credit)
-                        isCredit = true
-                        isDebit = false
-                        transactionCredit = transaction.amount
-                        transactionDebit = 0
-                        break;
-                
-                    case 43:
-                        // 43 Pre-Note: GL Deposit (Credit)
-                        isCredit = true
-                        isDebit = false
-                        transactionCredit = transaction.amount
-                        transactionDebit = 0
-                        break;
-
-                    case 53:
-                        // 53 Pre-Note: Loan Deposit (Credit)
-                        isCredit = true
-                        isDebit = false
-                        transactionCredit = transaction.amount
-                        transactionDebit = 0
-                        break;
-
-                    case 28:
-                        // 28 Pre-Note: Checking Withdrawal (Debit)
-                        isCredit = false
-                        isDebit = true
-                        transactionCredit = 0
-                        transactionDebit = transaction.amount
-                        break;
-                    
-                    case 38:
-                        // 38 Pre-Note: Share Withdrawal (Debit)
-                        isCredit = false
-                        isDebit = true
-                        transactionCredit = 0
-                        transactionDebit = transaction.amount
-                        break;
-                    
-                    case 48:
-                        // 48 Pre-Note: GL Withdrawal (Credit)
-                        isCredit = true
-                        isDebit = false
-                        transactionCredit = transaction.amount
-                        transactionDebit = 0
-                        break;
-
-                    default:
-                        throw ('baas.input.ach transaction type unknown with value: ' + transaction.transactionCode)
-                }
+                let achType = achTypeCheck( transaction )
 
                 // keep the running total for checking at the end
-                CreditBatchRunningTotal += transactionCredit
-                DebitBatchRunningTotal += transactionDebit
+                CreditBatchRunningTotal += achType.transactionCredit
+                DebitBatchRunningTotal += achType.transactionDebit
 
                 // TODO: lookup the fromAccountId ( this is the RDFI end user account based on isOutbound value)
                 // TODO: lookup the toAccountId ( this is the destination for the BaaS money movement based on the Immediate Origin - jsonFileData.fileHeader.immediateOrigin)
+                // TODO: get the ABA list from the FRB - import into the DB
 
                 let transactionInsert = {
                     entityId: fileTransactionEntityId, 
@@ -344,13 +359,13 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
                     batchId: fileBatchEntityId, 
                     fromAccountId: 'TEST From', 
                     toAccountId: 'TEST To', 
-                    paymentRelatedInformation: null, 
+                    paymentRelatedInformation: '', 
                     postingDate: jsonFileData.fileHeader.fileCreationDate, 
                     effectiveDate: batch.batchHeader.effectiveEntryDate, 
                     transactionType: transaction.transactionCode, 
                     tracenumber: transaction.traceNumber, 
-                    transactionCredit: transactionCredit, 
-                    transactionDebit: transactionDebit, 
+                    transactionCredit: achType.transactionCredit, 
+                    transactionDebit: achType.transactionDebit, 
                     dataJSON: transaction, 
                     correlationId: correlationId,
                 }
@@ -361,7 +376,6 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
                 transactionParam.tsql = sqlTransaction
         
                 sqlStatements.push( transactionParam )
-
             }
 
             // these totals should match, best to fail the whole task if it does not balance here
@@ -379,8 +393,6 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
 
         // call SQL and run the SQL transaction to import the ach file
         output = await sql.execute( sqlStatements )
-
-       console.log ( output )
     } else {
         throw(`baas.input.ach: ERROR the ACH file named: ${ path.basename( inputFile ) } is already present in the database with SHA256: ${ sha256 }`)
     }
