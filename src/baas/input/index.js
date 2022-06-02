@@ -315,6 +315,25 @@ async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizati
     return output
 }
 
+async function createBatchTransactionSQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } ){
+    let output = {}
+
+    let transactionEntityInsert = {
+        entityId: fileTransactionEntityId, 
+        contextOrganizationId: contextOrganizationId, 
+        entityTypeId: entityTransactionTypeId,
+        correlationId: correlationId,
+    }
+    let transactionEntitySQL = await sql.entity.insert( transactionEntityInsert )
+    let transactionEntityParam = {}
+    transactionEntityParam.params = []
+    transactionEntityParam.tsql = transactionEntitySQL
+
+    output.param = transactionEntityParam
+
+    return output
+}
+
 async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound) {
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
@@ -365,6 +384,7 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
         sqlStatements.push( fileEntitySQL.param )
 
         // create the file record
+        // TODO: stream the ACH file in the DB variable binary field
         let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId } )
         sqlStatements.push( fileSQL.param )
 
@@ -394,24 +414,14 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
             for (const transaction of batch.entryDetails) {
                 let fileTransactionEntityId = baas.id.generate();
 
-                // create the entity
-                let transactionEntityInsert = {
-                    entityId: fileTransactionEntityId, 
-                    contextOrganizationId: contextOrganizationId, 
-                    entityTypeId: entityTransactionTypeId,
-                    correlationId: correlationId,
-                }
-                let transactionEntitySQL = await sql.entity.insert( transactionEntityInsert )
-                let transactionEntityParam = {}
-                transactionEntityParam.params = []
-                transactionEntityParam.tsql = transactionEntitySQL
-        
-                sqlStatements.push( transactionEntityParam )
+                // create the transaction entity
+                let batchTransactionSQL = await createBatchTransactionSQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
+                sqlStatements.push( batchTransactionSQL.param )
         
                 // transaction processing
                 let achType = achTypeCheck( transaction )
 
-                // keep the running total for checking at the end
+                // keep the running total for validation at the end
                 CreditBatchRunningTotal += achType.transactionCredit
                 DebitBatchRunningTotal += achType.transactionDebit
 
@@ -447,17 +457,9 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
             // these totals should match, best to fail the whole task if it does not balance here
             if (CreditBatchRunningTotal != batch.batchControl.totalCredit) throw('baas.input.ach batch total from the individual credit transacitons does not match the batch.batchControl.totalCredit! Aborting because something is wrong.')
             if (DebitBatchRunningTotal != batch.batchControl.totalDebit) throw('baas.input.ach batch total from the individual debit transacitons does not match the batch.batchControl.totalDebit! Aborting because something is wrong.')
-            
         } 
 
-        // - create new File Batches Entity -- EntityType == 603c233ebe400000
-        // - create new File Batch (loop)
-        // - - check the totals of the Batch
-
-        // - create new File Transactions Entity -- EntityType == 603c27ecd3c00000
-        // - create new File Transactions (loop) 
-
-        // call SQL and run the SQL transaction to import the ach file
+        // call SQL and run the SQL transaction to import the ach file to the database
         output = await sql.execute( sqlStatements )
     } else {
         throw(`baas.input.ach: ERROR the ACH file named: ${ path.basename( inputFile ) } is already present in the database with SHA256: ${ sha256 }`)
