@@ -315,7 +315,7 @@ async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizati
     return output
 }
 
-async function createBatchTransactionSQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } ){
+async function createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } ){
     let output = {}
 
     let transactionEntityInsert = {
@@ -330,6 +330,36 @@ async function createBatchTransactionSQL( { sql, fileTransactionEntityId, entity
     transactionEntityParam.tsql = transactionEntitySQL
 
     output.param = transactionEntityParam
+
+    return output
+}
+
+async function createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} ){
+    let output = {}
+
+    let transactionInsert = {
+        entityId: fileTransactionEntityId, 
+        contextOrganizationId: contextOrganizationId, 
+        batchId: fileBatchEntityId, 
+        fromAccountId: 'TEST From', 
+        toAccountId: 'TEST To', 
+        paymentRelatedInformation: '', 
+        postingDate: jsonFileData.fileHeader.fileCreationDate, 
+        effectiveDate: batch.batchHeader.effectiveEntryDate, 
+        transactionType: transaction.transactionCode, 
+        tracenumber: transaction.traceNumber, 
+        transactionCredit: achType.transactionCredit, 
+        transactionDebit: achType.transactionDebit, 
+        dataJSON: transaction, 
+        correlationId: correlationId,
+    }
+
+    let sqlTransaction = await sql.fileTransaction.insert( transactionInsert )
+    let transactionParam = {}
+    transactionParam.params = []
+    transactionParam.tsql = sqlTransaction
+
+    output.param = transactionParam
 
     return output
 }
@@ -358,6 +388,7 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
 
         let achJSON = await baas.ach.parseACH( inputFile, false )
         let achAdvice = await baas.ach.achAdvice ( inputFile, true )
+        output.achAdvice = achAdvice
 
         achJSON = JSON.parse(achJSON)
 
@@ -415,8 +446,8 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
                 let fileTransactionEntityId = baas.id.generate();
 
                 // create the transaction entity
-                let batchTransactionSQL = await createBatchTransactionSQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
-                sqlStatements.push( batchTransactionSQL.param )
+                let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
+                sqlStatements.push( batchTransactionEntitySQL.param )
         
                 // transaction processing
                 let achType = achTypeCheck( transaction )
@@ -429,29 +460,9 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
                 // TODO: lookup the toAccountId ( this is the destination for the BaaS money movement based on the Immediate Origin - jsonFileData.fileHeader.immediateOrigin)
                 // TODO: get the ABA list from the FRB - import into the DB
 
-                let transactionInsert = {
-                    entityId: fileTransactionEntityId, 
-                    contextOrganizationId: contextOrganizationId, 
-                    batchId: fileBatchEntityId, 
-                    fromAccountId: 'TEST From', 
-                    toAccountId: 'TEST To', 
-                    paymentRelatedInformation: '', 
-                    postingDate: jsonFileData.fileHeader.fileCreationDate, 
-                    effectiveDate: batch.batchHeader.effectiveEntryDate, 
-                    transactionType: transaction.transactionCode, 
-                    tracenumber: transaction.traceNumber, 
-                    transactionCredit: achType.transactionCredit, 
-                    transactionDebit: achType.transactionDebit, 
-                    dataJSON: transaction, 
-                    correlationId: correlationId,
-                }
-
-                let sqlTransaction = await sql.fileTransaction.insert( transactionInsert )
-                let transactionParam = {}
-                transactionParam.params = []
-                transactionParam.tsql = sqlTransaction
-        
-                sqlStatements.push( transactionParam )
+                // create the batch transaction entry
+                let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
+                sqlStatements.push( batchTransactionSQL.param )
             }
 
             // these totals should match, best to fail the whole task if it does not balance here
@@ -460,7 +471,7 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
         } 
 
         // call SQL and run the SQL transaction to import the ach file to the database
-        output = await sql.execute( sqlStatements )
+        output.results = await sql.execute( sqlStatements )
     } else {
         throw(`baas.input.ach: ERROR the ACH file named: ${ path.basename( inputFile ) } is already present in the database with SHA256: ${ sha256 }`)
     }
