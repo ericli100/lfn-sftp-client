@@ -288,6 +288,33 @@ async function createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizatio
     return output
 }
 
+async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, correlationId } ){
+    let output = {}
+
+    let batchInsert = {
+        entityId: fileBatchEntityId, 
+        contextOrganizationId: contextOrganizationId, 
+        fromOrganizationId: fromOrganizationId, 
+        toOrganizationId: toOrganizationId, 
+        fileId: fileEntityId, 
+        batchSubId: batch.batchControl.batchNumber, 
+        batchType: batch.batchHeader.standardEntryClassCode, 
+        batchName: path.basename( inputFile ).toUpperCase() + '-' + batch.batchHeader.standardEntryClassCode.toUpperCase() + '-' + batch.batchControl.batchNumber, 
+        batchCredits: batch.batchControl.totalCredit, 
+        batchDebits: batch.batchControl.totalDebit, 
+        dataJSON: batch, 
+        correlationId: correlationId,
+    }
+    let sqlBatch = await sql.fileBatch.insert( batchInsert )
+    let batchParam = {}
+    batchParam.params = []
+    batchParam.tsql = sqlBatch
+
+    output.param = batchParam
+
+    return output
+}
+
 async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound) {
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
@@ -355,26 +382,9 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
             let sqlBatchEntitySQL = await createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} )
             sqlStatements.push( sqlBatchEntitySQL.param )
 
-            let batchInsert = {
-                entityId: fileBatchEntityId, 
-                contextOrganizationId: contextOrganizationId, 
-                fromOrganizationId: fromOrganizationId, 
-                toOrganizationId: toOrganizationId, 
-                fileId: fileEntityId, 
-                batchSubId: batch.batchControl.batchNumber, 
-                batchType: batch.batchHeader.standardEntryClassCode, 
-                batchName: path.basename( inputFile ).toUpperCase() + '-' + batch.batchHeader.standardEntryClassCode.toUpperCase() + '-' + batch.batchControl.batchNumber, 
-                batchCredits: batch.batchControl.totalCredit, 
-                batchDebits: batch.batchControl.totalDebit, 
-                dataJSON: batch, 
-                correlationId: correlationId,
-            }
-            let sqlBatch = await sql.fileBatch.insert( batchInsert )
-            let batchParam = {}
-            batchParam.params = []
-            batchParam.tsql = sqlBatch
-    
-            sqlStatements.push( batchParam )
+            // insert the batch
+            let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, correlationId } )
+            sqlStatements.push( batchSQL.param )
 
             // TRANSACTION DETAIL PROCESSING *********
             let DebitBatchRunningTotal = 0
