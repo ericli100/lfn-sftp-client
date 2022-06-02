@@ -149,7 +149,7 @@ function achTypeCheck( transaction ) {
     return output
 }
 
-async function populateLookupCache({sql, inputFile, contextOrganizationId}){
+async function populateLookupCache({ sql, inputFile, contextOrganizationId, achJSON }){
     let output = {}
 
     const {size: fileSize} = fs.statSync( inputFile );
@@ -181,6 +181,15 @@ async function populateLookupCache({sql, inputFile, contextOrganizationId}){
     let entityTransactionTypeId = await sql.executeTSQL( entityTransactionTypeSQL )
     entityTransactionTypeId = entityTransactionTypeId[0].data[0].entityId.trim()
     output.entityTransactionTypeId = entityTransactionTypeId
+
+    // BATCH DETAIL PROCESSING *********
+    let jsonBatchData = {}
+    jsonBatchData.batchCount = achJSON.fileControl.batchCount
+    jsonBatchData.totalCredit = achJSON.fileControl.totalCredit
+    jsonBatchData.totalDebit = achJSON.fileControl.totalDebit
+    jsonBatchData.totalAdendaCount = achJSON.fileControl.totalAdendaCount
+    jsonBatchData.batches = achJSON.batches
+    output.jsonBatchData = jsonBatchData
 
     return output;
 }
@@ -257,7 +266,25 @@ async function createUpdateFileJsonSQL( { sql, fileEntityId, correlationId, achJ
 
     output.param = param;
     output.jsonFileData = jsonFileData;
-    
+
+    return output
+}
+
+async function createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} ){
+    let output = {}
+
+    let batchEntityInsert = {
+        entityId: fileBatchEntityId, 
+        contextOrganizationId: contextOrganizationId, 
+        entityTypeId: entityBatchTypeId,
+        correlationId: correlationId,
+    }
+    let sqlBatchEntity = await sql.entity.insert( batchEntityInsert )
+    let sqlBatchEntityParam = {}
+    sqlBatchEntityParam.params = []
+    sqlBatchEntityParam.tsql = sqlBatchEntity
+
+    output.param = sqlBatchEntityParam
     return output
 }
 
@@ -291,12 +318,15 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
         // create the SQL statements for the transaction
         let sqlStatements = []
         
-        const cache = await populateLookupCache( { sql, inputFile, contextOrganizationId } )
+        const cache = await populateLookupCache( { sql, inputFile, contextOrganizationId, achJSON } )
         let fileTypeId = cache.fileTypeId
         let entityBatchTypeId = cache.entityBatchTypeId
         let entityTransactionTypeId = cache.entityTransactionTypeId
         let fileSize = cache.fileSize
         let fileName = cache.fileName
+        let jsonBatchData = cache.jsonBatchData
+
+        if (jsonBatchData.batchCount != jsonBatchData.batches.length) throw ('baas.input.ach file is invalid! Internal Batch Count does not match the Batches array')
 
         // TODO: Implement Vault structure to store Encrypted Data cert based on ContextOrganization and upload file to varbinary.
         // - create new File Entity -- EntityType == 603c213fba000000
@@ -316,32 +346,14 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
         sqlStatements.push( updateFileJsonSQL.param )
         let jsonFileData = updateFileJsonSQL.jsonFileData;
 
-        // BATCH DETAIL PROCESSING *********
-        let jsonBatchData = {}
-        jsonBatchData.batchCount = achJSON.fileControl.batchCount
-        jsonBatchData.totalCredit = achJSON.fileControl.totalCredit
-        jsonBatchData.totalDebit = achJSON.fileControl.totalDebit
-        jsonBatchData.totalAdendaCount = achJSON.fileControl.totalAdendaCount
-        jsonBatchData.batches = achJSON.batches
-
-        if (jsonBatchData.batchCount != jsonBatchData.batches.length) throw ('baas.input.ach file is invalid! Internal Batch Count does not match the Batches array')
-
         // loop over the batches for processing
         for (const batch of jsonBatchData.batches) {
             // create the fileBatch Entries:
             let fileBatchEntityId = baas.id.generate();
 
-            let batchEntityInsert = {
-                entityId: fileBatchEntityId, 
-                contextOrganizationId: contextOrganizationId, 
-                entityTypeId: entityBatchTypeId,
-                correlationId: correlationId,
-            }
-            let sqlBatchEntity = await sql.entity.insert( batchEntityInsert )
-            let sqlBatchEntityParam = {}
-            sqlBatchEntityParam.params = []
-            sqlBatchEntityParam.tsql = sqlBatchEntity
-            sqlStatements.push( sqlBatchEntityParam )
+            // insert the batch entityId
+            let sqlBatchEntitySQL = await createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} )
+            sqlStatements.push( sqlBatchEntitySQL.param )
 
             let batchInsert = {
                 entityId: fileBatchEntityId, 
