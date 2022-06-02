@@ -185,6 +185,46 @@ async function populateLookupCache({sql, inputFile, contextOrganizationId}){
     return output;
 }
 
+async function createFileEntitySQL({ sql, fileEntityId, correlationId, contextOrganizationId, fileTypeId }){
+    // FILE HEADER PROCESSING *********
+    let entityInsert = {
+        entityId: fileEntityId, 
+        contextOrganizationId: contextOrganizationId, 
+        entityTypeId: fileTypeId,
+        correlationId: correlationId,
+    }
+    let sql0 = await sql.entity.insert( entityInsert )
+    let param = {}
+    param.params = []
+    param.tsql = sql0
+
+    return param
+}
+
+async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId } ){
+    // - create new File (File Type Id (ACH) == 603c2e56cf800000 )
+    let fileInsert = {
+        entityId: fileEntityId,
+        contextOrganizationId: contextOrganizationId,
+        fromOrganizationId: fromOrganizationId,
+        toOrganizationId: toOrganizationId,
+        fileType: fileTypeId,
+        fileName: fileName,
+        fileBinary: null,
+        sizeInBytes: fileSize,
+        sha256: sha256,
+        isOutbound: isOutbound,
+        correlationId: correlationId,
+    }
+    let sql1 = await sql.file.insert( fileInsert )
+
+    param = {}
+    param.params = []
+    param.tsql = sql1
+
+    return param
+}
+
 async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound) {
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
@@ -224,46 +264,16 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
 
         // TODO: Implement Vault structure to store Encrypted Data cert based on ContextOrganization and upload file to varbinary.
         // - create new File Entity -- EntityType == 603c213fba000000
-
-        // FILE HEADER PROCESSING *********
         let fileEntityId = baas.id.generate();
         let correlationId = fileEntityId
 
-        let entityInsert = {
-            entityId: fileEntityId, 
-            contextOrganizationId: contextOrganizationId, 
-            entityTypeId: fileTypeId,
-            correlationId: correlationId,
-        }
-        let sql0 = await sql.entity.insert( entityInsert )
-        let param = {}
-        param.params = []
-        param.tsql = sql0
+        // create the entity record
+        let fileEntitySQL = await createFileEntitySQL( { sql, fileEntityId, correlationId, contextOrganizationId, fileTypeId } )
+        sqlStatements.push( fileEntitySQL )
 
-        sqlStatements.push( param )
-        
-
-        // - create new File (File Type Id (ACH) == 603c2e56cf800000 )
-        let fileInsert = {
-            entityId: fileEntityId,
-            contextOrganizationId: contextOrganizationId,
-            fromOrganizationId: fromOrganizationId,
-            toOrganizationId: toOrganizationId,
-            fileType: fileTypeId,
-            fileName: fileName,
-            fileBinary: null,
-            sizeInBytes: fileSize,
-            sha256: sha256,
-            isOutbound: isOutbound,
-            correlationId: correlationId,
-        }
-        let sql1 = await sql.file.insert( fileInsert )
-
-        param = {}
-        param.params = []
-        param.tsql = sql1
-
-        sqlStatements.push( param )
+        // create the file record
+        let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId } )
+        sqlStatements.push( fileSQL )
 
         let jsonFileData = {}
         jsonFileData.fileHeader  = achJSON.fileHeader
