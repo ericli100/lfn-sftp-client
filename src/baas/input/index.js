@@ -151,6 +151,11 @@ function achTypeCheck( transaction ) {
 
 async function populateLookupCache({sql, inputFile, contextOrganizationId}){
     let output = {}
+
+    const {size: fileSize} = fs.statSync( inputFile );
+    output.fileSize = fileSize;
+
+    output.fileName = path.basename( inputFile )
     
     output.fileType = path.extname( inputFile ).substring(1, path.extname( inputFile ).length)
     let fileSelect = {
@@ -210,19 +215,18 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
         // create the SQL statements for the transaction
         let sqlStatements = []
         
-        const {size: fileSize} = fs.statSync( inputFile );
-
-        let cache = await populateLookupCache( { sql, inputFile, contextOrganizationId } )
+        const cache = await populateLookupCache( { sql, inputFile, contextOrganizationId } )
         let fileTypeId = cache.fileTypeId
         let entityBatchTypeId = cache.entityBatchTypeId
         let entityTransactionTypeId = cache.entityTransactionTypeId
+        let fileSize = cache.fileSize
+        let fileName = cache.fileName
 
         // TODO: Implement Vault structure to store Encrypted Data cert based on ContextOrganization and upload file to varbinary.
         // - create new File Entity -- EntityType == 603c213fba000000
 
         // FILE HEADER PROCESSING *********
         let fileEntityId = baas.id.generate();
-
         let correlationId = fileEntityId
 
         let entityInsert = {
@@ -237,7 +241,7 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
         param.tsql = sql0
 
         sqlStatements.push( param )
-        let fileName = path.basename( inputFile )
+        
 
         // - create new File (File Type Id (ACH) == 603c2e56cf800000 )
         let fileInsert = {
