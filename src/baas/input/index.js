@@ -186,6 +186,8 @@ async function populateLookupCache({sql, inputFile, contextOrganizationId}){
 }
 
 async function createFileEntitySQL({ sql, fileEntityId, correlationId, contextOrganizationId, fileTypeId }){
+    let output = {}
+
     // FILE HEADER PROCESSING *********
     let entityInsert = {
         entityId: fileEntityId, 
@@ -198,10 +200,13 @@ async function createFileEntitySQL({ sql, fileEntityId, correlationId, contextOr
     param.params = []
     param.tsql = sql0
 
-    return param
+    output.param = param
+    return output
 }
 
 async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId } ){
+    let output = {}
+    
     // - create new File (File Type Id (ACH) == 603c2e56cf800000 )
     let fileInsert = {
         entityId: fileEntityId,
@@ -222,7 +227,9 @@ async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrg
     param.params = []
     param.tsql = sql1
 
-    return param
+    output.param = param
+
+    return output
 }
 
 async function createUpdateFileJsonSQL( { sql, fileEntityId, correlationId, achJSON } ) {
@@ -250,6 +257,7 @@ async function createUpdateFileJsonSQL( { sql, fileEntityId, correlationId, achJ
 
     output.param = param;
     output.jsonFileData = jsonFileData;
+    
     return output
 }
 
@@ -297,11 +305,11 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
 
         // create the entity record
         let fileEntitySQL = await createFileEntitySQL( { sql, fileEntityId, correlationId, contextOrganizationId, fileTypeId } )
-        sqlStatements.push( fileEntitySQL )
+        sqlStatements.push( fileEntitySQL.param )
 
         // create the file record
         let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId } )
-        sqlStatements.push( fileSQL )
+        sqlStatements.push( fileSQL.param )
 
         // update the file record with the achJSON data
         let updateFileJsonSQL = await createUpdateFileJsonSQL( { sql, fileEntityId, correlationId, achJSON } )
