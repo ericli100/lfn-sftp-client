@@ -149,6 +149,37 @@ function achTypeCheck( transaction ) {
     return output
 }
 
+async function populateLookupCache({sql, inputFile, contextOrganizationId}){
+    let output = {}
+    
+    output.fileType = path.extname( inputFile ).substring(1, path.extname( inputFile ).length)
+    let fileSelect = {
+        fileType: output.fileType,
+        contextOrganizationId: contextOrganizationId, 
+    }
+
+    // MASTER DATA LOOKUP TO AVOID REDUNDANT CALLS TO THE DATABASE
+    // - fileTypeId
+    let fileTypeSQL = await sql.fileType.find( fileSelect )
+    let fileTypeId = await sql.executeTSQL( fileTypeSQL )//'603c2e56cf800000'
+    fileTypeId = fileTypeId[0].data[0].entityId.trim() 
+    output.fileTypeId = fileTypeId;
+
+    // - entityBatchTypeId
+    let entityBatchTypeSQL = await sql.entityType.find({entityType: 'Batch', contextOrganizationId: contextOrganizationId})
+    let entityBatchTypeId = await sql.executeTSQL( entityBatchTypeSQL )
+    entityBatchTypeId = entityBatchTypeId[0].data[0].entityId.trim() 
+    output.entityBatchTypeId = entityBatchTypeId
+
+    // - entityTransactionTypeId
+    let entityTransactionTypeSQL = await sql.entityType.find({entityType: 'BatchDetails', contextOrganizationId: contextOrganizationId})
+    let entityTransactionTypeId = await sql.executeTSQL( entityTransactionTypeSQL )
+    entityTransactionTypeId = entityTransactionTypeId[0].data[0].entityId.trim()
+    output.entityTransactionTypeId = entityTransactionTypeId
+
+    return output;
+}
+
 async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound) {
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
@@ -181,29 +212,10 @@ async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizat
         
         const {size: fileSize} = fs.statSync( inputFile );
 
-        // TODO: implement fileType Lookup for the ContextOrganizationId
-        let fileType = path.extname( inputFile ).substring(1, path.extname( inputFile ).length)
-        let fileSelect = {
-            fileType: fileType,
-            contextOrganizationId: contextOrganizationId, 
-        }
-
-        // MASTER DATA LOOKUP TO AVOID REDUNDANT CALLS TO THE DATABASE
-        // - fileTypeId
-        let fileTypeSQL = await sql.fileType.find( fileSelect )
-        let fileTypeId = await sql.executeTSQL( fileTypeSQL )//'603c2e56cf800000'
-        fileTypeId = fileTypeId[0].data[0].entityId.trim() 
-
-        // - entityBatchTypeId
-        let entityBatchTypeSQL = await sql.entityType.find({entityType: 'Batch', contextOrganizationId: contextOrganizationId})
-        let entityBatchTypeId = await sql.executeTSQL( entityBatchTypeSQL )
-        entityBatchTypeId = entityBatchTypeId[0].data[0].entityId.trim() 
-
-        // - entityTransactionTypeId
-        let entityTransactionTypeSQL = await sql.entityType.find({entityType: 'BatchDetails', contextOrganizationId: contextOrganizationId})
-        let entityTransactionTypeId = await sql.executeTSQL( entityTransactionTypeSQL )
-        entityTransactionTypeId = entityTransactionTypeId[0].data[0].entityId.trim() 
-        
+        let cache = await populateLookupCache( { sql, inputFile, contextOrganizationId } )
+        let fileTypeId = cache.fileTypeId
+        let entityBatchTypeId = cache.entityBatchTypeId
+        let entityTransactionTypeId = cache.entityTransactionTypeId
 
         // TODO: Implement Vault structure to store Encrypted Data cert based on ContextOrganization and upload file to varbinary.
         // - create new File Entity -- EntityType == 603c213fba000000
