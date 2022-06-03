@@ -364,7 +364,7 @@ async function createBatchTransactionSQL( {sql, batch, transaction, achType, jso
     return output
 }
 
-async function ach(baas, VENDOR, sql, date, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound) {
+async function ach(baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound) {
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
     if(!baas) throw('baas.input.ach: baas module is required!')

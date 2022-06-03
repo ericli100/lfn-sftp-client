@@ -33,7 +33,7 @@ async function main(){
     // import
     let input = baas.input
     // 6022d1b33f000000 === Lineage Bank
-    let ach = await input.ach(baas, 'synapse', baas.sql,'20220524','6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/tools/lineage_ach_test.ach`, true)
+    let ach = await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/tools/lineage_ach_test.ach`, true)
     console.log('ach:', ach)
 
     console.log('sql: disconnecting...')
