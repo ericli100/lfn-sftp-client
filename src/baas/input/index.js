@@ -344,7 +344,7 @@ async function createBatchTransactionSQL( {sql, batch, transaction, achType, jso
         fromAccountId: 'TEST From', 
         toAccountId: 'TEST To', 
         paymentRelatedInformation: '', 
-        postingDate: jsonFileData.fileHeader.fileCreationDate, 
+        originationDate: jsonFileData.fileHeader.fileCreationDate, 
         effectiveDate: batch.batchHeader.effectiveEntryDate, 
         transactionType: transaction.transactionCode, 
         tracenumber: transaction.traceNumber, 
