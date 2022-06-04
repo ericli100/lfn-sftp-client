@@ -39,6 +39,9 @@ async function main(){
 
     /*
 
+    QUESTIONS:
+     1. Should the PK on each table be entityId & contextOrganizationId ? 
+
     TODO:
 
     1. Organization - add insert and search ( upsert )
