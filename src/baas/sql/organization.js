@@ -106,7 +106,6 @@ function Handler(mssql) {
             a.contextOrganizationId = '${contextOrganizationId}' AND
             (a.allowRead = 1 OR a.allowUpdate = 1)
         WHERE  (o.entityId = '${entityId}' AND o.tenantId = '${tenantId}' AND o.contextOrganizationId = '${contextOrganizationId}')
-            OR (o.companyIdentification = '${identificationNumber}' AND o.tenantId = '${tenantId}' AND o.contextOrganizationId = '${contextOrganizationId}')
             OR (o.organizationNumber = '${organizationNumber}' AND o.tenantId = '${tenantId}' AND o.contextOrganizationId = '${contextOrganizationId}')
             OR (o.parentEntityId = '${parentEntityId}'  AND o.tenantId = '${tenantId}' AND o.contextOrganizationId = '${contextOrganizationId}')
             OR (i.identification = '${identificationNumber}' AND o.tenantId = '${tenantId}' AND o.contextOrganizationId = '${contextOrganizationId}')
