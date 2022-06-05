@@ -100,6 +100,11 @@ function Handler(mssql) {
         ON o.entityId = i.organizationEntityId AND
             o.tenantId = i.tenantId AND
             o.contextOrganizationId = i. contextOrganizationId
+        INNER JOIN [baas].[organizationAuthorization] a
+        ON o.tenantId = a.tenantId AND
+            o.contextOrganizationId = a.authorizedOrganizationId AND
+            a.contextOrganizationId = '${contextOrganizationId}' AND
+            (a.allowRead = 1 OR a.allowUpdate = 1)
         WHERE  (o.entityId = '${entityId}' AND o.tenantId = '${tenantId}' AND o.contextOrganizationId = '${contextOrganizationId}')
             OR (o.companyIdentification = '${identificationNumber}' AND o.tenantId = '${tenantId}' AND o.contextOrganizationId = '${contextOrganizationId}')
             OR (o.organizationNumber = '${organizationNumber}' AND o.tenantId = '${tenantId}' AND o.contextOrganizationId = '${contextOrganizationId}')
@@ -127,3 +132,4 @@ function Handler(mssql) {
 }
 
 module.exports = Handler;
+
