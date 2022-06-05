@@ -134,6 +134,7 @@ function Handler(mssql) {
             ,o.[contextOrganizationId]
             ,o.[organizationNumber]
             ,o.[name]
+            ,i.[identification]
             ,o.[accountingCutoffTime]
             ,o.[parentEntityId]
             ,o.[dataJSON]
@@ -145,7 +146,8 @@ function Handler(mssql) {
         LEFT JOIN [baas].[organizationIdentifiers] i
         ON o.entityId = i.organizationEntityId AND
             o.tenantId = i.tenantId AND
-            o.contextOrganizationId = i. contextOrganizationId
+            o.contextOrganizationId = i. contextOrganizationId AND
+			i.identification = '${identificationNumber}'
         INNER JOIN [baas].[organizationAuthorization] a
         ON o.tenantId = a.tenantId AND
             o.contextOrganizationId = a.authorizedOrganizationId AND
