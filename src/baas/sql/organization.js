@@ -7,10 +7,15 @@ function Handler(mssql) {
         if (!entityId) throw ('entityId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
     
-        let sqlStatement = `SELECT [entityId]
-        FROM [baas].[organizations]
-        WHERE [entityId] = '${entityId}'
-        AND [tenantId] = '${tenantId}';`
+        let sqlStatement = `SELECT o.[entityId]
+        FROM [baas].[organizations] o
+        INNER JOIN [baas].[organizationAuthorization] a
+		ON o.tenantId = a.tenantId AND
+		   o.contextOrganizationId = a.authorizedOrganizationId AND
+		   a.contextOrganizationId = '${contextOrganizationId}' AND
+		   (a.allowRead = 1 OR a.allowUpdate = 1)
+        WHERE o.[entityId] = '${entityId}'
+        AND o.[tenantId] = '${tenantId}';`
     
         let param = {}
         param.params = []
