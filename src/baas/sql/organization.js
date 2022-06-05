@@ -92,7 +92,7 @@ function Handler(mssql) {
         return sqlStatement
     }
 
-    Handler.readAll = async function read({contextOrganizationId}){
+    Handler.readAll = async function readAll({contextOrganizationId}){
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
         
