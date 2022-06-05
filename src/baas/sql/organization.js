@@ -26,7 +26,7 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, parentEntityId, contextOrganizationId, organizationName, correlationId, companyIdentification, dataJSON}){
+    Handler.insert = async function insert({entityId, parentEntityId, contextOrganizationId, organizationName, correlationId, dataJSON}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!correlationId) correlationId = 'SYSTEM'
@@ -38,7 +38,6 @@ function Handler(mssql) {
            ,[tenantId]
            ,[contextOrganizationId]
            ,[name]
-           ,[companyIdentification] /* top level id  - use [organizaitonIdentifiers] for all others */
            ,[parentEntityId]
            ,[dataJSON]
            ,[mutatedBy]
@@ -48,7 +47,6 @@ function Handler(mssql) {
            ,'${tenantId}'
            ,'${contextOrganizationId}'
            ,'${organizationName}'
-           ,'${companyIdentification}'
            ,'${parentEntityId}'
            ,'${dataJSON}'
            ,'SYSTEM'
