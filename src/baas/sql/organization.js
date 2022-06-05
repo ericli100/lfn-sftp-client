@@ -135,7 +135,6 @@ function Handler(mssql) {
             ,o.[organizationNumber]
             ,o.[name]
             ,o.[accountingCutoffTime]
-            ,o.[companyIdentification]
             ,o.[parentEntityId]
             ,o.[dataJSON]
             ,o.[versionNumber]
