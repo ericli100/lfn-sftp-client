@@ -87,6 +87,38 @@ function Handler(mssql) {
         return sqlStatement
     }
 
+    Handler.readAll = async function read({contextOrganizationId}){
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        
+        let sqlStatement = `
+        SELECT o.[entityId]
+            ,o.[tenantId]
+            ,o.[contextOrganizationId]
+            ,o.[organizationNumber]
+            ,o.[name]
+            ,o.[accountingCutoffTime]
+            ,o.[parentEntityId]
+            ,o.[dataJSON]
+            ,o.[versionNumber]
+            ,o.[mutatedBy]
+            ,o.[mutatedDate]
+            ,o.[correlationId]
+        FROM [baas].[organizations] o
+        LEFT JOIN [baas].[organizationIdentifiers] i
+        ON o.entityId = i.organizationEntityId AND
+            o.tenantId = i.tenantId AND
+            o.contextOrganizationId = i.contextOrganizationId
+		INNER JOIN [baas].[organizationAuthorization] a
+		ON o.tenantId = a.tenantId AND
+		   o.contextOrganizationId = a.authorizedOrganizationId AND
+		   a.contextOrganizationId = '${contextOrganizationId}' AND
+		   (a.allowRead = 1 OR a.allowUpdate = 1)
+        WHERE [tenantId] = '${tenantId}' AND [contextOrganizationId] = '${contextOrganizationId}';`
+        
+        return sqlStatement
+    }
+
     Handler.search = async function search({contextOrganizationId, entityId, identificationNumber, parentEntityId, organizationNumber, companyName}){
         if (!contextOrganizationId) throw ('contextOrganizationId required')
 
