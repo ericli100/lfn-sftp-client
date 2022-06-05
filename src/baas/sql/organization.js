@@ -60,18 +60,28 @@ function Handler(mssql) {
         let tenantId = process.env.PRIMAY_TENANT_ID
         
         let sqlStatement = `
-        SELECT [entityId]
-            ,[tenantId]
-            ,[contextOrganizationId]
-            ,[name]
-            ,[companyIdentification]
-            ,[parentEntityId]
-            ,[dataJSON]
-            ,[versionNumber]
-            ,[mutatedBy]
-            ,[mutatedDate]
-            ,[correlationId]
-        FROM [baas].[organizations]
+        SELECT o.[entityId]
+            ,o.[tenantId]
+            ,o.[contextOrganizationId]
+            ,o.[organizationNumber]
+            ,o.[name]
+            ,o.[accountingCutoffTime]
+            ,o.[parentEntityId]
+            ,o.[dataJSON]
+            ,o.[versionNumber]
+            ,o.[mutatedBy]
+            ,o.[mutatedDate]
+            ,o.[correlationId]
+        FROM [baas].[organizations] o
+        LEFT JOIN [baas].[organizationIdentifiers] i
+        ON o.entityId = i.organizationEntityId AND
+            o.tenantId = i.tenantId AND
+            o.contextOrganizationId = i.contextOrganizationId
+		INNER JOIN [baas].[organizationAuthorization] a
+		ON o.tenantId = a.tenantId AND
+		   o.contextOrganizationId = a.authorizedOrganizationId AND
+		   a.contextOrganizationId = '${contextOrganizationId}' AND
+		   (a.allowRead = 1 OR a.allowUpdate = 1)
         WHERE [entityId]='${entityId}' AND [tenantId] = '${tenantId}' AND [contextOrganizationId] = '${contextOrganizationId}';`
         
         return sqlStatement
