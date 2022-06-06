@@ -24,6 +24,7 @@
     "mv": "^2.1.1",
     "nodemailer": "^6.7.2",
     "openpgp": "^5.2.1",
+    "papaparse": "^5.3.2",
     "ssh2-sftp-client": "^7.2.0",
     "string": "^3.3.3",
     "winston": "^3.3.3"

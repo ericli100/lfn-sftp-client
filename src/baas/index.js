@@ -30,6 +30,9 @@ async function main (args) {
     const input = require('./input')
     baas.input = input
 
+    const output = require('./output')
+    baas.output = output
+
     const ach = require('./ach')
     baas.ach = ach
 

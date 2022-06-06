@@ -372,7 +372,7 @@ async function ach(baas, VENDOR, sql, contextOrganizationId, fromOrganizationId,
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId module is required!')
     if(!fromOrganizationId) throw('baas.input.ach: fromOrganizationId module is required!')
     if(!toOrganizationId) throw('baas.input.ach: toOrganizationId module is required!')
-    if(!isOutbound) throw('baas.input.ach: isOutboud value is required!')
+    if(isOutbound == null) throw('baas.input.ach: isOutboud value is required!')
 
     let output = {};
 
