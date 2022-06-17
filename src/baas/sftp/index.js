@@ -190,7 +190,7 @@ async function getFile(fileDetails, workingDirectory, config = null) {
     }
     
     await disconnect(sftp)
-    
+
     return true
 }
 
@@ -476,7 +476,7 @@ module.exports.setConfig = (config) => {
     return setConfig(config)
 }
 
-module.exports.logger = (logger) => {
+module.exports.setLogger = (logger) => {
     // set global config
     return setLogger(logger)
 }

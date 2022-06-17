@@ -43,10 +43,12 @@ async function main(){
     let config = await sftpConfig(VENDOR_NAME)
     
     await baas.sftp.setConfig( config )
-   // await baas.sftp.logger(logger)
+    await baas.sftp.setLogger(logger)
+
     // validate that the connection is good
     await baas.sftp.testConnection()
 
+    // validate the required folders are on the SFTP server
     await baas.sftp.initializeFolders( config )
 
     let remoteFileList = await baas.sftp.getRemoteFileList( config )
