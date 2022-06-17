@@ -166,6 +166,33 @@ async function getRemoteFileList( config = null ){
 
     return output
 }
+async function getFile(fileDetails, workingDirectory, config = null) {
+    if ( !config ) {
+        config = await getConfig()
+    }
+    let sftp = await connect(config.server)
+    let logger = await getLogger()
+
+    let destinationFile
+
+    if (fileDetails.encryptedPGP) {
+        destinationFile = fs.createWriteStream( path.resolve(workingDirectory + '/' + fileDetails.filename + '.gpg') ) ;
+    } else {
+        destinationFile = fs.createWriteStream( path.resolve(workingDirectory + '/' + fileDetails.filename ) );
+    }
+
+    let sourceFile = fileDetails.sourcePath + '/' + fileDetails.filename
+
+    try{
+        await sftp.get(sourceFile, destinationFile)
+    } catch (err) {
+        throw (err)
+    }
+    
+    await disconnect(sftp)
+    
+    return true
+}
 
 async function getFiles(config = null) {
     if ( !config ) {
@@ -468,4 +495,8 @@ module.exports.checkLocalOutboundQueue = (location) => {
 
 module.exports.getRemoteFileList = (config) => {
     return getRemoteFileList(config)
+}
+
+module.exports.getFile = (fileDetails, workingDirectory, config) => {
+    return getFile(fileDetails, workingDirectory, config)
 }

@@ -52,9 +52,20 @@ async function main(){
     let remoteFileList = await baas.sftp.getRemoteFileList( config )
 
     if (remoteFileList.remoteFiles.length > 0) {
+        // create the working directory
         let workingDirectory = await createWorkingDirectory(baas, VENDOR_NAME)
 
+        // get the file from SFTP (one file at a time)
+        for (const file of remoteFileList.remoteFiles) {
+            //
+            await baas.sftp.getFile(file, workingDirectory, config)
 
+            let fileToDelete = path.resolve(workingDirectory + '/' + file.filename )
+            if (file.encryptedPGP) { fileToDelete += '.gpg' }
+            await deleteFile( fileToDelete )
+        }
+
+        // clean up the working directory
         await deleteWorkingDirectory(workingDirectory)
     }
 
@@ -202,6 +213,16 @@ async function deleteWorkingDirectory(workingFolder) {
     }
 
     return true
-}   
+}
+
+async function deleteFile(filePath) {
+    try {
+        fs.unlinkSync(filePath)
+        return true
+      } catch(err) {
+        console.error(err)
+        return false
+      }
+}
 
 main()
