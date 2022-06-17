@@ -480,7 +480,26 @@ async function ach(baas, VENDOR, sql, contextOrganizationId, fromOrganizationId,
     return output
 }
 
+async function fis ( baas, sql, inputFile ) {
+    let output = {}
+
+    // let baas = baas;
+    // let sql = sql;
+    // let inputFile = inputFile;
+
+    output.balanceFile = async function balanceFile( {sql, inputFile} ) {
+        // function used to import the balance file into the database
+        let sha256 = await sql.file.generateSHA256( inputFile )
+
+        return true
+    }
+
+    return output
+}
+
 module.exports.ach = ach
+
+module.exports.fis = fis
 
 /*
   DECLARE @correlationId CHAR(20)
