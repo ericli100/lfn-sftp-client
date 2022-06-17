@@ -62,9 +62,38 @@ async function main(){
             //
             await baas.sftp.getFile(file, workingDirectory, config)
 
-            let fileToDelete = path.resolve(workingDirectory + '/' + file.filename )
-            if (file.encryptedPGP) { fileToDelete += '.gpg' }
-            await deleteFile( fileToDelete )
+            let fullFilePath = path.resolve(workingDirectory + '/' + file.filename )
+            
+            // decrypt the file
+            if (file.encryptedPGP) { 
+                await baas.pgp.decryptFile(VENDOR_NAME, fullFilePath + '.gpg' )
+            }
+
+            // check db if sha256 exists
+            let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
+            let fileExistsInDB = await baas.sql.file.exists( sha256 )
+
+            if(fileExistsInDB == false) {
+                // add the file to the database
+                // (create Entity)
+
+                // (create File)
+
+                // (vault the file as binary)
+
+                // set the workflow items
+                // -- not processed (used for Import)
+                // -- receiptSent (used for FileActivityFile)
+
+            }
+
+            // buffer cleanup
+            await deleteFile( fullFilePath )
+            if (file.encryptedPGP) { 
+                fullFilePath += '.gpg'
+                await deleteFile( fullFilePath )
+            }
+            
         }
 
         // clean up the working directory
