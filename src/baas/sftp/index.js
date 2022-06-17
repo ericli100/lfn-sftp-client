@@ -197,8 +197,6 @@ async function getFiles(config = null) {
                 output.remoteFiles.push( {filename: obj.name, sourcePath: mapping.source, destinationPath: mapping.destination, encryptedPGP: mapping.usePGP } )
             }
 
-            output.remoteFiles = remoteFilesArr;
-
             console.log('getFiles.remoteFiles:', remoteFilesArr)
 
             // process each file in remoteFiles

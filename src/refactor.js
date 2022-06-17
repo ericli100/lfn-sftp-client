@@ -51,6 +51,13 @@ async function main(){
 
     let remoteFileList = await baas.sftp.getRemoteFileList( config )
 
+    if (remoteFileList.remoteFiles.length > 0) {
+        let workingDirectory = await createWorkingDirectory(baas, VENDOR_NAME)
+
+
+        await deleteWorkingDirectory(workingDirectory)
+    }
+
     // --- Get the files ( calcualte SHA256 )
 
     // --- Write Files to the Vault
@@ -171,6 +178,30 @@ async function sftpConfig(VENDOR_NAME) {
     return config
 }
 
+async function createWorkingDirectory(baas, VENDOR_NAME) {
+    let workingFolderId = await baas.id.generate()
+    let workingFolder = path.resolve( process.cwd() + `/buffer/${VENDOR_NAME}/${workingFolderId}`)
 
+    fs.mkdirSync(workingFolder, { recursive: true });
+    console.log(`Working folder [${workingFolder}] was created.`);
+
+    return workingFolder
+}
+
+async function deleteWorkingDirectory(workingFolder) {
+    let arr = workingFolder.split('/');
+    let last = arr[arr.length-1] || arr[arr.length-2];
+
+    try {
+        fs.rmdirSync(workingFolder, { recursive: true });
+    
+        console.log(`Working folder [${last}] was deleted.`);
+    } catch (err) {
+        console.error(`Error: while deleting Working folder [${workingFolder}!`);
+        return false
+    }
+
+    return true
+}   
 
 main()
