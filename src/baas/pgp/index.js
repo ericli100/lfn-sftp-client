@@ -40,7 +40,7 @@ async function encrypt(VENDOR, message) {
         signingKeys: keys.lineage.privateKey // optional but we are choosing to sign the file
     });
 
-    console.log('encrypted:', encrypted)
+    // console.log('encrypted:', encrypted)
     return encrypted
 }
 

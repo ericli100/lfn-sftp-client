@@ -66,26 +66,42 @@ async function main(){
             
             // decrypt the file
             if (file.encryptedPGP) { 
-                await baas.pgp.decryptFile(VENDOR_NAME, fullFilePath + '.gpg' )
+                await baas.pgp.decryptFile( VENDOR_NAME, fullFilePath + '.gpg' )
+                await deleteFile( fullFilePath + '.gpg' ) // delete the original encrypted file locally
             }
 
-            // check db if sha256 exists
-            let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
-            let fileExistsInDB = await baas.sql.file.exists( sha256 )
+            let inputFileOutput
+            let fileEntityId
 
-            if(fileExistsInDB == false) {
-                // add the file to the database
-                // (create Entity)
-
-                // (create File)
-
-                // (vault the file as binary)
-
-                // set the workflow items
-                // -- not processed (used for Import)
-                // -- receiptSent (used for FileActivityFile)
-
+            try{
+                /*
+                    6022d1b33f000000 == Lineage Bank
+                    602bd52e1c000000 == Synctera
+                */
+                inputFileOutput = await baas.input.file(baas, VENDOR_NAME, baas.sql, '6022d1b33f000000', '602bd52e1c000000', '6022d1b33f000000', fullFilePath, false)
+                fileEntityId = inputFileOutput.fileEntityId
+            } catch (err) {
+                if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
+                    throw(err);
+                }
             }
+    
+            // encrypt the file with Lineage GPG keys prior to vaulting
+            let encryptOutput = await baas.pgp.encryptFile( 'lineage', fullFilePath, fullFilePath + '.gpg' )
+
+            if(!fileEntityId) {
+                // check db if sha256 exists
+                let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
+                fileEntityId = await baas.sql.file.exists( sha256, true )
+            }
+
+            // (vault the file as binary)
+            console.log(encryptOutput)
+            let fileVaultOutput = await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, '6022d1b33f000000', fileEntityId, 'lineage', fullFilePath + '.gpg' )
+
+            // set the workflow items
+            // -- not processed (used for Import)
+            // -- receiptSent (used for FileActivityFile)
 
             // buffer cleanup
             await deleteFile( fullFilePath )

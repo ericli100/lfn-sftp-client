@@ -7,7 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 function Handler(mssql) {
-    Handler.exists = async function exists(sha256) {
+    Handler.exists = async function exists(sha256, returnId = false) {
         if (!sha256) throw ('sha256 required')
         let tenantId = process.env.PRIMAY_TENANT_ID
     
@@ -23,7 +23,12 @@ function Handler(mssql) {
         try {
             let results = await mssql.sqlQuery(param);
             console.log(results)
-            return results.rowsAffected != 0
+
+            if(returnId){
+                return results.data[0].entityId.trim()
+            } else {
+                return results.rowsAffected != 0
+            }
         } catch (err) {
             console.error(err)
             throw err

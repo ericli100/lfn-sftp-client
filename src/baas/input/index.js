@@ -149,7 +149,7 @@ function achTypeCheck( transaction ) {
     return output
 }
 
-async function populateLookupCache({ sql, inputFile, contextOrganizationId, achJSON }){
+async function populateLookupCache({ sql, inputFile, contextOrganizationId, achJSON = null}){
     let output = {}
 
     const {size: fileSize} = fs.statSync( inputFile );
@@ -182,14 +182,16 @@ async function populateLookupCache({ sql, inputFile, contextOrganizationId, achJ
     entityTransactionTypeId = entityTransactionTypeId[0].data[0].entityId.trim()
     output.entityTransactionTypeId = entityTransactionTypeId
 
-    // BATCH DETAIL PROCESSING *********
-    let jsonBatchData = {}
-    jsonBatchData.batchCount = achJSON.fileControl.batchCount
-    jsonBatchData.totalCredit = achJSON.fileControl.totalCredit
-    jsonBatchData.totalDebit = achJSON.fileControl.totalDebit
-    jsonBatchData.totalAdendaCount = achJSON.fileControl.totalAdendaCount
-    jsonBatchData.batches = achJSON.batches
-    output.jsonBatchData = jsonBatchData
+    if(achJSON){
+        // BATCH DETAIL PROCESSING *********
+        let jsonBatchData = {}
+        jsonBatchData.batchCount = achJSON.fileControl.batchCount
+        jsonBatchData.totalCredit = achJSON.fileControl.totalCredit
+        jsonBatchData.totalDebit = achJSON.fileControl.totalDebit
+        jsonBatchData.totalAdendaCount = achJSON.fileControl.totalAdendaCount
+        jsonBatchData.batches = achJSON.batches
+        output.jsonBatchData = jsonBatchData
+    }
 
     return output;
 }
@@ -266,6 +268,28 @@ async function createUpdateFileJsonSQL( { sql, fileEntityId, correlationId, achJ
 
     output.param = param;
     output.jsonFileData = jsonFileData;
+
+    return output
+}
+
+async function createFileVaultSQL( { sql, entityId, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId } ) {
+    let output = {}
+
+    let fileVaultData = {}
+    fileVaultData.entityId = entityId;
+    fileVaultData.contextOrganizationId = contextOrganizationId;
+    fileVaultData.fileEntityId = fileEntityId;
+    fileVaultData.pgpSignature = pgpSignature;
+    fileVaultData.filePath = filePath;
+    fileVaultData.correlationId = correlationId;
+
+    let sql1 = await sql.fileVault.insert( fileVaultData )
+
+    param = {}
+    param.params = []
+    param.tsql = sql1
+
+    output.param = param;
 
     return output
 }
@@ -480,6 +504,134 @@ async function ach(baas, VENDOR, sql, contextOrganizationId, fromOrganizationId,
     return output
 }
 
+async function fileVault(baas, VENDOR, sql, contextOrganizationId, fileEntityId, pgpSignature, filePath) {
+    if(!baas) throw('baas.input.fileVault: baas module is required!')
+    if(!sql) throw('baas.input.fileVault: sql module is required!')
+    if(!fileEntityId) throw('baas.input.fileVault: fileEntityId module is required!')
+    if(!contextOrganizationId) throw('baas.input.fileVault: contextOrganizationId module is required!')
+    if(!pgpSignature) throw('baas.input.fileVault: pgpSignature module is required!')
+    if(!filePath) throw('baas.input.fileVault: toOrganizationId module is required!')
+
+    let output = {};
+
+    let fileVaultEntityId = baas.id.generate();
+    let correlationId = fileVaultEntityId
+
+    let sqlStatements = []
+
+    let fileVaultEntitySQL = await createFileVaultSQL( { sql, entityId:fileEntityId, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId } )
+    sqlStatements.push( fileVaultEntitySQL.param )
+
+    output.results = await sql.execute( sqlStatements )
+    output.fileVaultEntityId = fileVaultEntityId
+
+    return output
+}
+
+async function file(baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound) {
+    if(!contextOrganizationId) throw('baas.input.file: contextOrganizationId is required!')
+    if(!inputFile) throw('baas.input.file: inputFile is required!')
+    if(!baas) throw('baas.input.file: baas module is required!')
+    if(!sql) throw('baas.input.file: sql module is required!')
+    if(!contextOrganizationId) throw('baas.input.file: contextOrganizationId module is required!')
+    if(!fromOrganizationId) throw('baas.input.file: fromOrganizationId module is required!')
+    if(!toOrganizationId) throw('baas.input.file: toOrganizationId module is required!')
+    if(isOutbound == null) throw('baas.input.file: isOutboud value is required!')
+
+    let output = {};
+
+    // check db if sha256 exists
+    let sha256 = await sql.file.generateSHA256( inputFile )
+    let fileExistsInDB = await sql.file.exists( sha256 )
+
+    // if not sha256 parse the file input
+    if (!fileExistsInDB) {
+        // create the SQL statements for the transaction
+        let sqlStatements = []
+        
+        const cache = await populateLookupCache( { sql, inputFile, contextOrganizationId } )
+        let fileTypeId = cache.fileTypeId
+       // let entityBatchTypeId = cache.entityBatchTypeId
+       // let entityTransactionTypeId = cache.entityTransactionTypeId
+        let fileSize = cache.fileSize
+        let fileName = cache.fileName
+
+        // TODO: Implement Vault structure to store Encrypted Data cert based on ContextOrganization and upload file to varbinary.
+        // - create new File Entity -- EntityType == 603c213fba000000
+        let fileEntityId = baas.id.generate();
+        let correlationId = fileEntityId
+
+        // create the entity record
+        let fileEntitySQL = await createFileEntitySQL( { sql, fileEntityId, correlationId, contextOrganizationId, fileTypeId } )
+        sqlStatements.push( fileEntitySQL.param )
+
+        // create the file record
+        // TODO: stream the ACH file in the DB variable binary field
+        let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId } )
+        sqlStatements.push( fileSQL.param )
+
+        // update the file record with the achJSON data
+        // let updateFileJsonSQL = await createUpdateFileJsonSQL( { sql, fileEntityId, correlationId, achJSON } )
+        // sqlStatements.push( updateFileJsonSQL.param )
+        // let jsonFileData = updateFileJsonSQL.jsonFileData;
+
+        // loop over the batches for processing
+        // for (const batch of jsonBatchData.batches) {
+        //     // create the fileBatch Entries:
+        //     let fileBatchEntityId = baas.id.generate();
+
+        //     // insert the batch entityId
+        //     let sqlBatchEntitySQL = await createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} )
+        //     sqlStatements.push( sqlBatchEntitySQL.param )
+
+        //     // insert the batch
+        //     let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, correlationId } )
+        //     sqlStatements.push( batchSQL.param )
+
+        //     // TRANSACTION DETAIL PROCESSING *********
+        //     let DebitBatchRunningTotal = 0
+        //     let CreditBatchRunningTotal = 0
+
+        //     // loop over the transactions for processing
+        //     for (const transaction of batch.entryDetails) {
+        //         let fileTransactionEntityId = baas.id.generate();
+
+        //         // create the transaction entity
+        //         let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
+        //         sqlStatements.push( batchTransactionEntitySQL.param )
+        
+        //         // transaction processing
+        //         let achType = achTypeCheck( transaction )
+
+        //         // keep the running total for validation at the end
+        //         CreditBatchRunningTotal += achType.transactionCredit
+        //         DebitBatchRunningTotal += achType.transactionDebit
+
+        //         // TODO: lookup the fromAccountId ( this is the RDFI end user account based on isOutbound value)
+        //         // TODO: lookup the toAccountId ( this is the destination for the BaaS money movement based on the Immediate Origin - jsonFileData.fileHeader.immediateOrigin)
+        //         // TODO: get the ABA list from the FRB - import into the DB
+
+        //         // create the batch transaction entry
+        //         let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
+        //         sqlStatements.push( batchTransactionSQL.param )
+        //     }
+
+        //     // these totals should match, best to fail the whole task if it does not balance here
+        //     if (CreditBatchRunningTotal != batch.batchControl.totalCredit) throw('baas.input.ach batch total from the individual credit transacitons does not match the batch.batchControl.totalCredit! Aborting because something is wrong.')
+        //     if (DebitBatchRunningTotal != batch.batchControl.totalDebit) throw('baas.input.ach batch total from the individual debit transacitons does not match the batch.batchControl.totalDebit! Aborting because something is wrong.')
+        // } 
+
+        // call SQL and run the SQL transaction to import the ach file to the database
+        output.results = await sql.execute( sqlStatements )
+        output.fileEntityId = fileEntityId
+    } else {
+        throw({errorcode: 'E_FIIDA', message:`baas.input.file: ERROR the file named: ${ path.basename( inputFile ) } is already present in the database with SHA256: ${ sha256 }`})
+    }
+
+    // output the status
+    return output
+}
+
 async function fis ( baas, sql, inputFile ) {
     let output = {}
 
@@ -500,6 +652,10 @@ async function fis ( baas, sql, inputFile ) {
 module.exports.ach = ach
 
 module.exports.fis = fis
+
+module.exports.file = file
+
+module.exports.fileVault = fileVault
 
 /*
   DECLARE @correlationId CHAR(20)

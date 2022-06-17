@@ -9,6 +9,7 @@ const mssql = require('../../db')()
 module.exports.entityType = require('./entityType')(mssql);
 module.exports.entity = require('./entity')(mssql);
 module.exports.fileType = require('./fileType')(mssql);
+module.exports.fileVault = require('./fileVault')(mssql);
 module.exports.file = require('./file')(mssql);
 module.exports.fileBatch = require('./fileBatch')(mssql);
 module.exports.fileTransaction = require('./fileTransaction')(mssql);
