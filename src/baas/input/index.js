@@ -556,8 +556,6 @@ async function file(baas, VENDOR, sql, contextOrganizationId, fromOrganizationId
         let fileSize = cache.fileSize
         let fileName = cache.fileName
 
-        // TODO: Implement Vault structure to store Encrypted Data cert based on ContextOrganization and upload file to varbinary.
-        // - create new File Entity -- EntityType == 603c213fba000000
         let fileEntityId = baas.id.generate();
         let correlationId = fileEntityId
 
@@ -566,60 +564,8 @@ async function file(baas, VENDOR, sql, contextOrganizationId, fromOrganizationId
         sqlStatements.push( fileEntitySQL.param )
 
         // create the file record
-        // TODO: stream the ACH file in the DB variable binary field
         let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId } )
         sqlStatements.push( fileSQL.param )
-
-        // update the file record with the achJSON data
-        // let updateFileJsonSQL = await createUpdateFileJsonSQL( { sql, fileEntityId, correlationId, achJSON } )
-        // sqlStatements.push( updateFileJsonSQL.param )
-        // let jsonFileData = updateFileJsonSQL.jsonFileData;
-
-        // loop over the batches for processing
-        // for (const batch of jsonBatchData.batches) {
-        //     // create the fileBatch Entries:
-        //     let fileBatchEntityId = baas.id.generate();
-
-        //     // insert the batch entityId
-        //     let sqlBatchEntitySQL = await createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} )
-        //     sqlStatements.push( sqlBatchEntitySQL.param )
-
-        //     // insert the batch
-        //     let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, correlationId } )
-        //     sqlStatements.push( batchSQL.param )
-
-        //     // TRANSACTION DETAIL PROCESSING *********
-        //     let DebitBatchRunningTotal = 0
-        //     let CreditBatchRunningTotal = 0
-
-        //     // loop over the transactions for processing
-        //     for (const transaction of batch.entryDetails) {
-        //         let fileTransactionEntityId = baas.id.generate();
-
-        //         // create the transaction entity
-        //         let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
-        //         sqlStatements.push( batchTransactionEntitySQL.param )
-        
-        //         // transaction processing
-        //         let achType = achTypeCheck( transaction )
-
-        //         // keep the running total for validation at the end
-        //         CreditBatchRunningTotal += achType.transactionCredit
-        //         DebitBatchRunningTotal += achType.transactionDebit
-
-        //         // TODO: lookup the fromAccountId ( this is the RDFI end user account based on isOutbound value)
-        //         // TODO: lookup the toAccountId ( this is the destination for the BaaS money movement based on the Immediate Origin - jsonFileData.fileHeader.immediateOrigin)
-        //         // TODO: get the ABA list from the FRB - import into the DB
-
-        //         // create the batch transaction entry
-        //         let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
-        //         sqlStatements.push( batchTransactionSQL.param )
-        //     }
-
-        //     // these totals should match, best to fail the whole task if it does not balance here
-        //     if (CreditBatchRunningTotal != batch.batchControl.totalCredit) throw('baas.input.ach batch total from the individual credit transacitons does not match the batch.batchControl.totalCredit! Aborting because something is wrong.')
-        //     if (DebitBatchRunningTotal != batch.batchControl.totalDebit) throw('baas.input.ach batch total from the individual debit transacitons does not match the batch.batchControl.totalDebit! Aborting because something is wrong.')
-        // } 
 
         // call SQL and run the SQL transaction to import the ach file to the database
         output.results = await sql.execute( sqlStatements )

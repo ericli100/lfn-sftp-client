@@ -95,8 +95,7 @@ async function main(){
                 fileEntityId = await baas.sql.file.exists( sha256, true )
             }
 
-            // (vault the file as binary)
-            console.log(encryptOutput)
+            // (vault the file as PGP armored text)
             let fileVaultOutput = await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, '6022d1b33f000000', fileEntityId, 'lineage', fullFilePath + '.gpg' )
 
             // set the workflow items
@@ -116,14 +115,9 @@ async function main(){
         await deleteWorkingDirectory(workingDirectory)
     }
 
-    // --- Get the files ( calcualte SHA256 )
-
-    // --- Write Files to the Vault
-
     // --- Poll the DB for unprocessed files
 
     // --- 
-
 
 
     // let originalFilePath = `${process.cwd()}/src/lineage_test_file.txt`
@@ -177,19 +171,6 @@ async function main(){
     5. Add Events ( insert and definition )
     -- add the events for the ACH processing and put them in the DB with the transactions
 
-
-    From ACH File Header
-
-    batchNumber:1
-   -- companyEntryDescription:'GoGetr'
-   -- companyIdentification:'9814081990'
-   -- companyName:'GoGetr'
-    effectiveEntryDate:'220224'
-    id:''
-   -- ODFIIdentification:'08430318' ( LINEAGE BANK )
-    originatorStatusCode:1
-    serviceClassCode:200
-    standardEntryClassCode:'WEB'
 
     */
 
