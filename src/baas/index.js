@@ -36,6 +36,9 @@ async function main (args) {
     const ach = require('./ach')
     baas.ach = ach
 
+    const sftp = require('./sftp')
+    baas.sftp = sftp
+
     return baas
 }
 
