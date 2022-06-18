@@ -5,6 +5,7 @@
 
 const crypto = require('crypto');
 const fs = require('fs');
+const { builtinModules } = require('module');
 const path = require('path');
 
 async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
@@ -116,6 +117,41 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
     return true
 }
 
+async function processInboundFilesFromDB( baas, logger, VENDOR_NAME ) {
+    // get unprocessed files from the DB
+
+    // TODO: implement DB code
+
+    // switch case based on type [ach, fis, wire, transactions]
+    let input = baas.input
+    // 6022d1b33f000000 === Lineage Bank
+    //let ach = await input.ach(baas, 'synctera', baas.sql,'6022d1b33f000000', 'synctera', 'lineage', `${process.cwd()}/src/tools/20220224T100287_20220224T155500.579_OUTBOUND.ach`, true)
+    //console.log('ach:', ach)
+
+    // if(1==2){
+    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220513T110580_20220513T161502.000Z_Converge-ACH-Received-2022-05-13.ach`, false)
+    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220519T150563_20220519T201314.000Z_ACH-Received2022-05-19.ach`, false)
+    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220520T080505_20220520T130625.000Z_ACH-Received2022-05-20.ach`, false)
+    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220523T130532_20220523T181520.000Z_Converge-ACH-Received-2022-05-23.ach`, false)
+    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220525T070523_20220525T122846.000Z_Converge-ACH-Received-2022-05-25.ach`, false)
+    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220527T080593_20220527T130548.000Z_Converge-ACH-Received-2022-05-26.ach`, false)
+    // }
+
+    return
+}
+
+async function processOutboundFilesFromDB( baas, logger, VENDOR_NAME ) {
+    // get unprocessed files from the DB
+
+    // TODO: implement DB code
+
+    let output = baas.output
+    let fileActivityFileCSV = await output.fileActivity('synapse', baas.sql, 'date', '30-2010-20404000');
+    output.writeCSV(`${process.cwd()}/src/manualImport/`, fileActivityFileCSV.fileName, fileActivityFileCSV.csv)
+
+    return
+}
+
 async function createWorkingDirectory(baas, VENDOR_NAME, logger) {
     let workingFolderId = await baas.id.generate()
     let workingFolder = path.resolve( process.cwd() + `/buffer/${VENDOR_NAME}/${workingFolderId}`)
@@ -153,3 +189,7 @@ async function deleteFile(filePath) {
 }
 
 module.exports.getRemoteSftpFiles = getRemoteSftpFiles
+
+module.exports.processInboundFilesFromDB = processInboundFilesFromDB
+
+module.exports.processOutboundFilesFromDB = processOutboundFilesFromDB
