@@ -70,6 +70,8 @@ async function main(){
                 await deleteFile( fullFilePath + '.gpg' ) // delete the original encrypted file locally
             }
 
+            let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
+
             let inputFileOutput
             let fileEntityId
 
@@ -91,12 +93,44 @@ async function main(){
 
             if(!fileEntityId) {
                 // check db if sha256 exists
-                let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
                 fileEntityId = await baas.sql.file.exists( sha256, true )
             }
 
             // (vault the file as PGP armored text)
-            let fileVaultOutput = await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, '6022d1b33f000000', fileEntityId, 'lineage', fullFilePath + '.gpg' )
+            let fileVaultExists = await baas.sql.fileVault.exists( '', fileEntityId )
+
+            if(!fileVaultExists) {
+                await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, '6022d1b33f000000', fileEntityId, 'lineage', fullFilePath + '.gpg' )
+            }
+            await deleteFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
+            
+            // download the file to validate it ( check the SHA256 Hash )
+            let fileVaultObj = {
+                baas: baas,
+                VENDOR: VENDOR_NAME,
+                contextOrganizationId: '6022d1b33f000000',
+                sql: baas.sql, 
+                entityId: '', 
+                fileEntityId: fileEntityId, 
+                destinationPath: fullFilePath + '.gpg'
+            }
+            
+            await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+            await baas.pgp.decryptFile( VENDOR_NAME, fullFilePath + '.gpg', fullFilePath + '.VALIDATION' )
+
+            let sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath + '.VALIDATION' )
+
+            if (sha256 == sha256_VALIDATION) {
+                // okay... we are 100% validated. We pulled the file, 
+                // decrypted it, encrypted with our key, wrote it to 
+                // the DB, downloaded it, decrypted it and validated the sha256 hash
+
+                // *************************************************************
+                //  ONLY DELETE THE FILES FROM THE REMOTE FTP WHEN THIS IS TRUE
+                // *************************************************************
+
+                // TODO: Delete the files from the remote SFTP
+            }
 
             // set the workflow items
             // -- not processed (used for Import)
@@ -104,11 +138,8 @@ async function main(){
 
             // buffer cleanup
             await deleteFile( fullFilePath )
-            if (file.encryptedPGP) { 
-                fullFilePath += '.gpg'
-                await deleteFile( fullFilePath )
-            }
-            
+            await deleteFile( fullFilePath + '.gpg' )
+            await deleteFile( fullFilePath + '.VALIDATION' )
         }
 
         // clean up the working directory

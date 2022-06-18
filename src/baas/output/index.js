@@ -114,6 +114,33 @@ function writeCSV(filePath, fileName, csv){
     return
 }
 
+async function fileVault({baas, VENDOR, sql, entityId, contextOrganizationId, fileEntityId, destinationPath}) {
+    let output = {};
+    // get the SQL
+
+    // create the SQL statements for the transaction
+    let sqlStatements = []
+    let correlationId = baas.id.generate();
+    
+    // find fileVault record
+    let fileVaultSQL = await baas.sql.fileVault.readById( {entityId, contextOrganizationId, fileEntityId } )
+    sqlStatements.push( fileVaultSQL.param )
+
+    // execute the SQL
+    // call SQL and run the SQL transaction to import the ach file to the database
+    output.results = await sql.execute( sqlStatements )
+
+    if(output.results[0].recordsets[0].length > 0) {
+        // write the encrypted File (slap a '.gpg' on the file name)
+        let fileVaultObj = output.results[0].recordsets[0][0];
+        fs.writeFileSync( path.resolve(destinationPath), fileVaultObj.vaultedFile)
+    } else {
+        throw ('Error: baas.sql.output.fileVault the requested file id was not present in the database!')
+    }
+
+    return true
+}
+
 module.exports.fileActivity = (VENDOR, SQL, date, accountNumber) => {
     return fileActivity(VENDOR, SQL, date, accountNumber)
 }
@@ -124,4 +151,8 @@ module.exports.accountBalance = (VENDOR, SQL, date, accountNumber) => {
 
 module.exports.writeCSV = (filePath, fileName, csv) => {
     return writeCSV(filePath, fileName, csv)
+}
+
+module.exports.fileVault = ({baas, VENDOR, sql, entityId, contextOrganizationId, fileEntityId, destinationPath}) => {
+    return fileVault({baas, VENDOR, sql, entityId, contextOrganizationId, fileEntityId, destinationPath})
 }

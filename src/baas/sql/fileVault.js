@@ -7,14 +7,14 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 function Handler(mssql) {
-    Handler.exists = async function exists(entityId, returnId = false) {
-        if (!entityId) throw ('sha256 required')
+    Handler.exists = async function exists(entityId, fileEntityId, returnId = false) {
+        if (!entityId && !fileEntityId) throw ('entityId or fileEntityId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
     
         let sqlStatement = `SELECT [entityId]
         FROM [baas].[fileVault]
-        WHERE [entityId] = '${sha256}'
-        AND [tenantId] = '${tenantId}'`
+        WHERE ([entityId] = '${entityId}' OR [fileEntityId] = '${fileEntityId}')
+        AND [tenantId] = '${tenantId}';`
     
         let param = {}
         param.params = []
@@ -64,6 +64,54 @@ function Handler(mssql) {
             ,'${correlationId}');`
     
         return sqlStatement
+    }
+
+    Handler.readByIdSQL = async function readByIdSQL({entityId, contextOrganizationId, fileEntityId}){
+        if (!entityId && !fileEntityId) throw ('entityId or fileEntityId required')
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+    
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        let sqlStatement = `
+        SELECT TOP 1 
+            v.[entityId]
+            ,v.[tenantId]
+            ,v.[contextOrganizationId]
+            ,v.[fileEntityId]
+            ,f.[fileName]
+            ,v.[pgpSignature]
+            ,v.[vaultedFile]
+            ,v.[correlationId]
+            ,v.[versionNumber]
+            ,v.[mutatedBy]
+            ,v.[mutatedDate]
+        FROM [baas].[fileVault] v
+        INNER JOIN [baas].[files] f
+        ON f.entityId = v.[fileEntityId]
+        WHERE v.[tenantId] = '${tenantId}'
+            AND v.[contextOrganizationId] = '${contextOrganizationId}'
+            AND (v.[entityId] = '${entityId}' OR v.[fileEntityId] = '${fileEntityId}');`
+    
+        return sqlStatement
+    }
+
+    Handler.readById = async function readById( { entityId, contextOrganizationId, fileEntityId, correlationId} ) {
+        let output = {}
+    
+        let fileVaultData = {}
+        fileVaultData.entityId = entityId;
+        fileVaultData.contextOrganizationId = contextOrganizationId;
+        fileVaultData.fileEntityId = fileEntityId;
+        fileVaultData.correlationId = correlationId;
+    
+        let sql1 = await Handler.readByIdSQL( fileVaultData )
+    
+        param = {}
+        param.params = []
+        param.tsql = sql1
+    
+        output.param = param;
+    
+        return output
     }
 
     return Handler
