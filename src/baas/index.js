@@ -39,6 +39,9 @@ async function main (args) {
     const sftp = require('./sftp')
     baas.sftp = sftp
 
+    const processing = require('./processing')
+    baas.processing = processing
+
     return baas
 }
 
