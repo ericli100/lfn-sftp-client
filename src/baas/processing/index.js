@@ -7,7 +7,28 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+async function test(baas) {
+    console.log('sql:', baas.sql)
+    console.log('sql.schema', baas.schema)
+
+    let pgp = baas.pgp
+
+    // testing
+    let message = 'test message to encrypt'
+    console.log('message:', message)
+
+    let encrypted = await pgp.encrypt('lineage', message)
+    console.log('encrypted:', encrypted)
+
+    let decrypted = await pgp.decrypt('lineage', encrypted)
+    console.log('decrypted:', decrypted)
+    
+}
+
 async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
+    let output = {}
+    output.validatedRemoteFiles = []
+
     // validate that the connection is good
     await baas.sftp.testConnection()
     logger.log({ level: 'verbose', message: `${VENDOR_NAME}: SFTP connection tested to [${config.REMOTE_HOST}].` })
@@ -24,7 +45,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
         let workingDirectory = await createWorkingDirectory(baas, VENDOR_NAME, logger)
 
         // get the file from SFTP (one file at a time)
-        for (const file of remoteFileList.remoteFiles) {
+        for (let file of remoteFileList.remoteFiles) {
             //
             await baas.sftp.getFile(file, workingDirectory, config)
 
@@ -33,7 +54,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
             // decrypt the file
             if (file.encryptedPGP) { 
                 await baas.pgp.decryptFile( VENDOR_NAME, fullFilePath + '.gpg' )
-                await deleteFile( fullFilePath + '.gpg' ) // delete the original encrypted file locally
+                await deleteBufferFile( fullFilePath + '.gpg' ) // delete the original encrypted file locally
             }
 
             let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
@@ -68,7 +89,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
             if(!fileVaultExists) {
                 await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, '6022d1b33f000000', fileEntityId, 'lineage', fullFilePath + '.gpg' )
             }
-            await deleteFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
+            await deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
             
             // download the file to validate it ( check the SHA256 Hash )
             let fileVaultObj = {
@@ -96,44 +117,51 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
                 //  ONLY DELETE THE FILES FROM THE REMOTE FTP WHEN THIS IS TRUE
                 // *************************************************************
 
-                // TODO: Delete the files from the remote SFTP
+                file.sha256 = sha256_VALIDATION
+                output.validatedRemoteFiles.push(file)
             }
 
-            // set the workflow items
-            // -- not processed (used for Import)
-            // -- receiptSent (used for FileActivityFile)
-
             // buffer cleanup
-            await deleteFile( fullFilePath )
-            await deleteFile( fullFilePath + '.gpg' )
-            await deleteFile( fullFilePath + '.VALIDATION' )
+            await deleteBufferFile( fullFilePath )
+            await deleteBufferFile( fullFilePath + '.gpg' )
+            await deleteBufferFile( fullFilePath + '.VALIDATION' )
         }
 
         // clean up the working directory
         await deleteWorkingDirectory(workingDirectory)
     }
 
-    return true
+    return output
+}
+
+async function removeRemoteSftpFiles(baas, logger, VENDOR_NAME, config, arrayOfFiles) {
+    // remove the files that have been stored and validated in the database
+    console.log("TODO: implement remote file processing code (either delete or move the file based on logic)")
+    return false
 }
 
 async function processInboundFilesFromDB( baas, logger, VENDOR_NAME ) {
     // get unprocessed files from the DB
 
     // TODO: implement DB code
+    // - pull array of files to process
 
+    // - Loop through files
     // switch case based on type [ach, fis, wire, transactions]
     let input = baas.input
     // 6022d1b33f000000 === Lineage Bank
     //let ach = await input.ach(baas, 'synctera', baas.sql,'6022d1b33f000000', 'synctera', 'lineage', `${process.cwd()}/src/tools/20220224T100287_20220224T155500.579_OUTBOUND.ach`, true)
     //console.log('ach:', ach)
 
-    // if(1==2){
+    // if(isACH){
     //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220513T110580_20220513T161502.000Z_Converge-ACH-Received-2022-05-13.ach`, false)
     //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220519T150563_20220519T201314.000Z_ACH-Received2022-05-19.ach`, false)
     //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220520T080505_20220520T130625.000Z_ACH-Received2022-05-20.ach`, false)
     //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220523T130532_20220523T181520.000Z_Converge-ACH-Received-2022-05-23.ach`, false)
     //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220525T070523_20220525T122846.000Z_Converge-ACH-Received-2022-05-25.ach`, false)
     //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220527T080593_20220527T130548.000Z_Converge-ACH-Received-2022-05-26.ach`, false)
+    //  -- Generate the Notifications and store in the DB.
+    //  -- Generate the Tasks and store in the DB.
     // }
 
     return
@@ -177,7 +205,7 @@ async function deleteWorkingDirectory(workingFolder) {
     return true
 }
 
-async function deleteFile(filePath) {
+async function deleteBufferFile(filePath) {
     try {
         fs.unlinkSync(filePath)
         return true
@@ -192,3 +220,5 @@ module.exports.getRemoteSftpFiles = getRemoteSftpFiles
 module.exports.processInboundFilesFromDB = processInboundFilesFromDB
 
 module.exports.processOutboundFilesFromDB = processOutboundFilesFromDB
+
+module.exports.removeRemoteSftpFiles = removeRemoteSftpFiles

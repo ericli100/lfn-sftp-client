@@ -26,31 +26,20 @@ async function main(){
     let args = {};
     let BAAS = require('./baas')(args)
     let baas = await BAAS
-    console.log('sql:', baas.sql)
-    console.log('sql.schema', baas.schema)
-
-    let pgp = baas.pgp
-
-    if(1 == 1) {
-        // testing
-        let message = 'test message to encrypt'
-        console.log('message:', message)
-
-        let encrypted = await pgp.encrypt('lineage', message)
-        console.log('encrypted:', encrypted)
-
-        let decrypted = await pgp.decrypt('lineage', encrypted)
-        console.log('decrypted:', decrypted)
-    }
 
     let config = await sftpConfig(VENDOR_NAME)
     await baas.sftp.setConfig( config )
     await baas.sftp.setLogger(logger)
     
-    await baas.processing.getRemoteSftpFiles(baas, logger, VENDOR_NAME, config)
+    let remoteFiles = await baas.processing.getRemoteSftpFiles(baas, logger, VENDOR_NAME, config)
+    await baas.processing.removeRemoteSftpFiles(baas, logger, VENDOR_NAME, config, remoteFiles.validatedRemoteFiles)
     await baas.processing.processInboundFilesFromDB(baas, logger, VENDOR_NAME)
     await baas.processing.processOutboundFilesFromDB(baas, logger, VENDOR_NAME)
 
+    // set the workflow items
+    // -- not processed (used for Import)
+    // -- receiptSent (used for FileActivityFile)
+    
     // TODO: generate email notifications
     // TODO: send email notifications
 
@@ -62,6 +51,8 @@ async function main(){
 
 
 async function sftpConfig(VENDOR_NAME) {
+    // TODO: Move the configuration into the database
+
     let config = {}
 
     let REMOTE_HOST = 'sftp.synctera.com'
