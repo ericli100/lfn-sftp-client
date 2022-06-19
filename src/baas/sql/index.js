@@ -14,6 +14,7 @@ module.exports.file = require('./file')(mssql);
 module.exports.fileBatch = require('./fileBatch')(mssql);
 module.exports.fileTransaction = require('./fileTransaction')(mssql);
 module.exports.organization = require('./organization')(mssql);
+module.exports.event = require('./events')(mssql);
 
 async function connect () {
     const sql = {}
