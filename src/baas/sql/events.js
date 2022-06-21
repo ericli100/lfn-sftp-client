@@ -121,6 +121,35 @@ function Handler(mssql) {
         return sqlStatement
     }
 
+    Handler.getData = async function getData({effectedEntityId, contextOrganizationId}){
+        let output = {}
+        if (!effectedEntityId) throw ('effectedEntityId required')
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+
+        let sqlStatement = await Handler.read({effectedEntityId, contextOrganizationId})
+
+        let param = {}
+        param.params = []
+        param.tsql = sqlStatement
+        
+        try {
+            let results = await mssql.sqlQuery(param);
+            console.log(results)
+
+           // -- Get the data
+           // -- Apply the data in order 
+           // -- return the data
+
+
+            return results.rowsAffected != 0
+        } catch (err) {
+            console.error(err)
+            throw err
+        }
+
+        return output
+    }
+
     return Handler
 }
 
