@@ -17,8 +17,12 @@ const logger = createLogger({
     ),
     defaultMeta: { service: `${VENDOR_NAME}-ftp` },
     transports: [
-        new transports.Console(),
-        new transports.File({ filename: `C:\\SFTP\\Synctera\\audit\\${VENDOR_NAME}_${PROCESSING_DATE}.log` })
+        new transports.Console({level: 'info',
+        format: format.combine(
+          format.colorize(),
+          format.simple()
+        )}),
+        new transports.File({ level: 'info', filename: `C:\\SFTP\\Synctera\\audit\\${VENDOR_NAME}_${PROCESSING_DATE}.log` })
     ]
 });
 
@@ -31,10 +35,11 @@ async function main(){
     await baas.sftp.setConfig( config )
     await baas.sftp.setLogger(logger)
 
-    baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`})
+    await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`})
     
     let remoteFiles = await baas.processing.getRemoteSftpFiles(baas, logger, VENDOR_NAME, config)
-    baas.audit.log({baas, logger, level: 'info', message: `SFTP there are (${remoteFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] on [${config.server.host}] with details of [${JSON.stringify(remoteFiles.validatedRemoteFiles)}].`})
+    await baas.audit.log({baas, logger, level: 'info', message: `SFTP there are (${remoteFiles.remoteFileList.remoteFiles.length}) remote files for [${VENDOR_NAME}] on [${config.server.host}] with details of [${JSON.stringify(remoteFiles.remoteFileList)}].`})
+    await baas.audit.log({baas, logger, level: 'info', message: `SFTP [GET] VALIDATED (${remoteFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] on [${config.server.host}] with details of [${JSON.stringify(remoteFiles.validatedRemoteFiles)}] and loaded them into the database.`})
 
     await baas.processing.removeRemoteSftpFiles(baas, logger, VENDOR_NAME, config, remoteFiles.validatedRemoteFiles)
     await baas.processing.processInboundFilesFromDB(baas, logger, VENDOR_NAME)
@@ -47,14 +52,12 @@ async function main(){
     // TODO: generate email notifications
     // TODO: send email notifications
 
-    baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing ended for [${VENDOR_NAME}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`})
+    await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing ended for [${VENDOR_NAME}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`})
 
     console.log('sql: disconnecting...')
     baas.sql.disconnect()
     console.log('sql: disconnected.')
 }
-
-
 
 async function sftpConfig(VENDOR_NAME) {
     // TODO: Move the configuration into the database
@@ -79,12 +82,12 @@ async function sftpConfig(VENDOR_NAME) {
     };
 
     config.folderMappings = []    // FTP file processing
-    config.folderMappings.push({ type: 'get', source: '/ach/outbound', destination: `C:\\SFTP\\${VENDOR_NAME}\\ach\\outbound`, processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\ach\\outbound`, usePGP:false, actionAfterGet: '' })
-    config.folderMappings.push({ type: 'get', source: '/secure_file_delivery', destination: `C:\\SFTP\\${VENDOR_NAME}\\secure_file_delivery`, processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\secure_file_delivery`, usePGP:true, actionAfterGet: ''})
-    config.folderMappings.push({ type: 'get', source: '/encrypted/outbound', destination: `C:\\SFTP\\${VENDOR_NAME}\\secure_file_delivery`, processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\secure_file_delivery`, usePGP:true, actionAfterGet: ''})
-    config.folderMappings.push({ type: 'get', source: '/encrypted/outbound/txns', destination: `C:\\SFTP\\${VENDOR_NAME}\\secure_file_delivery`, processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\secure_file_delivery`, usePGP:true, actionAfterGet: '' })
-    config.folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\ach\\inbound`, destination: '/ach/inbound', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\ach\\inbound`, usePGP:false })
-    config.folderMappings.push({ type: 'put', source: `C:\\SFTP\\${VENDOR_NAME}\\fis`, destination: '/fis', processed: `C:\\SFTP\\${VENDOR_NAME}\\processed\\fis`, usePGP:false })
+    config.folderMappings.push({ type: 'get', source: '/ach/outbound', destination: `${VENDOR_NAME}.ach.outbound`, usePGP:false, actionAfterGet: 'processed' })
+    config.folderMappings.push({ type: 'get', source: '/secure_file_delivery', destination: `${VENDOR_NAME}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed'})
+    config.folderMappings.push({ type: 'get', source: '/encrypted/outbound', destination: `${VENDOR_NAME}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
+    config.folderMappings.push({ type: 'get', source: '/encrypted/outbound/txns', destination: `${VENDOR_NAME}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
+    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.ach.inbound`, destination: '/ach/inbound', usePGP:false })
+    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.fis`, destination: '/fis', usePGP:false })
 
     config.destinationFolders = ['/ach', '/ach/inbound', '/ach/outbound', '/ach/outbound/processed', '/ach/inbound/processed','/fis', '/samples', '/secure_file_delivery', '/test', '/samples']
     config.destinationFolders.push( '/encrypted' )

@@ -23,9 +23,13 @@ async function log({baas, logger, effectedEntityId, contextOrganizationId, categ
     // write the log locally via the winson logger prior to calling the DB
     logger.log({ level: level, message: `[${entityId}] ` + message })
 
+    if(level == 'verbose') message = ' >> ' + message
+    if(level == 'warn') message = ' ! ' + message
+    if(level == 'error') message = '!! ' + message
+
     let sqlStatement = await baas.sql.audit.insert({ entityId, contextOrganizationId, effectedEntityId, category, level, message, auditJSON, correlationId })
     
-    if(level == 'error' || level == 'warn' || level == 'info') {
+    if(level == 'error' || level == 'warn' || level == 'info' || level == 'verbose') {
         try {
             let results = await baas.sql.executeTSQL(sqlStatement);
             return results.rowsAffected != 0

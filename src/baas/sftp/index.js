@@ -109,9 +109,9 @@ async function initializeFolders(baas, config = null) {
     let sftp = await connect(config.server)
 
     if (_state.status != 'connected') {
-        baas.audit.log({ baas, logger, level: 'error', message: `Failed to connect to [${config.server.host}] to initialize the folders!` })
+        await baas.audit.log({ baas, logger, level: 'error', message: `Failed to connect to [${config.server.host}] to initialize the folders!` })
     }
-    baas.audit.log({ baas, logger, level: 'info', message: `Checking if the required folders are on the destination server [${config.server.host}]...` })
+    await baas.audit.log({ baas, logger, level: 'verbose', message: `Checking if the required folders are on the destination server [${config.server.host}]...` })
 
     try {
         let folders = config.destinationFolders
@@ -119,15 +119,15 @@ async function initializeFolders(baas, config = null) {
         for (const folder of folders) {
             let folderExists = await sftp.exists(folder);
             if (folderExists) {
-                baas.audit.log({ baas, logger, level: 'info', message: `${folder} folder is present on [${config.server.host}]` })
+                await baas.audit.log({ baas, logger, level: 'verbose', message: `${folder} folder is present on [${config.server.host}]` })
             } else {
-                logger.error({ message: `${folder} folder is NOT on [${config.server.host}]! Creating it now...` })
+                await baas.audit.log({ baas, logger, level: 'warn', message: `${folder} folder is NOT on [${config.server.host}]! Creating it now...` })
                 let createFolder = await sftp.mkdir(folder, true)
                 baas.audit.log({ baas, logger, level: 'verbose', message: `The required folders have been process on [${config.server.host}].` })
             }
         }
     } catch (error) {
-        logger.error({ message: `Required folder check error on [${config.server.host}]! Error: ${error}` })
+        await baas.audit.log({ baas, logger, level: 'error', message: `Required folder check error on [${config.server.host}]! Error: ${error}` })
         await disconnect(sftp)
         return false
     }
@@ -192,107 +192,6 @@ async function getFile(fileDetails, workingDirectory, config = null) {
     await disconnect(sftp)
 
     return true
-}
-
-async function getFiles(baas, config = null) {
-    if ( !config ) {
-        config = await getConfig()
-    }
-    let sftp = await connect(config.server)
-    let logger = await getLogger()
-
-    let output = {}
-    output.remoteFiles = []
-    output.receivedFiles = []
-    output.achFiles = []
-    output.wireFiles = []
-
-    for (const mapping of config.folderMappings) {
-        if (mapping.type == 'get') {
-            
-            if (mapping.usePGP) {
-                baas.audit.log({ baas, logger, level: 'verbose', message: `Using *GPG Keys* for File Decryption on GET from the remote [${REMOTE_HOST}].` })
-            }
-
-            baas.audit.log({ baas, logger, level: 'verbose', message: `The required GET folders have been process on the remote [${REMOTE_HOST}].` })
-
-            let remoteFiles = await sftp.list(mapping.source)
-
-            let remoteFilesArr = []
-            for (const obj of remoteFiles) {
-                remoteFilesArr.push(obj.name)
-                output.remoteFiles.push( {filename: obj.name, sourcePath: mapping.source, destinationPath: mapping.destination, encryptedPGP: mapping.usePGP } )
-            }
-
-            console.log('getFiles.remoteFiles:', remoteFilesArr)
-
-            // process each file in remoteFiles
-            for (const filename of remoteFilesArr) {
-                let destinationFile = fs.createWriteStream(mapping.destination + '\\' + filename);
-                let processedFile = fs.createWriteStream(mapping.processed + '\\' + PROCESSING_DATE + '_' + filename);
-
-                let message = `${VENDOR_NAME}: SFTP <<< GET [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}]`
-                baas.audit.log({ baas, logger, level: 'info', message: message + ' receiving...' })
-
-                try {
-                    if (mapping.usePGP) {
-                        // for now, just pust a .gpg on the end of the file and process decription in a discrete step
-                        await sftp.get(mapping.source + '/' + filename + '.gpg', destinationFile)
-                        // pull the file again and place in the processed folder for backup
-                        await sftp.get(mapping.source + '/' + filename + '.gpg', processedFile)
-                    } else {
-                        await sftp.get(mapping.source + '/' + filename, destinationFile)
-                        // pull the file again and place in the processed folder for backup
-                        await sftp.get(mapping.source + '/' + filename, processedFile)
-                    }
-
-                    let fileExists = await validateFileExistsOnLocal(mapping.destination, filename)
-
-                    // move the remote file after transfer is confirmed
-                    if (fileExists) {
-
-                        output.receivedFiles.push( { filename: filename,  destinationPath: mapping.destination, sourcePath: mapping.source, fileExists: fileExists, encryptedPGP: mapping.usePGP } )
-
-                        baas.audit.log({ baas, logger, level: 'info', message: `${VENDOR_NAME}: Moving the file to the processed folder on the remote SFTP server... [${REMOTE_HOST} ${mapping.source} ${filename}]` })
-                        await moveRemoteFile(sftp, logger, mapping.source, mapping.source + '/processed', filename)
-                        baas.audit.log({ baas, logger, level: 'info', message: `${VENDOR_NAME}: SFTP CONFIRMED and MOVED file to PROCESSED folder from [${REMOTE_HOST} ${mapping.source} ${filename}]` })
-                    } 
-                } catch (err) {
-                    let errMessage = `${VENDOR_NAME}: GET [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}] failed! Receive failed!`
-                    logger.error({ message: errMessage })
-                  //  await sendWebhook(logger, errMessage)
-                }
-
-                try{
-                    let isAch = ( filename.split('.').pop().toLowerCase() == 'ach' ) 
-                    if (isAch) {
-
-                        output.achFiles.push( { filename:filename, destinationPath: mapping.destination } )
-
-                        let achFile = path.resolve(mapping.processed + "\\" + PROCESSING_DATE + "_" + filename);
-                        let ach_email_sent = await achSMTP.sendOutboundACH( [`-reformat json`, `-mask`, `${achFile}`], 'baas.ach.advice@lineagebank.com')
-                        if (!ach_email_sent) baas.audit.log({ baas, logger,  level: 'error', message: `${VENDOR_NAME}: SFTP ACH OUTBOUND ADVICE EMAIL FAILED! [${REMOTE_HOST} ${mapping.source} ${filename}]` })
-                    }
-                } catch (error) {
-                    let errMessage = `${VENDOR_NAME}: GET with ACH Parse for file [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}] failed! Could not parse the ACH file and send an email advice to the group!`
-                    logger.error({ message: errMessage })
-                   // await sendWebhook(logger, errMessage, true)
-                }
-            }
-
-            await disconnect(sftp)
-
-            let localOutboundFileCount = await checkLocalOutboundQueue(logger, mapping.destination)
-
-            if (localOutboundFileCount == 1) {
-                await sendWebhook(logger, `${VENDOR_NAME}: GET - There is [${localOutboundFileCount}] file in the Outbound (Origination) Queue on LFNSRVFKNBANK01 at [${mapping.destination}]! Please connect to the server and process this file!`, true)
-            } else if (localOutboundFileCount > 1) {
-                await sendWebhook(logger, `${VENDOR_NAME}: GET - There are [${localOutboundFileCount}] files in the Outbound (Origination) Queue on LFNSRVFKNBANK01 at [${mapping.destination}]! Please connect to the server and process these files!`, true)
-            }
-        }
-    }
-
-    return
 }
 
 async function putFiles(baas, config = null) {

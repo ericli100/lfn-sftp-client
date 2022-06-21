@@ -31,21 +31,21 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
 
     // validate that the connection is good
     await baas.sftp.testConnection()    
-    baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP connection tested to [${config.server.host}].` })
+    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP connection tested to [${config.server.host}].` })
 
     // validate the required folders are on the SFTP server
     await baas.sftp.initializeFolders( baas, config )
-    baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP folders validated on [${config.server.host}].` })
+    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP folders validated on [${config.server.host}].` })
 
-    let remoteFileList = await baas.sftp.getRemoteFileList( config )
-    baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP files available on the remote server [${remoteFileList.length}].` })
+    output.remoteFileList = await baas.sftp.getRemoteFileList( config )
+    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP files available on the remote server [${output.remoteFileList.length}].` })
 
-    if (remoteFileList.remoteFiles.length > 0) {
+    if (output.remoteFileList.remoteFiles.length > 0) {
         // create the working directory
         let workingDirectory = await createWorkingDirectory(baas, VENDOR_NAME, logger)
 
         // get the file from SFTP (one file at a time)
-        for (let file of remoteFileList.remoteFiles) {
+        for (let file of output.remoteFileList.remoteFiles) {
             //
             await baas.sftp.getFile(file, workingDirectory, config)
 
@@ -184,7 +184,7 @@ async function createWorkingDirectory(baas, VENDOR_NAME, logger) {
     let workingFolder = path.resolve( process.cwd() + `/buffer/${VENDOR_NAME}/${workingFolderId}`)
 
     fs.mkdirSync(workingFolder, { recursive: true });
-    baas.audit.log({baas, logger, level: 'verbose', message: `Working folder [${workingFolder}] was created.` });
+    await baas.audit.log({baas, logger, level: 'verbose', message: `Working folder [${workingFolder}] was created.` });
 
     return workingFolder
 }
@@ -196,7 +196,7 @@ async function deleteWorkingDirectory(workingFolder) {
     try {
         fs.rmdirSync(workingFolder, { recursive: true });
     
-        baas.audit.log({baas, logger, level: 'verbose', message: `Working folder [${last}] was deleted.`} );
+        await baas.audit.log({baas, logger, level: 'verbose', message: `Working folder [${last}] was deleted.`} );
     } catch (err) {
         console.error(`Error: while deleting Working folder [${workingFolder}!`);
         return false
