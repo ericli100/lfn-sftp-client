@@ -42,6 +42,9 @@ async function main (args) {
     const processing = require('./processing')
     baas.processing = processing
 
+    const audit = require('./audit')
+    baas.audit = audit
+
     return baas
 }
 
