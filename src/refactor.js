@@ -30,8 +30,12 @@ async function main(){
     let config = await sftpConfig(VENDOR_NAME)
     await baas.sftp.setConfig( config )
     await baas.sftp.setLogger(logger)
+
+    baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`})
     
     let remoteFiles = await baas.processing.getRemoteSftpFiles(baas, logger, VENDOR_NAME, config)
+    baas.audit.log({baas, logger, level: 'info', message: `SFTP there are (${remoteFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] on [${config.server.host}] with details of [${JSON.stringify(remoteFiles.validatedRemoteFiles)}].`})
+
     await baas.processing.removeRemoteSftpFiles(baas, logger, VENDOR_NAME, config, remoteFiles.validatedRemoteFiles)
     await baas.processing.processInboundFilesFromDB(baas, logger, VENDOR_NAME)
     await baas.processing.processOutboundFilesFromDB(baas, logger, VENDOR_NAME)
@@ -42,6 +46,8 @@ async function main(){
     
     // TODO: generate email notifications
     // TODO: send email notifications
+
+    baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing ended for [${VENDOR_NAME}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`})
 
     console.log('sql: disconnecting...')
     baas.sql.disconnect()

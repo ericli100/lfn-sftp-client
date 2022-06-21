@@ -6,6 +6,7 @@
 const mssql = require('../../db')()
 
 // import the modules
+module.exports.audit = require('./audit')(mssql);
 module.exports.entityType = require('./entityType')(mssql);
 module.exports.entity = require('./entity')(mssql);
 module.exports.fileType = require('./fileType')(mssql);

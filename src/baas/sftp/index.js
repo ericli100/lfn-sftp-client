@@ -100,7 +100,7 @@ async function getStatus() {
     return _state.status
 }
 
-async function initializeFolders(config = null) {
+async function initializeFolders(baas, config = null) {
     if ( !config ) {
         config = await getConfig()
     }
@@ -109,9 +109,9 @@ async function initializeFolders(config = null) {
     let sftp = await connect(config.server)
 
     if (_state.status != 'connected') {
-        logger.log({ level: 'error', message: `Failed to connect to [${config.server.host}] to initialize the folders!` })
+        baas.audit.log({ baas, logger, level: 'error', message: `Failed to connect to [${config.server.host}] to initialize the folders!` })
     }
-    logger.log({ level: 'info', message: `Checking if the required folders are on the destination server [${config.server.host}]...` })
+    baas.audit.log({ baas, logger, level: 'info', message: `Checking if the required folders are on the destination server [${config.server.host}]...` })
 
     try {
         let folders = config.destinationFolders
@@ -119,11 +119,11 @@ async function initializeFolders(config = null) {
         for (const folder of folders) {
             let folderExists = await sftp.exists(folder);
             if (folderExists) {
-                logger.log({ level: 'info', message: `${folder} folder is present on [${config.server.host}]` })
+                baas.audit.log({ baas, logger, level: 'info', message: `${folder} folder is present on [${config.server.host}]` })
             } else {
                 logger.error({ message: `${folder} folder is NOT on [${config.server.host}]! Creating it now...` })
                 let createFolder = await sftp.mkdir(folder, true)
-                logger.log({ level: 'verbose', message: `The required folders have been process on [${config.server.host}].` })
+                baas.audit.log({ baas, logger, level: 'verbose', message: `The required folders have been process on [${config.server.host}].` })
             }
         }
     } catch (error) {
@@ -194,7 +194,7 @@ async function getFile(fileDetails, workingDirectory, config = null) {
     return true
 }
 
-async function getFiles(config = null) {
+async function getFiles(baas, config = null) {
     if ( !config ) {
         config = await getConfig()
     }
@@ -211,10 +211,10 @@ async function getFiles(config = null) {
         if (mapping.type == 'get') {
             
             if (mapping.usePGP) {
-                logger.log({ level: 'verbose', message: `Using *GPG Keys* for File Decryption on GET from the remote [${REMOTE_HOST}].` })
+                baas.audit.log({ baas, logger, level: 'verbose', message: `Using *GPG Keys* for File Decryption on GET from the remote [${REMOTE_HOST}].` })
             }
 
-            logger.log({ level: 'verbose', message: `The required GET folders have been process on the remote [${REMOTE_HOST}].` })
+            baas.audit.log({ baas, logger, level: 'verbose', message: `The required GET folders have been process on the remote [${REMOTE_HOST}].` })
 
             let remoteFiles = await sftp.list(mapping.source)
 
@@ -232,7 +232,7 @@ async function getFiles(config = null) {
                 let processedFile = fs.createWriteStream(mapping.processed + '\\' + PROCESSING_DATE + '_' + filename);
 
                 let message = `${VENDOR_NAME}: SFTP <<< GET [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}]`
-                logger.log({ level: 'info', message: message + ' receiving...' })
+                baas.audit.log({ baas, logger, level: 'info', message: message + ' receiving...' })
 
                 try {
                     if (mapping.usePGP) {
@@ -253,9 +253,9 @@ async function getFiles(config = null) {
 
                         output.receivedFiles.push( { filename: filename,  destinationPath: mapping.destination, sourcePath: mapping.source, fileExists: fileExists, encryptedPGP: mapping.usePGP } )
 
-                        logger.log({ level: 'info', message: `${VENDOR_NAME}: Moving the file to the processed folder on the remote SFTP server... [${REMOTE_HOST} ${mapping.source} ${filename}]` })
+                        baas.audit.log({ baas, logger, level: 'info', message: `${VENDOR_NAME}: Moving the file to the processed folder on the remote SFTP server... [${REMOTE_HOST} ${mapping.source} ${filename}]` })
                         await moveRemoteFile(sftp, logger, mapping.source, mapping.source + '/processed', filename)
-                        logger.log({ level: 'info', message: `${VENDOR_NAME}: SFTP CONFIRMED and MOVED file to PROCESSED folder from [${REMOTE_HOST} ${mapping.source} ${filename}]` })
+                        baas.audit.log({ baas, logger, level: 'info', message: `${VENDOR_NAME}: SFTP CONFIRMED and MOVED file to PROCESSED folder from [${REMOTE_HOST} ${mapping.source} ${filename}]` })
                     } 
                 } catch (err) {
                     let errMessage = `${VENDOR_NAME}: GET [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}] failed! Receive failed!`
@@ -271,7 +271,7 @@ async function getFiles(config = null) {
 
                         let achFile = path.resolve(mapping.processed + "\\" + PROCESSING_DATE + "_" + filename);
                         let ach_email_sent = await achSMTP.sendOutboundACH( [`-reformat json`, `-mask`, `${achFile}`], 'baas.ach.advice@lineagebank.com')
-                        if (!ach_email_sent) logger.log({ level: 'error', message: `${VENDOR_NAME}: SFTP ACH OUTBOUND ADVICE EMAIL FAILED! [${REMOTE_HOST} ${mapping.source} ${filename}]` })
+                        if (!ach_email_sent) baas.audit.log({ baas, logger,  level: 'error', message: `${VENDOR_NAME}: SFTP ACH OUTBOUND ADVICE EMAIL FAILED! [${REMOTE_HOST} ${mapping.source} ${filename}]` })
                     }
                 } catch (error) {
                     let errMessage = `${VENDOR_NAME}: GET with ACH Parse for file [${filename}] from [${REMOTE_HOST} ${mapping.source}] to [LFNSRVFKNBANK01 ${mapping.destination}] failed! Could not parse the ACH file and send an email advice to the group!`
@@ -295,7 +295,7 @@ async function getFiles(config = null) {
     return
 }
 
-async function putFiles(config = null) {
+async function putFiles(baas, config = null) {
     if ( !config ) {
         config = await getConfig()
     }
@@ -312,7 +312,7 @@ async function putFiles(config = null) {
         if (mapping.type == 'put') {
 
             if (mapping.usePGP) {
-                logger.log({ level: 'verbose', message: `Using *GPG Keys* for File Encryption on PUT to the remote [${REMOTE_HOST}].` })
+                baas.audit.log({ baas, logger,  level: 'verbose', message: `Using *GPG Keys* for File Encryption on PUT to the remote [${REMOTE_HOST}].` })
             }
 
             let filenames = await getLocalFileList(mapping.source)
@@ -329,24 +329,24 @@ async function putFiles(config = null) {
                 
                 if (mapping.usePGP) {
                     //let hasSuffixGPG = ( filename.split('.').pop().toLowerCase() == 'gpg' )
-                    logger.log({ level: 'info', message: message + ' encrypting with *GPG/PGP* and adding .gpg extension...' })
+                    baas.audit.log({ baas, logger,  level: 'info', message: message + ' encrypting with *GPG/PGP* and adding .gpg extension...' })
                     let file = fs.readFileSync(mapping.source + '/' + filename, {encoding:'utf8', flag:'r'})
                     let encryptedFile = await encryptFile(logger, file, publicKey, privateKey)
                     fs.writeFileSync(mapping.source + '/' + filename + '.gpg', encryptedFile, {encoding:'utf8', flag:'w'})
                     
-                    logger.log({ level: 'info', message: message + ' encrypted *GPG/PGP* written to disk.' })
+                    baas.audit.log({ baas, logger,  level: 'info', message: message + ' encrypted *GPG/PGP* written to disk.' })
                     await wait(1000) // wait a second...
                     let encryptedFileStream = fs.createReadStream(mapping.source + '/' + filename + '.gpg')
                     
-                    logger.log({ level: 'info', message: message + ' sending *GPG/PGP* encrypted file...' })
+                    baas.audit.log({ baas, logger,  level: 'info', message: message + ' sending *GPG/PGP* encrypted file...' })
                     await sftp.put(encryptedFileStream, remote + '.gpg');
                 } else {
                     let file = fs.createReadStream(mapping.source + '/' + filename)
-                    logger.log({ level: 'info', message: message + ' sending file...' })
+                    baas.audit.log({ baas, logger,  level: 'info', message: message + ' sending file...' })
                     await sftp.put(file, remote);
                 }
 
-                logger.log({ level: 'info', message: message + ' Sent.' })
+                baas.audit.log({ baas, logger,  level: 'info', message: message + ' Sent.' })
 
                 let fileExistsOnRemote
                 if (usePGP) {
@@ -355,7 +355,7 @@ async function putFiles(config = null) {
                     fileExistsOnRemote = await validateFileExistsOnRemote(mapping.destination, filename)
                 }
                 
-                logger.log({ level: 'info', message: message + ' File Exists on Remote Check - Status:' + fileExistsOnRemote })
+                baas.audit.log({ baas, logger,  level: 'info', message: message + ' File Exists on Remote Check - Status:' + fileExistsOnRemote })
 
                 await wait(5000) // wait a second... 
                 let fileMovedToProcessed
@@ -363,12 +363,12 @@ async function putFiles(config = null) {
                 if(fileExistsOnRemote) {
                     if(usePGP){
                         await moveLocalFile(filename + '.gpg', mapping.source, mapping.processed, PROCESSING_DATE)
-                        logger.log({ level: 'info', message: message + ' .gpg Encrypted File moved to the processing folder - Status:' + fileMovedToProcessed })
+                        baas.audit.log({ baas, logger, level: 'info', message: message + ' .gpg Encrypted File moved to the processing folder - Status:' + fileMovedToProcessed })
                     }
 
                     fileMovedToProcessed = await moveLocalFile(filename, mapping.source, mapping.processed, PROCESSING_DATE)
                      
-                    logger.log({ level: 'info', message: message + ' File moved to the processing folder - Status:' + fileMovedToProcessed })
+                    baas.audit.log({ baas, logger, level: 'info', message: message + ' File moved to the processing folder - Status:' + fileMovedToProcessed })
                 }
 
                 if (fileExistsOnRemote && fileMovedToProcessed) {
@@ -485,8 +485,8 @@ module.exports.testConnection = (config) => {
     return test(config)
 }
 
-module.exports.initializeFolders = (config) => {
-    return initializeFolders(config)
+module.exports.initializeFolders = (baas, config) => {
+    return initializeFolders(baas, config)
 }
 
 module.exports.checkLocalOutboundQueue = (location) => {

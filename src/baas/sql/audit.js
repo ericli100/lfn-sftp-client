@@ -32,9 +32,9 @@ function Handler(mssql) {
     Handler.insert = async function insert({entityId, contextOrganizationId, effectedEntityId, category, level, message, auditJSON, effectiveDate, correlationId}){
         if (!entityId) entityId = flakeId.generate()
         if (!contextOrganizationId) throw ('contextOrganizationId required')
-        if (!effectedEntityId) throw ('effectedEntityId required')
+        if (!effectedEntityId) effectedEntityId = ''
         // if (!effectiveDate) throw ('effectiveDate required')
-        if (!auditJSON) auditJSON = '{}'
+        if (!auditJSON) auditJSON = {}
         if (!correlationId) correlationId = 'SYSTEM'
     
         let tenantId = process.env.PRIMAY_TENANT_ID
@@ -48,7 +48,7 @@ function Handler(mssql) {
            ,[level]
            ,[message]
            ,[auditJSON]
-           ,[effectiveDate]
+          /* ,[effectiveDate] */
            ,[correlationId])
      VALUES
            ('${entityId}'
@@ -58,9 +58,9 @@ function Handler(mssql) {
            ,'${category}'
            ,'${level}'
            ,'${message}'
-           ,'${auditJSON}'
-           ,'${effectiveDate}
-           ,'${correlationId});`
+           ,'${JSON.stringify(auditJSON)}'
+          /* ,'${effectiveDate}' */
+           ,'${correlationId}');`
     
         return sqlStatement
     }
@@ -95,6 +95,3 @@ function Handler(mssql) {
 }
 
 module.exports = Handler;
-
-
-// {"level":"info","message":"/encrypted/outbound/txns folder is present on [sftp.synctera.com]","service":"synctera-ftp","timestamp":"2022-06-18T15:48:41.833Z"}

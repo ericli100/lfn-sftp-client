@@ -30,15 +30,15 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
     output.validatedRemoteFiles = []
 
     // validate that the connection is good
-    await baas.sftp.testConnection()
-    logger.log({ level: 'verbose', message: `${VENDOR_NAME}: SFTP connection tested to [${config.REMOTE_HOST}].` })
+    await baas.sftp.testConnection()    
+    baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP connection tested to [${config.server.host}].` })
 
     // validate the required folders are on the SFTP server
-    await baas.sftp.initializeFolders( config )
-    logger.log({ level: 'verbose', message: `${VENDOR_NAME}: SFTP folders validated on [${config.REMOTE_HOST}].` })
+    await baas.sftp.initializeFolders( baas, config )
+    baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP folders validated on [${config.server.host}].` })
 
     let remoteFileList = await baas.sftp.getRemoteFileList( config )
-    logger.log({ level: 'verbose', message: `${VENDOR_NAME}: SFTP files available on the remote server [${remoteFileList.length}].` })
+    baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP files available on the remote server [${remoteFileList.length}].` })
 
     if (remoteFileList.remoteFiles.length > 0) {
         // create the working directory
@@ -184,7 +184,7 @@ async function createWorkingDirectory(baas, VENDOR_NAME, logger) {
     let workingFolder = path.resolve( process.cwd() + `/buffer/${VENDOR_NAME}/${workingFolderId}`)
 
     fs.mkdirSync(workingFolder, { recursive: true });
-    logger.log({ level: 'verbose', message: `Working folder [${workingFolder}] was created.` });
+    baas.audit.log({baas, logger, level: 'verbose', message: `Working folder [${workingFolder}] was created.` });
 
     return workingFolder
 }
@@ -196,7 +196,7 @@ async function deleteWorkingDirectory(workingFolder) {
     try {
         fs.rmdirSync(workingFolder, { recursive: true });
     
-        logger.log( {level: 'verbose', message: `Working folder [${last}] was deleted.`} );
+        baas.audit.log({baas, logger, level: 'verbose', message: `Working folder [${last}] was deleted.`} );
     } catch (err) {
         console.error(`Error: while deleting Working folder [${workingFolder}!`);
         return false
