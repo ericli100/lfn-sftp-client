@@ -48,16 +48,20 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
         for (let file of output.remoteFileList.remoteFiles) {
             // get the raw file from the SFTP server
             await baas.sftp.getFile(file, workingDirectory, config)
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] pulled from the server.` })
 
             let fullFilePath = path.resolve(workingDirectory + '/' + file.filename )
             
             // decrypt the file
             if (file.encryptedPGP) { 
                 await baas.pgp.decryptFile( VENDOR_NAME, fullFilePath + '.gpg' )
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}.gpg] was decrypted locally.` })
+
                 await deleteBufferFile( fullFilePath + '.gpg' ) // delete the original encrypted file locally
             }
 
             let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] calculate SHA256: [${sha256}]` })
 
             let inputFileOutput
             let fileEntityId
@@ -96,6 +100,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
     
             // encrypt the file with Lineage GPG keys prior to vaulting
             let encryptOutput = await baas.pgp.encryptFile( 'lineage', fullFilePath, fullFilePath + '.gpg' )
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was encrypted with the Lineage PGP Public Key.` })
 
             if(!fileEntityId) {
                 // check db if sha256 exists
@@ -110,6 +115,8 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
 
             if(!fileVaultExists) {
                 await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, '6022d1b33f000000', fileEntityId, 'lineage', fullFilePath + '.gpg' )
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was loaded into the File Vault encrypted with the Lineage PGP Public Key.` })
+
                 await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId:'6022d1b33f000000', fileVaultId})
             } else {
                 await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId:'6022d1b33f000000', fileVaultId})
@@ -130,6 +137,8 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
             await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
             await baas.pgp.decryptFile( VENDOR_NAME, fullFilePath + '.gpg', fullFilePath + '.VALIDATION' )
 
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was downloaded from the File Vault and Decrypted for validation.` })
+
             let sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath + '.VALIDATION' )
 
             if (sha256 == sha256_VALIDATION) {
@@ -144,16 +153,22 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
 
                 file.sha256 = sha256_VALIDATION
                 output.validatedRemoteFiles.push(file)
+
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.` })
             }
 
             // buffer cleanup
             await deleteBufferFile( fullFilePath )
             await deleteBufferFile( fullFilePath + '.gpg' )
             await deleteBufferFile( fullFilePath + '.VALIDATION' )
+
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was removed from the working cache directory on the processing server. Data is secure.` })
         }
 
         // clean up the working directory
         await deleteWorkingDirectory(workingDirectory)
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: The working cache directory [${workingDirectory}] was removed on the processing server. Data is secure.` })
+        
     }
 
     return output
