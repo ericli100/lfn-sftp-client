@@ -215,7 +215,7 @@ async function createFileEntitySQL({ sql, fileEntityId, correlationId, contextOr
     return output
 }
 
-async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId } ){
+async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId, source, destination } ){
     let output = {}
     
     // - create new File (File Type Id (ACH) == 603c2e56cf800000 )
@@ -231,6 +231,8 @@ async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrg
         sha256: sha256,
         isOutbound: isOutbound,
         correlationId: correlationId,
+        source: source,
+        destination: destination
     }
     let sql1 = await sql.file.insert( fileInsert )
 
@@ -528,7 +530,7 @@ async function fileVault(baas, VENDOR, sql, contextOrganizationId, fileEntityId,
     return output
 }
 
-async function file(baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound) {
+async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, source, destination } ) {
     if(!contextOrganizationId) throw('baas.input.file: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.file: inputFile is required!')
     if(!baas) throw('baas.input.file: baas module is required!')
@@ -564,7 +566,7 @@ async function file(baas, VENDOR, sql, contextOrganizationId, fromOrganizationId
         sqlStatements.push( fileEntitySQL.param )
 
         // create the file record
-        let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId } )
+        let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId, source, destination } )
         sqlStatements.push( fileSQL.param )
 
         // call SQL and run the SQL transaction to import the ach file to the database

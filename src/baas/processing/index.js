@@ -67,7 +67,26 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
                     6022d1b33f000000 == Lineage Bank
                     602bd52e1c000000 == Synctera
                 */
-                inputFileOutput = await baas.input.file(baas, VENDOR_NAME, baas.sql, '6022d1b33f000000', '602bd52e1c000000', '6022d1b33f000000', fullFilePath, false)
+
+                let inputFileObj = {
+                    baas, vendor: VENDOR_NAME,
+                    sql: baas.sql, 
+                    contextOrganizationId: '6022d1b33f000000', 
+                    fromOrganizationId: '602bd52e1c000000', 
+                    toOrganizationId: '6022d1b33f000000', 
+                    inputFile: fullFilePath, 
+                    isOutbound: false, 
+                }
+
+                if (inputFileObj.isOutbound == false) {
+                    inputFileObj.source = config.server.host + ':' + config.server.port + file.sourcePath, 
+                    inputFileObj.destination = 'lineage:/' + file.destinationPath
+                } else {
+                    inputFileObj.source = 'lineage:/' + file.sourcePath, 
+                    inputFileObj.destination = config.server.host + ':' + config.server.port + file.destinationPath
+                }
+
+                inputFileOutput = await baas.input.file( inputFileObj )
                 fileEntityId = inputFileOutput.fileEntityId
             } catch (err) {
                 if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
