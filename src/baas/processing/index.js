@@ -46,7 +46,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
 
         // get the file from SFTP (one file at a time)
         for (let file of output.remoteFileList.remoteFiles) {
-            //
+            // get the raw file from the SFTP server
             await baas.sftp.getFile(file, workingDirectory, config)
 
             let fullFilePath = path.resolve(workingDirectory + '/' + file.filename )
@@ -86,8 +86,14 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
             // (vault the file as PGP armored text)
             let fileVaultExists = await baas.sql.fileVault.exists( '', fileEntityId )
 
+            // this is the same for now. Hard code this and move on.
+            let fileVaultId = fileEntityId
+
             if(!fileVaultExists) {
                 await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, '6022d1b33f000000', fileEntityId, 'lineage', fullFilePath + '.gpg' )
+                await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId:'6022d1b33f000000', fileVaultId})
+            } else {
+                await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId:'6022d1b33f000000', fileVaultId})
             }
             await deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
             
@@ -173,7 +179,7 @@ async function processOutboundFilesFromDB( baas, logger, VENDOR_NAME ) {
     // TODO: implement DB code
 
     let output = baas.output
-    let fileActivityFileCSV = await output.fileActivity('synapse', baas.sql, 'date', '30-2010-20404000');
+    let fileActivityFileCSV = await output.fileActivity(VENDOR_NAME, baas.sql, 'date', '30-2010-20404000');
     output.writeCSV(`${process.cwd()}/src/manualImport/`, fileActivityFileCSV.fileName, fileActivityFileCSV.csv)
 
     return
