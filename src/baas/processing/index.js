@@ -26,6 +26,8 @@ async function test(baas) {
 }
 
 async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
+    let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
+
     let output = {}
     output.validatedRemoteFiles = []
 
@@ -158,15 +160,15 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, config ){
             }
 
             // buffer cleanup
-            await deleteBufferFile( fullFilePath )
-            await deleteBufferFile( fullFilePath + '.gpg' )
-            await deleteBufferFile( fullFilePath + '.VALIDATION' )
+            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath )
+            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
+            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.VALIDATION' )
 
             await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was removed from the working cache directory on the processing server. Data is secure.` })
         }
 
         // clean up the working directory
-        await deleteWorkingDirectory(workingDirectory)
+        if (DELETE_WORKING_DIRECTORY) await deleteWorkingDirectory(workingDirectory)
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: The working cache directory [${workingDirectory}] was removed on the processing server. Data is secure.` })
         
     }
