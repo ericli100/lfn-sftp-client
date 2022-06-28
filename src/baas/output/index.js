@@ -8,8 +8,11 @@ const path = require('node:path');
 const papa = require('papaparse');
 const parseCSV = papa.unparse
 
-async function fileActivity(vendor, mssql, date, accountNumber) {
+async function fileActivity(vendor, ENVIRONMENT, mssql, date, accountNumber) {
     let output = {};
+
+    // todo: generate the FileActivity file by ENVIRONMENT
+    // todo: remove hard coded values in the SQL statement
 
     // call SQL and lookup file activity by date and GL account
 
@@ -141,8 +144,8 @@ async function fileVault({baas, VENDOR, sql, entityId, contextOrganizationId, fi
     return true
 }
 
-module.exports.fileActivity = (VENDOR, SQL, date, accountNumber) => {
-    return fileActivity(VENDOR, SQL, date, accountNumber)
+module.exports.fileActivity = (VENDOR, ENVIRONMENT, SQL, date, accountNumber) => {
+    return fileActivity(VENDOR, ENVIRONMENT, SQL, date, accountNumber)
 }
 
 module.exports.accountBalance = (VENDOR, SQL, date, accountNumber) => {

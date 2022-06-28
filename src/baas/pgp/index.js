@@ -6,7 +6,7 @@
 const openpgp = require('openpgp');
 const fs = require('fs');
 
-async function getKeys(VENDOR) {
+async function getKeys(VENDOR, ENVIRONMENT) {
     try{
         let LINEAGE = 'lineage'
 
@@ -21,7 +21,7 @@ async function getKeys(VENDOR) {
         keys.lineage.privateKey = await openpgp.decryptKey({ privateKey: await openpgp.readPrivateKey({ armoredKey: keys.pgp.privateKeyArmored }), passphrase });
     
         keys.vendor = {}
-        keys.vendor.publicKeyArmored = fs.readFileSync(`${process.cwd()}/certs/${VENDOR}/${VENDOR}_pgp_public.key`).toString()
+        keys.vendor.publicKeyArmored = fs.readFileSync(`${process.cwd()}/certs/${VENDOR}/${ENVIRONMENT}/${VENDOR}_pgp_public.key`).toString()
         keys.vendor.publicKey = await openpgp.readKey({ armoredKey: keys.vendor.publicKeyArmored });
     
         return keys
@@ -30,9 +30,9 @@ async function getKeys(VENDOR) {
     }
 }
 
-async function encrypt(VENDOR, message) {
+async function encrypt(VENDOR, ENVIRONMENT, message) {
     let encrypted = false;
-    let keys = await getKeys(VENDOR)
+    let keys = await getKeys(VENDOR, ENVIRONMENT)
 
     encrypted = await openpgp.encrypt({
         message: await openpgp.createMessage({ text: message }), // input as Message object
@@ -44,8 +44,8 @@ async function encrypt(VENDOR, message) {
     return encrypted
 }
 
-async function decrypt(VENDOR, encrypted) {
-    let keys = await getKeys(VENDOR)
+async function decrypt(VENDOR, ENVIRONMENT, encrypted) {
+    let keys = await getKeys(VENDOR, ENVIRONMENT)
 
     let message
     let decrypted
@@ -72,8 +72,8 @@ async function decrypt(VENDOR, encrypted) {
     }
 }
 
-async function decryptBinary(VENDOR, sourceFilePath) {
-    let keys = await getKeys(VENDOR)
+async function decryptBinary(VENDOR, ENVIRONMENT, sourceFilePath) {
+    let keys = await getKeys(VENDOR, ENVIRONMENT)
 
     let binaryMessage = fs.readFileSync(sourceFilePath)
     const encryptedMessage = await openpgp.readMessage({ 
@@ -90,15 +90,15 @@ async function decryptBinary(VENDOR, sourceFilePath) {
     return decrypted
 }
 
-async function encryptFile(VENDOR, sourceFilePath, destinationFilePath) {
+async function encryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath) {
     if (!destinationFilePath) destinationFilePath = sourceFilePath + '.gpg'
     let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
-    let encryptedFile = await encrypt(VENDOR, sourceFile)
+    let encryptedFile = await encrypt(VENDOR, ENVIRONMENT, sourceFile)
     fs.writeFileSync(destinationFilePath, encryptedFile, {encoding:'utf8', flag:'w'})
     return true
 }
 
-async function decryptFile(VENDOR, sourceFilePath, destinationFilePath) {
+async function decryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath) {
     if (!destinationFilePath) {
         let hasSuffixGPG = ( sourceFilePath.split('.').pop().toLowerCase() == 'gpg' ) 
         if (hasSuffixGPG) {
@@ -112,12 +112,12 @@ async function decryptFile(VENDOR, sourceFilePath, destinationFilePath) {
         let isArmoredFile = await isArmoredCheck(sourceFilePath)
         if (isArmoredFile) {
             let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
-            let decryptedFile = await decrypt(VENDOR, sourceFile)
+            let decryptedFile = await decrypt(VENDOR, ENVIRONMENT, sourceFile)
             fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
             return true
         } else {
             /* perform a binary decrypt, the file may not be ASCII armored */
-            let decryptedFile = await decryptBinary(VENDOR, sourceFilePath)
+            let decryptedFile = await decryptBinary(VENDOR, ENVIRONMENT, sourceFilePath)
             fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
             return true
         }
@@ -133,24 +133,24 @@ async function isArmoredCheck(sourceFilePath) {
     return false
 }
 
-module.exports.encrypt = (VENDOR, message) => {
-    return encrypt(VENDOR, message)
+module.exports.encrypt = (VENDOR, ENVIRONMENT, message) => {
+    return encrypt(VENDOR, ENVIRONMENT, message)
 }
 
-module.exports.decrypt = (VENDOR, message) => {
-    return decrypt(VENDOR, message)
+module.exports.decrypt = (VENDOR, ENVIRONMENT, message) => {
+    return decrypt(VENDOR, ENVIRONMENT, message)
 }
 
-module.exports.decryptBinary = (VENDOR, binaryMessage) => {
-    return decrypt(VENDOR, binaryMessage)
+module.exports.decryptBinary = (VENDOR, ENVIRONMENT, binaryMessage) => {
+    return decrypt(VENDOR, ENVIRONMENT, binaryMessage)
 }
 
-module.exports.encryptFile = (VENDOR, sourceFilePath, destinationFilePath = null) => {
-    return encryptFile(VENDOR, sourceFilePath, destinationFilePath)
+module.exports.encryptFile = (VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath = null) => {
+    return encryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath)
 }
 
-module.exports.decryptFile = (VENDOR, sourceFilePath, destinationFilePath = null) => {
-    return decryptFile(VENDOR, sourceFilePath, destinationFilePath)
+module.exports.decryptFile = (VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath = null) => {
+    return decryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath)
 }
 
 module.exports.isArmoredCheck = (sourceFilePath) => {
