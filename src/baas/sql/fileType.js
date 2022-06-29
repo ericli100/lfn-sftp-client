@@ -26,28 +26,52 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, fileType, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fileExtension, correlationId, fromOrganizationId
+                                          , toOrganizationId, isOutboundToFed, isInboundFromFed, fileTypeName, fileNameFormat
+                                          , columnNames, accountId, accountNumber, accountDescription}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
-        if (!fileType) throw ('fileType required')
+        if (!fileExtension) throw ('fileExtension required')
         if (!correlationId) correlationId = 'SYSTEM'
+        if (isOutboundToFed == true) { isOutboundToFed = 1 } else { isOutboundToFed = 0 }
+        if (isInboundFromFed == true) { isInboundFromFed = 1 } else { isInboundFromFed = 0 }
     
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
         INSERT INTO [baas].[fileTypes]
-           ([entityId]
-           ,[tenantId]
-           ,[contextOrganizationId]
-           ,[fileType]
-           ,[correlationId]
-           ,[mutatedBy])
-        VALUES
-           ('${entityId}'
-           ,'${tenantId}'
-           ,'${contextOrganizationId}'
-           ,'${fileType}'
-           ,'${correlationId}'
-           ,'SYSTEM');`
+                ([entityId]
+                ,[tenantId]
+                ,[contextOrganizationId]
+                ,[fromOrganizationId]
+                ,[toOrganizationId]
+                ,[isOutboundToFed]
+                ,[isInboundFromFed]
+                ,[fileExtension]
+                ,[fileTypeName]
+                ,[fileNameFormat]
+                ,[columnNames]
+                ,[accountId]
+                ,[accountNumber_TEMP]
+                ,[accountDescription_TEMP]
+                ,[correlationId]
+                ,[mutatedBy])
+            VALUES
+                ('${entityId}'
+                ,'${tenantId}'
+                ,'${contextOrganizationId}'
+                ,'${fromOrganizationId}'
+                ,'${toOrganizationId}'
+                ,'${isOutboundToFed}'
+                ,'${isInboundFromFed}'
+                ,'${fileExtension}'
+                ,'${fileTypeName}'
+                ,'${fileNameFormat}'
+                ,'${columnNames}'
+                ,'${accountId}'
+                ,'${accountNumber}'
+                ,'${accountDescription}'
+                ,'${correlationId}'
+                ,'SYSTEM');`
     
         return sqlStatement
     }
@@ -58,8 +82,19 @@ function Handler(mssql) {
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
         SELECT [entityId]
+            ,[tenantId]
             ,[contextOrganizationId]
-            ,[fileType]
+            ,[fromOrganizationId]
+            ,[toOrganizationId]
+            ,[isOutboundToFed]
+            ,[isInboundFromFed]
+            ,[fileExtension]
+            ,[fileTypeName]
+            ,[fileNameFormat]
+            ,[columnNames]
+            ,[accountId]
+            ,[accountNumber_TEMP] AS [accountNumber]
+            ,[accountDescription_TEMP] AS [accountDescription]
             ,[correlationId]
             ,[versionNumber]
             ,[mutatedBy]
@@ -72,14 +107,25 @@ function Handler(mssql) {
         return sqlStatement
     }
 
-    Handler.find = async function find({fileType, contextOrganizationId}){
-        if (!fileType) throw ('fileType required')
+    Handler.find = async function find({fileExtension, contextOrganizationId}){
+        if (!fileExtension) throw ('fileType required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
         SELECT [entityId]
+            ,[tenantId]
             ,[contextOrganizationId]
-            ,[fileType]
+            ,[fromOrganizationId]
+            ,[toOrganizationId]
+            ,[isOutboundToFed]
+            ,[isInboundFromFed]
+            ,[fileExtension]
+            ,[fileTypeName]
+            ,[fileNameFormat]
+            ,[columnNames]
+            ,[accountId]
+            ,[accountNumber_TEMP] AS [accountNumber]
+            ,[accountDescription_TEMP] AS [accountDescription]
             ,[correlationId]
             ,[versionNumber]
             ,[mutatedBy]
@@ -87,7 +133,7 @@ function Handler(mssql) {
         FROM [baas].[fileTypes]
         WHERE [contextOrganizationId] = '${contextOrganizationId}'
             AND [tenantId] = '${tenantId}'
-            AND [fileType] = '${fileType}';`
+            AND [fileExtension] = '${fileExtension}';`
         
         return sqlStatement
     }
