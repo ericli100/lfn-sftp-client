@@ -18,11 +18,11 @@ async function fileActivity(vendor, ENVIRONMENT, mssql, date, accountNumber) {
 
     // file name
     let f1 = `{account_number}_file_activity_YYYYMMDDHHMMSS.csv`
-    let header = `Date (YYYY/MM/DD),Account Number,Account Name,File Name,Incoming / Outgoing,Credit Count,Credit Amount,Debit Count,Debit Amount`
+    let header = `Date,Account Number,Account Name,File Name,Incoming / Outgoing,Credit Count,Credit Amount,Debit Count,Debit Amount`
 
     // parse results to CSV
     let example = `
-    Date (YYYY/MM/DD),Account Number,Account Name,File Name,Incoming / Outgoing,Credit Count,Credit Amount,Debit Count,Debit Amount
+    Date,Account Number,Account Name,File Name,Incoming / Outgoing,Credit Count,Credit Amount,Debit Count,Debit Amount
     2021/12/3,404404550334,Synapse FBO Account,"nextday_ach_YYYYMMDDHHMMSS_{index}.ach",Outgoing,23,20345.56,31,10546.56`
 
     let sqlStatement = `
