@@ -174,8 +174,9 @@ async function getFile(fileDetails, workingDirectory, config = null) {
     let logger = await getLogger()
 
     let destinationFile
+    let hasSuffixGPG = ( fileDetails.filename.split('.').pop().toLowerCase() == 'gpg' ) 
 
-    if (fileDetails.encryptedPGP) {
+    if (fileDetails.encryptedPGP && !hasSuffixGPG) {
         destinationFile = fs.createWriteStream( path.resolve(workingDirectory + '/' + fileDetails.filename + '.gpg') ) ;
     } else {
         destinationFile = fs.createWriteStream( path.resolve(workingDirectory + '/' + fileDetails.filename ) );

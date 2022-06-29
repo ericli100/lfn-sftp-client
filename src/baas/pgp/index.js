@@ -5,6 +5,7 @@
 
 const openpgp = require('openpgp');
 const fs = require('fs');
+const path = require('path');
 
 async function getKeys(VENDOR, ENVIRONMENT) {
     try{
@@ -131,6 +132,16 @@ async function isArmoredCheck(sourceFilePath) {
     let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
     if (sourceFile.startsWith('-----BEGIN PGP MESSAGE-----')) return true
     return false
+}
+
+async function isGPG(sourceFilePath) {
+    let output = false
+    output = path.extname(sourceFilePath).toLowerCase() == '.gpg'
+    return output
+}
+
+module.exports.isGPG = (sourceFilePath) => {
+    return isGPG(sourceFilePath)
 }
 
 module.exports.encrypt = (VENDOR, ENVIRONMENT, message) => {

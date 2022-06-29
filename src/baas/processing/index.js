@@ -57,18 +57,29 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
             let fullFilePath = path.resolve(workingDirectory + '/' + file.filename )
             
             // decrypt the file
-            if (file.encryptedPGP) { 
-                await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath + '.gpg' )
-                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}.gpg] was decrypted locally for environment [${ENVIRONMENT}].` })
+            if (file.encryptedPGP) {
+                let hasSuffixGPG = await baas.pgp.isGPG(file.filename)
+                if(hasSuffixGPG) {
+                    await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath )
+                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was decrypted locally for environment [${ENVIRONMENT}].` })
+                    await deleteBufferFile( fullFilePath ) // delete the original encrypted file locally
 
-                await deleteBufferFile( fullFilePath + '.gpg' ) // delete the original encrypted file locally
+                    // set this to the decrypted file name without the .gpg suffix. Refactor later.
+                    fullFilePath = fullFilePath.substring(0, fullFilePath.indexOf('.gpg'))
+                } else {
+                    await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath + '.gpg' )
+                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}.gpg] was decrypted locally for environment [${ENVIRONMENT}].` })
+                    await deleteBufferFile( fullFilePath + '.gpg' ) // delete the original encrypted file locally
+                }
             }
+
+            // /Users/bhedge/Documents/working/LFN/lfn-sftp-client/buffer/synapse/uat/606ae950fc800000/ach_returns_20220627223524_0.ach.gpg
 
             let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
             await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] calculate SHA256: [${sha256}]` })
 
             let inputFileOutput
-            let fileEntityId
+            var fileEntityId
 
             try{
                 let inputFileObj = {
