@@ -1,4 +1,4 @@
-'user strict';
+"use strict";
 /*
     Processing module
 */
@@ -27,10 +27,20 @@ async function test(baas) {
     
 }
 
-async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, config ){
+async function listRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, config ){
+    let output = {}
+    output.remoteFileList = []
+
+    output.remoteFileList = await baas.sftp.getRemoteFileList( config )
+    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP files available on the remote server [${config.server.host}] for environment [${ENVIRONMENT}] count of files [${output.remoteFileList.length}].` })
+
+    return output.remoteFileList.remoteFiles
+}
+
+async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFileList ){
     let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
 
-    let output = {}
+    var output = {}
     output.validatedRemoteFiles = []
 
     // validate that the connection is good
@@ -41,15 +51,21 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
     await baas.sftp.initializeFolders( baas, config )
     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP folders validated on [${config.server.host}] for environment [${ENVIRONMENT}].` })
 
-    output.remoteFileList = await baas.sftp.getRemoteFileList( config )
-    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP files available on the remote server [${config.server.host}] for environment [${ENVIRONMENT}] count of files [${output.remoteFileList.length}].` })
+    if(remoteFileList.length > 0) {
+        // set the remoteFileList to what was passed on
+        output.remoteFileList = remoteFileList;
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP files passed in for processing for environment [${ENVIRONMENT}] count of files [${output.remoteFileList.length}].` })
+    } else {
+        // remoteFileList was not provided, go get it
+        output.remoteFileList = await listRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, config )
+    }
 
-    if (output.remoteFileList.remoteFiles.length > 0) {
+    if (output.remoteFileList.length > 0) {
         // create the working directory
         let workingDirectory = await createWorkingDirectory(baas, VENDOR_NAME, ENVIRONMENT, logger)
 
         // get the file from SFTP (one file at a time)
-        for (let file of output.remoteFileList.remoteFiles) {
+        for (let file of output.remoteFileList) {
             // get the raw file from the SFTP server
             await baas.sftp.getFile(file, workingDirectory, config)
             await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] pulled from the server for environment [${ENVIRONMENT}].` })
@@ -73,8 +89,6 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
                 }
             }
 
-            // /Users/bhedge/Documents/working/LFN/lfn-sftp-client/buffer/synapse/uat/606ae950fc800000/ach_returns_20220627223524_0.ach.gpg
-
             let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
             await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] calculate SHA256: [${sha256}]` })
 
@@ -83,7 +97,8 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
 
             try{
                 let inputFileObj = {
-                    baas, vendor: VENDOR_NAME,
+                    baas, 
+                    vendor: VENDOR_NAME,
                     sql: baas.sql, 
                     contextOrganizationId: config.contextOrganizationId, 
                     fromOrganizationId: config.fromOrganizationId, 
@@ -104,7 +119,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
                 fileEntityId = inputFileOutput.fileEntityId
             } catch (err) {
                 if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
-                   // throw(err);
+                   throw(err);
                 }
             }
     
@@ -168,6 +183,10 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
             }
 
             // buffer cleanup
+            fileEntityId = null
+            fileVaultId = null
+            inputFileOutput = null
+
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath )
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.VALIDATION' )
@@ -273,6 +292,8 @@ async function setEnvironment( environment ){
 async function getEnvironment(){
     return ENVIRONMENT
 }
+
+module.exports.listRemoteSftpFiles = listRemoteSftpFiles
 
 module.exports.getRemoteSftpFiles = getRemoteSftpFiles
 

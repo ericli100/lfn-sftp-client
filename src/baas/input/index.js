@@ -166,6 +166,8 @@ async function populateLookupCache({ sql, inputFile, contextOrganizationId, achJ
     // MASTER DATA LOOKUP TO AVOID REDUNDANT CALLS TO THE DATABASE
     // - fileTypeId
     let fileTypeSQL = await sql.fileType.find( fileSelect )
+
+    // TODO: if the fileType does not exist, create it. This is just intended to be a read through Cache in the future anyway
     let fileTypeId = await sql.executeTSQL( fileTypeSQL )//'603c2e56cf800000'
     fileTypeId = fileTypeId[0].data[0].entityId.trim() 
     output.fileTypeId = fileTypeId;

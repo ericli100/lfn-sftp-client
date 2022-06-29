@@ -45,12 +45,13 @@ async function main(){
     // -- SET CONFIG TO PARSE FROM EMAIL ADDRESS
 
     // ** LIST FILE ON REMOTE SFTP
+    let remoteFiles = await baas.processing.listRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, config)
+    await baas.audit.log({baas, logger, level: 'info', message: `SFTP there are (${remoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] with details of [${JSON.stringify(remoteFiles)}].`})
 
-    let remoteFiles = await baas.processing.getRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, config)
-    await baas.audit.log({baas, logger, level: 'info', message: `SFTP there are (${remoteFiles.remoteFileList.remoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] with details of [${JSON.stringify(remoteFiles.remoteFileList)}].`})
-    await baas.audit.log({baas, logger, level: 'info', message: `SFTP [GET] VALIDATED (${remoteFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] with details of [${JSON.stringify(remoteFiles.validatedRemoteFiles)}] and loaded them into the database.`})
+    let remoteValidatedFiles = await baas.processing.getRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFiles)
+    await baas.audit.log({baas, logger, level: 'info', message: `SFTP [GET] VALIDATED (${remoteValidatedFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] with details of [${JSON.stringify(remoteValidatedFiles.validatedRemoteFiles)}] and loaded them into the database.`})
 
- ////////   await baas.processing.removeRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFiles.validatedRemoteFiles)
+ ////////   await baas.processing.removeRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteValidatedFiles.validatedRemoteFiles)
     await baas.processing.processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT)
     await baas.processing.processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT)
 
