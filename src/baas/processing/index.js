@@ -37,7 +37,7 @@ async function listRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, conf
     return output.remoteFileList.remoteFiles
 }
 
-async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFileList ){
+async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFileList = []){
     let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
 
     var output = {}
