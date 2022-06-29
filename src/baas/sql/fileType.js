@@ -107,7 +107,7 @@ function Handler(mssql) {
         return sqlStatement
     }
 
-    Handler.find = async function find({fileExtension, contextOrganizationId}){
+    Handler.find = async function find({fileExtension, contextOrganizationId, fromOrganizationId, toOrganizationId}){
         if (!fileExtension) throw ('fileType required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
@@ -133,7 +133,8 @@ function Handler(mssql) {
         FROM [baas].[fileTypes]
         WHERE [contextOrganizationId] = '${contextOrganizationId}'
             AND [tenantId] = '${tenantId}'
-            AND [fileExtension] = '${fileExtension}';`
+            AND [fileExtension] = '${fileExtension}'
+            AND [fromOrganizationId] = '${fromOrganizationId}'`
         
         return sqlStatement
     }

@@ -149,7 +149,24 @@ function achTypeCheck( transaction ) {
     return output
 }
 
-async function populateLookupCache({ sql, inputFile, contextOrganizationId, achJSON = null}){
+async function getFileTypeId( sqlDataRows, fileInfo ){
+    if(sqlDataRows.length == 0) throw('The database does not contain this FileType!')
+    if(sqlDataRows.length == 1) return sqlDataRows[0].entityId.trim()
+
+    if(sqlDataRows.length > 1) {
+        // okay... there are multiple types that match... we need to look at the fileNameFormat
+        for (let fileTypes of sqlDataRows) {
+            let filename = fileInfo.fileName
+
+            if(fileTypes.fileNameFormat == '%') return fileTypes.entityId.trim() // return the first splat match that is returned
+            if(filename.includes(fileTypes.fileNameFormat)) return fileTypes.entityId.trim() // we matched an in string match
+        }
+    }
+    
+    return 'NO_MATCH'
+}
+
+async function populateLookupCache({ sql, inputFile, contextOrganizationId, fromOrganizationId, toOrganizationId, achJSON = null}){
     let output = {}
 
     const {size: fileSize} = fs.statSync( inputFile );
@@ -157,10 +174,13 @@ async function populateLookupCache({ sql, inputFile, contextOrganizationId, achJ
 
     output.fileName = path.basename( inputFile )
     
-    output.fileType = path.extname( inputFile ).substring(1, path.extname( inputFile ).length)
+    output.fileExtension = path.extname( inputFile ).substring(1, path.extname( inputFile ).length)
     let fileSelect = {
-        fileType: output.fileType,
-        contextOrganizationId: contextOrganizationId, 
+        fileExtension: output.fileExtension,
+        contextOrganizationId: contextOrganizationId,
+        fromOrganizationId: fromOrganizationId,
+        toOrganizationId: toOrganizationId, 
+        fileName: output.fileName,
     }
 
     // MASTER DATA LOOKUP TO AVOID REDUNDANT CALLS TO THE DATABASE
@@ -169,7 +189,7 @@ async function populateLookupCache({ sql, inputFile, contextOrganizationId, achJ
 
     // TODO: if the fileType does not exist, create it. This is just intended to be a read through Cache in the future anyway
     let fileTypeId = await sql.executeTSQL( fileTypeSQL )//'603c2e56cf800000'
-    fileTypeId = fileTypeId[0].data[0].entityId.trim() 
+    fileTypeId = await getFileTypeId( fileTypeId[0].data, fileSelect ) // fileTypeId[0].data[0].entityId.trim() 
     output.fileTypeId = fileTypeId;
 
     // - entityBatchTypeId
@@ -423,7 +443,7 @@ async function ach(baas, VENDOR, sql, contextOrganizationId, fromOrganizationId,
         // create the SQL statements for the transaction
         let sqlStatements = []
         
-        const cache = await populateLookupCache( { sql, inputFile, contextOrganizationId, achJSON } )
+        const cache = await populateLookupCache( { sql, inputFile, contextOrganizationId, fromOrganizationId, toOrganizationId, achJSON } )
         let fileTypeId = cache.fileTypeId
         let entityBatchTypeId = cache.entityBatchTypeId
         let entityTransactionTypeId = cache.entityTransactionTypeId
@@ -553,7 +573,7 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
         // create the SQL statements for the transaction
         let sqlStatements = []
         
-        const cache = await populateLookupCache( { sql, inputFile, contextOrganizationId } )
+        const cache = await populateLookupCache( { sql, inputFile, fromOrganizationId, toOrganizationId, contextOrganizationId } )
         let fileTypeId = cache.fileTypeId
        // let entityBatchTypeId = cache.entityBatchTypeId
        // let entityTransactionTypeId = cache.entityTransactionTypeId
