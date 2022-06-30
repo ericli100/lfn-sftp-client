@@ -105,7 +105,7 @@ async function main(args) {
     var achtool
     switch(process.platform){
         case 'darwin':
-            achtool = path.join(process.cwd(),'src','tools','achcli')
+            achtool = path.join(process.cwd(),'src','tools','achcli-1-18-1')
             break;
         case 'win32':
             achtool = path.join(process.cwd(),'src','tools','achcli.exe')
@@ -117,30 +117,36 @@ async function main(args) {
 
     let flatArgs = args.join(' ')
     if (DEBUG) console.log('ACH_CLI:',`${achtool} ${flatArgs}`)
-    const { stdout, stderr } = await exec(`${achtool} ${flatArgs}`);
 
-    let mask = flatArgs.includes('mask')
-    let json = flatArgs.includes('json')
+    try{
+        const { stdout, stderr } = await exec(`${achtool} ${flatArgs}`);
 
-    let Output
+        let mask = flatArgs.includes('mask')
+        let json = flatArgs.includes('json')
+    
+        let Output
+    
+        if (mask && json) {
+            let maskedData = JSON.stringify( JSON.parse(stdout), maskInfo, 5 );
+            Output = maskedData
+        } else {
+            Output = stdout
+        }
+      
+        if (stderr) {
+          console.error(`error: ${stderr}`);
+          throw stderr
+        }
+    
+        if (cli_interactive) {
+            console.log(Output)
+        }
 
-    if (mask && json) {
-        let maskedData = JSON.stringify( JSON.parse(stdout), maskInfo, 5 );
-        Output = maskedData
-    } else {
-        Output = stdout
+        return Output
+    } catch (err) {
+        console.debug('ACHCLI Error:', err.stdout)
+        throw(err)
     }
-  
-    if (stderr) {
-      console.error(`error: ${stderr}`);
-      throw stderr
-    }
-
-    if (cli_interactive) {
-        console.log(Output)
-    }
-
-    return Output
 }
 
 async function isACH(args){
