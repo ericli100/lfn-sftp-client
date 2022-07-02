@@ -209,7 +209,16 @@ async function removeRemoteSftpFiles(baas, logger, VENDOR_NAME, environment, con
     return false
 }
 
-async function processInboundFilesFromDB( baas, logger, VENDOR_NAME ) {
+async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId ) {
+    let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
+    let KEEP_PROCESSING_ON_ERROR = false
+
+    var output = {}
+
+    let contextOrganizationId = config.contextOrganizationId
+      , fromOrganizationId = config.fromOrganizationId
+      , toOrganizationId = config.toOrganizationId
+
     // get unprocessed files from the DB
 
     // TODO: implement DB code
@@ -218,20 +227,54 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME ) {
     // - Loop through files
     // switch case based on type [ach, fis, wire, transactions]
     let input = baas.input
-    // 6022d1b33f000000 === Lineage Bank
-    //let ach = await input.ach(baas, 'synctera', baas.sql, config.contextOrganizationId, 'synctera', 'lineage', `${process.cwd()}/src/tools/20220224T100287_20220224T155500.579_OUTBOUND.ach`, true)
-    //console.log('ach:', ach)
 
-    // if(isACH){
-    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220513T110580_20220513T161502.000Z_Converge-ACH-Received-2022-05-13.ach`, false)
-    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220519T150563_20220519T201314.000Z_ACH-Received2022-05-19.ach`, false)
-    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220520T080505_20220520T130625.000Z_ACH-Received2022-05-20.ach`, false)
-    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220523T130532_20220523T181520.000Z_Converge-ACH-Received-2022-05-23.ach`, false)
-    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220525T070523_20220525T122846.000Z_Converge-ACH-Received-2022-05-25.ach`, false)
-    //     await input.ach(baas, 'synapse', baas.sql,'6022d1b33f000000', 'synapse', 'lineage', `${process.cwd()}/src/manualImport/20220527T080593_20220527T130548.000Z_Converge-ACH-Received-2022-05-26.ach`, false)
-    //  -- Generate the Notifications and store in the DB.
-    //  -- Generate the Tasks and store in the DB.
-    // }
+    let unprocessedFiles = await baas.sql.file.getUnprocessedFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
+    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: Pulled a list of unprocessed files from the database for environment [${ENVIRONMENT}].` })
+    
+    if(unprocessedFiles.length > 0) {
+        // we have unprocessed files, continue processing
+        let workingDirectory = await createWorkingDirectory(baas, VENDOR_NAME, ENVIRONMENT, logger)
+
+        // get the file from database (one file at a time)
+        for (let file of unprocessedFiles) {
+            let fullFilePath = path.resolve(workingDirectory + '/' + file.fileName )
+            let relativePath = workingDirectory.replace(process.cwd(), '.')
+
+            let fileVaultObj = {
+                baas: baas,
+                VENDOR: VENDOR_NAME,
+                contextOrganizationId: config.contextOrganizationId,
+                sql: baas.sql, 
+                entityId: '', 
+                fileEntityId: file.entityId, 
+                destinationPath: fullFilePath + '.gpg'
+            }
+
+            await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+            await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath + '.gpg', fullFilePath )
+            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
+
+            // ** PERFORM ACH PROCESSING ** //
+            if(file.isACH) {
+                try{
+                    await input.ach( { baas, VENDOR: VENDOR_NAME, sql:baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: relativePath + '/' + file.fileName, isOutbound:file.isOutboundToFed, fileEntityId:file.entityId, fileTypeId: file.fileTypeId, correlationId })
+                } catch (err) {
+                    await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: Error processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${err}]` })
+                    if(!KEEP_PROCESSING_ON_ERROR) throw (err)
+                }
+            }
+
+            // ** PERFORM WIRE PROCESSING ** //
+
+
+            // ** CLEANUP BUFFER ** //
+            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath )
+        }
+
+        // clean up the working directory
+        if (DELETE_WORKING_DIRECTORY) await deleteWorkingDirectory(workingDirectory)
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: The working cache directory [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server. Data is secure.` })
+    }
 
     return
 }

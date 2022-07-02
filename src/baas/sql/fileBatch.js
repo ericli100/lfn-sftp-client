@@ -64,7 +64,7 @@ function Handler(mssql) {
             ,'${batchCredits}'
             ,'${batchDebits}'
             ,0
-            ,'${JSON.stringify(dataJSON)}'
+            ,'${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}'
             ,'${correlationId}');`
     
         return sqlStatement
@@ -77,7 +77,7 @@ function Handler(mssql) {
 
         let sqlStatement = `
         UPDATE [baas].[fileBatches]
-            SET [dataJSON] = '${JSON.stringify(dataJSON)}',
+            SET [dataJSON] = '${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
                 [correlationId] = '${correlationId}'
         WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}';`
     

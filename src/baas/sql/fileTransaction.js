@@ -33,7 +33,7 @@ function Handler(mssql) {
         if (!batchId) throw ('batchId required')
         if (!dataJSON) dataJSON = {}
         if (!correlationId) correlationId = 'SYSTEM'
-    
+
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
         INSERT INTO [baas].[fileTransactions]
@@ -69,11 +69,11 @@ function Handler(mssql) {
            ,'${effectiveDate}'
            ,'${transactionType}'
            ,'${tracenumber}'
-           ,${transactionCredit}
-           ,${transactionDebit}
+           ,'${transactionCredit}'
+           ,'${transactionDebit}'
            ,null
            ,null
-           ,'${JSON.stringify(dataJSON)}'
+           ,'${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}'
            ,0
            ,0
            ,'${correlationId}'
@@ -90,7 +90,7 @@ function Handler(mssql) {
         
         let sqlStatement = `
         UPDATE [baas].[fileTransactions]
-            SET [dataJSON] = '${JSON.stringify(dataJSON)}',
+            SET [dataJSON] = '${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
                 [correlationId] = '${correlationId}'
         WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}';`
     
