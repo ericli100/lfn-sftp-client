@@ -23,13 +23,11 @@ const logger = createLogger({
           format.colorize(),
           format.simple()
         )}),
-        new transports.File({ level: 'info', filename: `C:\\SFTP\\${VENDOR_NAME}\\audit\\${VENDOR_NAME}_${ENVIRONMENT}_${PROCESSING_DATE}.log` })
+        new transports.File({ level: 'info', filename: `C:\\SFTP\\Synctera\\audit\\${VENDOR_NAME}_${ENVIRONMENT}_${PROCESSING_DATE}.log` })
     ]
 });
 
 async function main(){
-    let ENABLE_FTP_PULL = false // dev time variable
-
     let args = {};
     let BAAS = require('./baas')(args)
     let baas = await BAAS
@@ -40,37 +38,24 @@ async function main(){
     await baas.sftp.setConfig( config )
     await baas.sftp.setLogger(logger)
 
-    let correlationId = await baas.id.generate()
-
-    if(ENABLE_FTP_PULL){
-        await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`})
-        // ** GET FILES FROM EMAIL
-        // -- SET CONFIG TO PARSE FROM EMAIL ADDRESS
+    await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`})
     
-        // ** LIST FILE ON REMOTE SFTP
-        let remoteFiles = await baas.processing.listRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, config)
-        await baas.audit.log({baas, logger, level: 'info', message: `SFTP there are (${remoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] with details of [${JSON.stringify(remoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}].`})
-    
-        let remoteValidatedFiles = await baas.processing.getRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFiles)
-        await baas.audit.log({baas, logger, level: 'info', message: `SFTP [GET] VALIDATED (${remoteValidatedFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] with details of [${JSON.stringify(remoteValidatedFiles.validatedRemoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}] and loaded them into the database.`})
-        
-         ////////   await baas.processing.removeRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteValidatedFiles.validatedRemoteFiles)
-        
-        await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing ended for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`})
-    }
+    let remoteFiles = await baas.processing.getRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, config)
+    await baas.audit.log({baas, logger, level: 'info', message: `SFTP there are (${remoteFiles.remoteFileList.remoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] with details of [${JSON.stringify(remoteFiles.remoteFileList).replace(/[\/\(\)\']/g, "' + char(39) + '" )}].`})
+    await baas.audit.log({baas, logger, level: 'info', message: `SFTP [GET] VALIDATED (${remoteFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] with details of [${JSON.stringify(remoteFiles.validatedRemoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}] and loaded them into the database.`})
 
-
-    await baas.processing.processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId)
+ ////////   await baas.processing.removeRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFiles.validatedRemoteFiles)
+    await baas.processing.processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT)
     await baas.processing.processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT)
 
+    // set the workflow items
+    // -- not processed (used for Import)
     // -- receiptSent (used for FileActivityFile)
-
-    // ** TODO: await baas.processing.putRemoteSftpFiles
     
-    // TODO: generate email NOTIFICATIONS
+    // TODO: generate email notifications
     // TODO: send email notifications
 
-    
+    await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing ended for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`})
 
     console.log('sql: disconnecting...')
     baas.sql.disconnect()
@@ -82,28 +67,16 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
 
     let config = {}
 
-    let REMOTE_HOST
-    let PORT
-    let USERNAME
-    let SSH_PASSPHRASE
-    let SSH_PRIVATEKEY
-    let FROM_ORGANIZATION_ID
-
-    if (ENVIRONMENT == 'prd') {
-        REMOTE_HOST = 'sftp.synctera.com'
-        PORT = '2022'
-        USERNAME = 'lineage'
-        FROM_ORGANIZATION_ID = '602bd52e1c000000'
-        SSH_PRIVATEKEY = fs.readFileSync( path.resolve( process.cwd() + `/certs/${VENDOR_NAME}/${ENVIRONMENT}/private_rsa.key`) ) // Buffer or string that contains
-        SSH_PASSPHRASE = fs.readFileSync( path.resolve( process.cwd() + `/certs/${VENDOR_NAME}/${ENVIRONMENT}/passphrase.key`) ) // string - For an encrypted private key
-    }
+    let REMOTE_HOST = 'sftp.synctera.com'
+    let PORT = '2022'
+    let USERNAME = 'lineage'
 
     config.server = {
         host: REMOTE_HOST,
         port: PORT,
         username: USERNAME,
-        privateKey: SSH_PRIVATEKEY,
-        passphrase: SSH_PASSPHRASE,
+        privateKey: fs.readFileSync( path.resolve( process.cwd() + `/certs/${VENDOR_NAME}/${ENVIRONMENT}/private_rsa.key`) ), // Buffer or string that contains
+        passphrase: fs.readFileSync( path.resolve( process.cwd() + `/certs/${VENDOR_NAME}/${ENVIRONMENT}/passphrase.key`) ), // string - For an encrypted private key
         readyTimeout: 20000, // integer How long (in ms) to wait for the SSH handshake
         strictVendor: true, // boolean - Performs a strict server vendor check
         retries: 2, // integer. Number of times to retry connecting
@@ -125,6 +98,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.destinationFolders.push( '/encrypted/outbound' )
     config.destinationFolders.push( '/encrypted/outbound/txns' )
 
+
     config.environment = ENVIRONMENT;
 
     /*
@@ -133,7 +107,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     */
 
     config.contextOrganizationId = '6022d1b33f000000'; 
-    config.fromOrganizationId = FROM_ORGANIZATION_ID;
+    config.fromOrganizationId = '602bd52e1c000000';
     config.toOrganizationId = '6022d1b33f000000';
 
     return config
