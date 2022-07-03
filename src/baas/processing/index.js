@@ -9,6 +9,15 @@ const path = require('path');
 
 let ENVIRONMENT = 'dev'
 
+// ** MAIN PROCESSING FUNCTION ** //
+/*
+ All processing for the SFTP servers will go through this module. Any deviation from central
+ processing will need to be done through configuration of what is passed into the function.
+*/
+async function main(){
+    
+}
+
 async function test(baas) {
     console.log('sql:', baas.sql)
     console.log('sql.schema', baas.schema)
@@ -337,6 +346,8 @@ async function setEnvironment( environment ){
 async function getEnvironment(){
     return ENVIRONMENT
 }
+
+module.exports.main = main
 
 module.exports.listRemoteSftpFiles = listRemoteSftpFiles
 
