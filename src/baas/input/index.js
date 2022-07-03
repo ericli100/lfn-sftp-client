@@ -337,8 +337,11 @@ async function createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizatio
     return output
 }
 
-async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, correlationId } ){
+async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, batchType, correlationId } ){
     let output = {}
+
+    let updatedBatchType = batch.batchHeader.standardEntryClassCode
+    if(batchType) updatedBatchType = batchType + '-' + updatedBatchType
 
     let batchInsert = {
         entityId: fileBatchEntityId, 
@@ -347,7 +350,7 @@ async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizati
         toOrganizationId: toOrganizationId, 
         fileId: fileEntityId, 
         batchSubId: batch.batchControl.batchNumber, 
-        batchType: batch.batchHeader.standardEntryClassCode, 
+        batchType: updatedBatchType, 
         batchName: path.basename( inputFile ).toUpperCase() + '-' + batch.batchHeader.standardEntryClassCode.toUpperCase() + '-' + batch.batchControl.batchNumber, 
         batchCredits: batch.batchControl.totalCredit, 
         batchDebits: batch.batchControl.totalDebit, 
@@ -462,7 +465,7 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
         sqlStatements.push( sqlBatchEntitySQL.param )
 
         // insert the batch
-        let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, correlationId } )
+        let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, batchType: 'ACH', correlationId } )
         sqlStatements.push( batchSQL.param )
 
         // TRANSACTION DETAIL PROCESSING *********
