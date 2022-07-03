@@ -8,6 +8,7 @@
  copied the necessary bits and ignored their stupid intent.
 */
 
+/*
 globalThis.require = require;
 globalThis.fs = require("fs");
 globalThis.TextEncoder = require("util").TextEncoder;
@@ -26,30 +27,14 @@ globalThis.crypto = {
 		crypto.randomFillSync(b);
 	},
 };
+*/
 
 const fs = require('fs');
 const path = require('path');
-const loader = require('@assemblyscript/loader')
-
 
 // fetch this file from: => https://oss.moov.io/wire/wire.wasm
 let wasmPath = path.resolve('./src/baas/wire/wire.wasm')
-// const wasmBuffer = fs.readFileSync( wasmPath );
-// WebAssembly.instantiate(wasmBuffer).then(wasmModule => {
-//   // Exported function live under instance.exports
-//   const { add } = wasmModule.instance.exports;
-//   const sum = add(5, 6);
-//   console.log(sum); // Outputs: 11
-// });
-
-
 const wasmBuffer = fs.readFileSync( wasmPath );
-
-// const wasm_exec = require('./wasm_exec')
-// let { readFileSync } = 'fs';
-
-// const go = new wasm_exec.Go();
-
 
 async function parse () {
     require('./wasm_exec.js');
@@ -122,6 +107,18 @@ function inputFile() {
     let sampleWire = path.resolve('./src/baas/wire/sample_wire.txt')
     let output = fs.readFileSync( sampleWire )
     return output.toString()
+}
+
+
+function checkFileType(){
+    // check if YFT811 or {1500}
+    // -- parse off the prefix
+
+    // check if the wires are on a single line or multiples
+    // -- parse to multiline
+
+    // check if Multiple Wires in the same file.
+    // -- Return an Array of parsed wires
 }
 
 module.exports.parse = parse
