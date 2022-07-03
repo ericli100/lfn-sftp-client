@@ -1,12 +1,30 @@
 {1500}30User ReqT 
 {1510}1000
-{1520}20220630 SYNAPSE000001
-{2000}000000000250
-{3100}064109565LINEAGE BANK*     
-{3400}026009593BANK OF AMERICA N*
+{1520}20190410Source08000001
+{2000}000001234567
+{3100}121042882Wells Fargo NA    
+{3400}231380104Citadel           
 {3600}CTR   
-{4200}D1235674342*Test User*1 MARKET ST, SAN FRANCISCO, CA, US,*94105.*                                                                                                              
-{5000}F1465396710*Synapse Financial Technologies, Inc*101 Second St STE 1500,*San Francisco, CA US 94105*                                                                            
-{5100}D06410956*LINEAGE BANK*120 5TH AVE N*FRANKLIN*TN*37064*                                                                                                                        
-{6000}BANK OF AMERICA  N A   NY NEW YORK,* NY, US 62bd9033d138e11393cbdc1e/*                                                                      
-{6100}wire sent on behalf of *synapse user*                                                                                                                                                              
+{3620}1http://moov.io                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            Contact Name                                                                                                                                5555551212                         5551231212                         5554561212                         End To End Identification
+{3320}Sender Reference
+{3500}Previous Message Ident
+{3700}BUSD0,99        USD2,99        USD3,99        USD1,00        
+{3710}USD4567,89        
+{3720}1,2345      
+{4000}D123456789                         FI Name                            Address One                        Address Two                        Address Three                      
+{4100}D123456789                         FI Name                            Address One                        Address Two                        Address Three                      
+{4200}31234                              Name                               Address One                        Address Two                        Address Three                      
+{4320}Reference       
+{5000}11234                              Name                               Address One                        Address Two                        Address Three                      
+{5100}D123456789                         FI Name                            Address One                        Address Two                        Address Three                      
+{5200}D123456789                         FI Name                            Address One                        Address Two                        Address Three                      
+{6000}LineOne                            LineTwo                            LineThree                          LineFour                           
+{6100}Line Six                                                                                                                                                                                           
+{6200}Line Six                                                                                                                                                                                           
+{6210}LTRLine One                  Line Two                         Line Three                       Line Four                        Line Five                        Line Six                         
+{6300}Line One                      Line Two                         Line Three                       Line Four                        Line Five                        Line Six                         
+{6310}TLXLine One                  Line Two                         Line Three                       Line Four                        Line Five                        Line Six                         
+{6400}Line One                      Line Two                         Line Three                       Line Four                        Line Five                        Line Six                         
+{6410}LTRLine One                  Line Two                         Line Three                       Line Four                        Line Five                        Line Six                         
+{6420}CHECKAdditional Information        
+{6500}Line One                           Line Two                           Line Three                         Line Four                          Line Five                          Line Six                           
