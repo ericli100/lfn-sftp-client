@@ -52,7 +52,7 @@ async function connect () {
     
     try {
         let results = await mssql.sqlQuery(param);
-        console.log(results)
+        //console.log(results)
     } catch (err) {
         console.error(err)
     }

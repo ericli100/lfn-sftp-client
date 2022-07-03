@@ -18,7 +18,7 @@ const logger = createLogger({
     ),
     defaultMeta: { service: `${VENDOR_NAME}-ftp` },
     transports: [
-        new transports.Console({level: 'info',
+        new transports.Console({level: 'debug',
         format: format.combine(
           format.colorize(),
           format.simple()
@@ -45,7 +45,7 @@ async function main(){
     let correlationId = await baas.id.generate()
 
     let wires = await baas.wire.parse()
-    console.log('parsed wire:', JSON.stringify(wires) )
+    logger.debug( { message: `parsed wire: ${JSON.stringify(wires)}` } )
 
     if(ENABLE_FTP_PULL){
         await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`})

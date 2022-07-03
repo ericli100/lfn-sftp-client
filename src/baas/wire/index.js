@@ -20,15 +20,17 @@ async function parse () {
     const go = new Go();
     const importObject = go.importObject;
     const wasm = await WebAssembly.instantiate(wasmBuffer, importObject);
-    //const { parseContents } = wasm.instance.exports;
-   
     go.run(wasm.instance)
-    //const { parseContents } = wasm.instance.exports;
-  //  let wasmModule = await WebAssembly.instantiate(wasm);
 
-   //  await WebAssembly.instantiate(wasm, go.importObject);
     let input = inputFile()
-    let output = parseContents(input)
+
+    let output = ''
+    
+    try{
+        output = await globalThis.parseContents(input)
+    } catch (err) {
+        output = err
+    }
 
     if(output){
         try{
@@ -50,13 +52,13 @@ function inputFile() {
 
 
 function checkFileType(){
-    // check if YFT811 or {1500}
+    // TODO: check if YFT811 or {1500}
     // -- parse off the prefix
 
-    // check if the wires are on a single line or multiples
+    // TODO: check if the wires are on a single line or multiples
     // -- parse to multiline
 
-    // check if Multiple Wires in the same file.
+    // TODO: check if Multiple Wires in the same file.
     // -- Return an Array of parsed wires
 }
 
