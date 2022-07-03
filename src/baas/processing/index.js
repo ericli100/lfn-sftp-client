@@ -7,7 +7,67 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-let ENVIRONMENT = 'dev'
+let VENDOR_NAME
+let ENVIRONMENT
+
+// ** MAIN PROCESSING FUNCTION ** //
+/*
+ All processing for the SFTP servers will go through this module. Any deviation from central
+ processing will need to be done through configuration of what is passed into the function.
+*/
+async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CONFIG, CORRELATION_ID}){
+    if(!vendorName) throw ('baas.processing.main: vendorName is required!')
+    if(!environment) throw ('baas.processing.main: environment is required!')
+    
+    VENDOR_NAME = vendorName;
+    ENVIRONMENT = environment;
+
+    // TODO: refactor this to be passed into the function
+    let ENABLE_FTP_PULL = true // dev time variable
+    let ENABLE_INBOUND_PROCESSING = true
+    let ENABLE_OUTBOUND_PROCESSING = true
+
+    let wires = await baas.wire.parse()
+    await baas.audit.log( {baas, logger, level: 'debug', message: `parsed wire: ${JSON.stringify(wires)}`, correlationId: CORRELATION_ID} )
+
+    if(ENABLE_FTP_PULL){
+            await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID})
+        // ** GET FILES FROM EMAIL
+        // -- SET CONFIG TO PARSE FROM EMAIL ADDRESS
+    
+        // ** LIST FILE ON REMOTE SFTP
+        let remoteFiles = await baas.processing.listRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG)
+            await baas.audit.log({baas, logger, level: 'info'
+            , message: `SFTP there are (${remoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] with details of [${JSON.stringify(remoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}].`, correlationId: CORRELATION_ID})
+    
+        let remoteValidatedFiles = await baas.processing.getRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, remoteFiles)
+            await baas.audit.log({baas, logger, level: 'info'
+            , message: `SFTP [GET] VALIDATED (${remoteValidatedFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] with details of [${JSON.stringify(remoteValidatedFiles.validatedRemoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}] and loaded them into the database.`, correlationId: CORRELATION_ID})
+        
+         ////////   await baas.processing.removeRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, remoteValidatedFiles.validatedRemoteFiles)
+        
+            await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing ended for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+    }
+
+    if(ENABLE_INBOUND_PROCESSING){
+            await baas.audit.log({baas, logger, level: 'info', message: `Inbound Processing started from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+        await baas.processing.processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, CORRELATION_ID)
+            await baas.audit.log({baas, logger, level: 'info', message: `Inbound Processing ended from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+    }
+
+    if(ENABLE_OUTBOUND_PROCESSING){
+            await baas.audit.log({baas, logger, level: 'info', message: `Outbound Processing started from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+        await baas.processing.processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT)
+            await baas.audit.log({baas, logger, level: 'info', message: `Outbound Processing ended from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+    }
+    
+    // -- receiptSent (used for FileActivityFile)
+
+    // ** TODO: await baas.processing.putRemoteSftpFiles
+    
+    // TODO: generate email NOTIFICATIONS
+    // TODO: send email notifications
+}
 
 async function test(baas) {
     console.log('sql:', baas.sql)
@@ -211,7 +271,7 @@ async function removeRemoteSftpFiles(baas, logger, VENDOR_NAME, environment, con
 
 async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId ) {
     let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
-    let KEEP_PROCESSING_ON_ERROR = false
+    let KEEP_PROCESSING_ON_ERROR = true
 
     var output = {}
 
@@ -229,7 +289,7 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
     let input = baas.input
 
     let unprocessedFiles = await baas.sql.file.getUnprocessedFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
-    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: Pulled a list of unprocessed files from the database for environment [${ENVIRONMENT}].` })
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: Pulled a list of unprocessed files from the database for environment [${ENVIRONMENT}].`, correlationId })
     
     if(unprocessedFiles.length > 0) {
         // we have unprocessed files, continue processing
@@ -257,16 +317,20 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
             // ** PERFORM ACH PROCESSING ** //
             if(file.isACH) {
                 try{
-                    // await input.ach( { baas, VENDOR: VENDOR_NAME, sql:baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: relativePath + '/' + file.fileName, isOutbound:file.isOutboundToFed, fileEntityId:file.entityId, fileTypeId: file.fileTypeId, correlationId })
+                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing ACH file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId})
+                    let achProcessing = await input.ach( { baas, VENDOR: VENDOR_NAME, sql:baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: relativePath + '/' + file.fileName, isOutbound:file.isOutboundToFed, fileEntityId:file.entityId, fileTypeId: file.fileTypeId, correlationId })
+                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed ACH file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId })
                 } catch (err) {
-                    await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: Error processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${err}]` })
+                    await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: Error processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${err}]`, correlationId })
                     if(!KEEP_PROCESSING_ON_ERROR) throw (err)
                 }
             }
 
             // ** PERFORM WIRE PROCESSING ** //
             if(file.isFedWire){
+                await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId })
                 console.log('WE HAVE A WIRE.')
+                await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId })
             }
 
             // ** CLEANUP BUFFER ** //
@@ -275,7 +339,7 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
 
         // clean up the working directory
         if (DELETE_WORKING_DIRECTORY) await deleteWorkingDirectory(workingDirectory)
-        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: The working cache directory [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server. Data is secure.` })
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: The working cache directory [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server. Data is secure.`, correlationId })
     }
 
     return
@@ -337,6 +401,8 @@ async function setEnvironment( environment ){
 async function getEnvironment(){
     return ENVIRONMENT
 }
+
+module.exports.main = main
 
 module.exports.listRemoteSftpFiles = listRemoteSftpFiles
 
