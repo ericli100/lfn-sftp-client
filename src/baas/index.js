@@ -45,6 +45,9 @@ async function main (args) {
     const audit = require('./audit')
     baas.audit = audit
 
+    const wire = require('./wire')
+    baas.wire = wire
+
     return baas
 }
 

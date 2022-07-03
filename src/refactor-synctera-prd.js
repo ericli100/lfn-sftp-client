@@ -29,6 +29,8 @@ const logger = createLogger({
 
 async function main(){
     let ENABLE_FTP_PULL = false // dev time variable
+    let ENABLE_INBOUND_PROCESSING = false
+    let ENABLE_OUTBOUND_PROCESSING = false
 
     let args = {};
     let BAAS = require('./baas')(args)
@@ -41,6 +43,9 @@ async function main(){
     await baas.sftp.setLogger(logger)
 
     let correlationId = await baas.id.generate()
+
+    let wires = await baas.wire.parse()
+    console.log('parsed wire:', JSON.stringify(wires) )
 
     if(ENABLE_FTP_PULL){
         await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`})
@@ -59,10 +64,14 @@ async function main(){
         await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing ended for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${config.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`})
     }
 
+    if(ENABLE_INBOUND_PROCESSING){
+        await baas.processing.processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId)
+    }
 
-    await baas.processing.processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId)
-    await baas.processing.processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT)
-
+    if(ENABLE_OUTBOUND_PROCESSING){
+        await baas.processing.processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT)
+    }
+    
     // -- receiptSent (used for FileActivityFile)
 
     // ** TODO: await baas.processing.putRemoteSftpFiles

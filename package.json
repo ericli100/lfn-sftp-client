@@ -9,6 +9,7 @@
   "author": "brandon.hedge@lineagebank.com",
   "license": "UNLICENSED",
   "dependencies": {
+    "@assemblyscript/loader": "^0.20.13",
     "@slack/webhook": "^6.0.0",
     "biguint-format": "^1.0.2",
     "bluebird": "^3.7.2",

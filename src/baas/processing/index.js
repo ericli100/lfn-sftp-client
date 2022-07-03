@@ -257,7 +257,7 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
             // ** PERFORM ACH PROCESSING ** //
             if(file.isACH) {
                 try{
-                    await input.ach( { baas, VENDOR: VENDOR_NAME, sql:baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: relativePath + '/' + file.fileName, isOutbound:file.isOutboundToFed, fileEntityId:file.entityId, fileTypeId: file.fileTypeId, correlationId })
+                    // await input.ach( { baas, VENDOR: VENDOR_NAME, sql:baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: relativePath + '/' + file.fileName, isOutbound:file.isOutboundToFed, fileEntityId:file.entityId, fileTypeId: file.fileTypeId, correlationId })
                 } catch (err) {
                     await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: Error processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${err}]` })
                     if(!KEEP_PROCESSING_ON_ERROR) throw (err)
@@ -265,7 +265,9 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
             }
 
             // ** PERFORM WIRE PROCESSING ** //
-
+            if(file.isFedWire){
+                console.log('WE HAVE A WIRE.')
+            }
 
             // ** CLEANUP BUFFER ** //
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath )

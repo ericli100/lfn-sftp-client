@@ -1,0 +1,12 @@
+{1500}30User ReqT 
+{1510}1000
+{1520}20220630 SYNAPSE000001
+{2000}000000000250
+{3100}064109565LINEAGE BANK*     
+{3400}026009593BANK OF AMERICA N*
+{3600}CTR   
+{4200}D1235674342*Test User*1 MARKET ST, SAN FRANCISCO, CA, US,*94105.*                                                                                                              
+{5000}F1465396710*Synapse Financial Technologies, Inc*101 Second St STE 1500,*San Francisco, CA US 94105*                                                                            
+{5100}D06410956*LINEAGE BANK*120 5TH AVE N*FRANKLIN*TN*37064*                                                                                                                        
+{6000}BANK OF AMERICA  N A   NY NEW YORK,* NY, US 62bd9033d138e11393cbdc1e/*                                                                      
+{6100}wire sent on behalf of *synapse user*                                                                                                                                                              
