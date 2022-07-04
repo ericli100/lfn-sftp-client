@@ -583,7 +583,7 @@ async function processLineByLine( {inputFile, fixFileArray} ) {
       console.error(err);
       throw(err)
     }
-  }
+}
 
 async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, fileEntityId, fileTypeId, correlationId} ) {
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
