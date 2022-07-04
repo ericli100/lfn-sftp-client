@@ -153,7 +153,7 @@ async function parseWireFile( inputfile ) {
                 currentWireJSON = {}
             }
 
-            currentWireJSON[`'{${parsedWire2[0].trim()}}'`] = parsedWire2[1] || ''
+            if (parsedWire2[0].trim().length > 0)  currentWireJSON[`'{${parsedWire2[0].trim()}}'`] = parsedWire2[1] || ''
 
             if(i == output.parsedFileArray.length - 1 && pi == parsedWire.length - 1) {
                 // this is the last wire at the end of the array
@@ -185,8 +185,6 @@ async function parseWireFile( inputfile ) {
 
     return output
 }
-
-
 
 module.exports.parse = parse
 
