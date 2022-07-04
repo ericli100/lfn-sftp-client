@@ -6,6 +6,9 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { EOL } = require('os');
+const readline = require('readline');
+const events = require('events');
 
 function achTypeCheck( transaction ) {
     let output = {}
@@ -131,6 +134,38 @@ function achTypeCheck( transaction ) {
         
         case 48:
             // 48 Pre-Note: GL Withdrawal (Credit)
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+        
+        case 26:
+            // 26 SYNAPSE TEST (Debit) -- Consider throwing an error
+            isCredit = false
+            isDebit = true
+            transactionCredit = 0
+            transactionDebit = transaction.amount
+            break;
+        
+        case 36:
+            // 36 SYNAPSE TEST (Credit) RETURN -- Consider throwing an error
+            isCredit = false
+            isDebit = true
+            transactionCredit = 0
+            transactionDebit = transaction.amount
+            break;
+
+        case 21:
+            // 21 SYNAPSE TEST (Debit) RETURN -- Consider throwing an error
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+
+        case 31:
+            // 31 SYNAPSE TEST (Credit) RETURN -- Consider throwing an error
             isCredit = true
             isDebit = false
             transactionCredit = transaction.amount
@@ -337,8 +372,11 @@ async function createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizatio
     return output
 }
 
-async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, correlationId } ){
+async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, batchType, correlationId } ){
     let output = {}
+
+    let updatedBatchType = batch.batchHeader.standardEntryClassCode
+    if(batchType) updatedBatchType = batchType + '-' + updatedBatchType
 
     let batchInsert = {
         entityId: fileBatchEntityId, 
@@ -347,7 +385,7 @@ async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizati
         toOrganizationId: toOrganizationId, 
         fileId: fileEntityId, 
         batchSubId: batch.batchControl.batchNumber, 
-        batchType: batch.batchHeader.standardEntryClassCode, 
+        batchType: updatedBatchType, 
         batchName: path.basename( inputFile ).toUpperCase() + '-' + batch.batchHeader.standardEntryClassCode.toUpperCase() + '-' + batch.batchControl.batchNumber, 
         batchCredits: batch.batchControl.totalCredit, 
         batchDebits: batch.batchControl.totalDebit, 
@@ -413,6 +451,140 @@ async function createBatchTransactionSQL( {sql, batch, transaction, achType, jso
     return output
 }
 
+function isNumeric(str) {
+    if (typeof str != "string") return false // we only process strings!  
+    return !isNaN(str) && // use type coercion to parse the _entirety_ of the string (`parseFloat` alone does not do this)...
+           !isNaN(parseFloat(str)) // ...and ensure strings of whitespace fail
+  }
+
+async function achFixKnownErrors( {baas, fileEntityId, inputFile, achParseError, correlationId} ) {
+    // ** This should only be used in emergencies - the source file should be fixed at the source ** //
+    // ** This ONLY MODIFIES THE FILE FOR PARSING BATCHES ** //
+    // ** The original file is still intact with the original SHA256 hash ** //
+
+    let knownErrorPrefix = ''
+    let fixFileArray = []
+
+    let knownErrorsButNotAddressed = [];
+    let isErrorMatched = false
+
+    // SYNAPSE ACH FIX: 001
+    if (achParseError.stdout.includes('(CIE) ServiceClassCode header SCC is not valid for this batch\'s type: 225')) {
+        isErrorMatched = true
+        /* 
+        BROKEN
+        5225SynapsePay*QA                       1465396710CIEDEBIT           220625   1064109560000003
+        822500000200073923090000000002090000000000001465396710                         064109560000003
+        6210739230918809459811       00000004901465396710     Bao Henrici             1064109560000003
+        799R01012345678901234      06410956RET_qa_6ac57fac817047b1a0cfacf5/R01         064109560000003
+
+        NOT BROKEN
+        5225SynapsePay*QA                       1465396710TELDEBIT           220625   1064109560000009
+        822500000200073923090000000004760000000000001465396710                         064109560000009
+        6310739230918825637876       00000006811465396710     Taylor Bhattacharya     1064109560000009
+        799R03012345678901234      06410956RET_qa_e4efceb4467a4d5abd83d018/R03         064109560000009
+        */
+
+        knownErrorPrefix = '!> ***** achFixKnownErrors: [SYNAPSE ACH FIX: 001]'
+        await baas.audit.log({baas, logger: baas.logger, level: 'verbose', message: `${knownErrorPrefix} Attempting fix on ACH file [${inputFile}] -- Error Type:[(CIE) ServiceClassCode header SCC is not valid for this batch type: 225]...`, correlationId})
+        let errorLines = achParseError.stdout.split('line:')
+        
+        for(const errLine of errorLines){
+            let errSplit = errLine.split(' ')
+            if(isNumeric(errSplit[0])) {
+                // this is the line number of the file to edit from 225 to 200
+                let fileLine = parseInt(errSplit[0])
+                let batchNumber = errSplit[4]
+                batchNumber = batchNumber.replace('#', '');
+
+                await baas.audit.log({baas, logger: baas.logger, level: 'verbose', message: `${knownErrorPrefix} Attempting fix on ACH file [${inputFile}] on Line Number: ${fileLine}`} )
+
+                switch (errSplit[16]) {
+                    case '225\n':  // 225 is Debit Only
+                    fixFileArray.push({ linenumber: fileLine - 3, recordType:'5', find:'CIE', replace:'TEL', batch: batchNumber }) // update the STANDARD ENTRY CLASS CODE from CIE <shrug> to TEL Debit
+                    break;
+                }
+            }
+        }
+    } // SYNAPSE ACH FIX: 001
+
+    // SYNAPSE ACH FIX: 002
+    if (achParseError.stdout.includes('TraceNumber must be in ascending order, 1 is less than or equal to last number 1')) {
+        /*'
+        ERROR: unable to read ./buffer/synapse/uat/6071c946aec00000/nextday_ach_20220623132102_0.ach:
+        line:5 record:Batches *ach.BatchError batch #1 (WEB) TraceNumber must be in ascending order, 1 is less than or equal to last number 1
+        line:13 record:Batches *ach.BatchError batch #3 (PPD) TraceNumber must be in ascending order, 1 is less than or equal to last number 1
+        line:17 record:Batches *ach.BatchError batch #4 (PPD) TraceNumber must be in ascending order, 1 is less than or equal to last number 1
+        line:21 record:Batches *ach.BatchError batch #5 (WEB) TraceNumber must be in ascending order, 1 is less than or equal to last number 1
+        */
+
+        knownErrorsButNotAddressed.push('achFixKnownErrors() SYNAPSE ACH FIX: 002 NOT IMPLEMENTED YET! - TraceNumber must be in ascending order, 1 is less than or equal to last number 1')
+    } // SYNAPSE ACH FIX: 002
+
+    // SYNAPSE ACH FIX: 003
+    if (achParseError.stdout.includes('TransactionCode this batch type does not allow credit transaction codes:')) {
+        /*'
+        Error: ERROR: unable to read ./buffer/synapse/uat/6071cfa7d3800000/nextday_ach_20220624123314_0.ach:
+        line:21 record:Batches *ach.BatchError batch #5 (TEL) TransactionCode this batch type does not allow credit transaction codes: 22
+        */
+
+        knownErrorsButNotAddressed.push('achFixKnownErrors() SYNAPSE ACH FIX: 003 NOT IMPLEMENTED YET! - TransactionCode this batch type does not allow credit transaction codes:')
+    } // SYNAPSE ACH FIX: 002
+
+    if(isErrorMatched == false) {
+        // capture the raw error and pass it on to ensure this is not a new unmatched error.
+        knownErrorsButNotAddressed.push('RAW ERROR: ' + achParseError.stdout )
+    }
+
+    if(knownErrorsButNotAddressed.length > 0) {
+        throw( knownErrorsButNotAddressed );
+    }
+
+    if(fixFileArray.length){
+        await processLineByLine( {inputFile, fixFileArray})
+    }
+    return
+}
+
+async function processLineByLine( {inputFile, fixFileArray} ) {
+    let currentLine = 0
+    const writeStream = fs.createWriteStream(inputFile + '.FIXED', { encoding: "utf8" })
+
+    try {
+      const rl = readline.createInterface({
+        input: fs.createReadStream(inputFile),
+        crlfDelay: Infinity
+      });
+  
+      rl.on('line', (line) => {
+        currentLine++
+        let matchedLine = fixFileArray.filter(function(o){ return o.linenumber==currentLine;})
+        if (matchedLine.length > 0) {
+            console.log('currentLine:', currentLine, 'matcheLine:',fixFileArray.filter(function(o){ return o.linenumber==currentLine;}))
+            console.log('ORIGINAL currentLine:', currentLine, 'Line:',line)
+            console.log('matchedLine.find:', matchedLine[0].find)
+            console.log('matchedLine.replace:', matchedLine[0].replace)
+            let fixedLine = line.replace(matchedLine[0].find, matchedLine[0].replace)
+            console.log('UPDATED currentLine:', currentLine, 'fixedLine:',fixedLine)
+
+            writeStream.write(`${fixedLine}${EOL}`);
+        } else {
+            writeStream.write(`${line}${EOL}`);
+        }
+      });
+  
+      await events.once(rl, 'close');
+
+      fs.renameSync( inputFile, inputFile + '.ORIGINAL' )
+      fs.renameSync( inputFile + '.FIXED', inputFile )
+      fs.unlinkSync( inputFile + '.ORIGINAL' )
+
+    } catch (err) {
+      console.error(err);
+      throw(err)
+    }
+  }
+
 async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, fileEntityId, fileTypeId, correlationId} ) {
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
@@ -428,7 +600,22 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
     let output = {};
 
     // parse ACH file
-    let isACH = await baas.ach.isACH( inputFile )
+    let isACH = false;
+
+    try{
+        isACH = await baas.ach.isACH( inputFile )
+    } catch (achParseError) {
+        achParseError.Stack = achParseError.stack
+        await achFixKnownErrors( {baas, fileEntityId, inputFile, achParseError} )
+    }
+
+    try{
+        isACH = await baas.ach.isACH( inputFile ) // run this again after the "known fix repair"
+    } catch (achParseErrorAfterFix) {
+        achParseErrorAfterFix.Stack = achParseErrorAfterFix.stack
+        throw(achParseErrorAfterFix)
+    }
+
     if (!isACH) throw ("No valid ACH file detected during parsing, exiting the baas.input.ach function and not writing to the database.")
 
     let achJSON = await baas.ach.parseACH( inputFile, false )
@@ -462,7 +649,7 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
         sqlStatements.push( sqlBatchEntitySQL.param )
 
         // insert the batch
-        let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, correlationId } )
+        let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, batchType: 'ACH', correlationId } )
         sqlStatements.push( batchSQL.param )
 
         // TRANSACTION DETAIL PROCESSING *********
@@ -492,7 +679,7 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
             let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
             sqlStatements.push( batchTransactionSQL.param )
         }
-
+        debugger;
         // these totals should match, best to fail the whole task if it does not balance here
         if (CreditBatchRunningTotal != batch.batchControl.totalCredit) throw('baas.input.ach batch total from the individual credit transacitons does not match the batch.batchControl.totalCredit! Aborting because something is wrong.')
         if (DebitBatchRunningTotal != batch.batchControl.totalDebit) throw('baas.input.ach batch total from the individual debit transacitons does not match the batch.batchControl.totalDebit! Aborting because something is wrong.')

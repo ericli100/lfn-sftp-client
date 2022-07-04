@@ -23,12 +23,14 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     ENVIRONMENT = environment;
 
     // TODO: refactor this to be passed into the function
-    let ENABLE_FTP_PULL = true // dev time variable
+    let ENABLE_FTP_PULL = false // dev time variable
     let ENABLE_INBOUND_PROCESSING = true
     let ENABLE_OUTBOUND_PROCESSING = true
 
+    baas.logger = logger;
+
     let wires = await baas.wire.parse()
-    await baas.audit.log( {baas, logger, level: 'debug', message: `parsed wire: ${JSON.stringify(wires)}`, correlationId: CORRELATION_ID} )
+    await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed wire: ${JSON.stringify(wires)}`, correlationId: CORRELATION_ID} )
 
     if(ENABLE_FTP_PULL){
             await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID})
@@ -314,23 +316,42 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
             await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath + '.gpg', fullFilePath )
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
 
-            // ** PERFORM ACH PROCESSING ** //
-            if(file.isACH) {
-                try{
-                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing ACH file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId})
-                    let achProcessing = await input.ach( { baas, VENDOR: VENDOR_NAME, sql:baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: relativePath + '/' + file.fileName, isOutbound:file.isOutboundToFed, fileEntityId:file.entityId, fileTypeId: file.fileTypeId, correlationId })
-                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed ACH file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId })
-                } catch (err) {
-                    await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: Error processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${err}]`, correlationId })
-                    if(!KEEP_PROCESSING_ON_ERROR) throw (err)
+            try{                
+                // ** PERFORM ACH PROCESSING ** //
+                if(file.isACH) {
+                    try{
+                            await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing ACH file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId})
+                        let achProcessing = await input.ach( { baas, VENDOR: VENDOR_NAME, sql:baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: relativePath + '/' + file.fileName, isOutbound:file.isOutboundToFed, fileEntityId:file.entityId, fileTypeId: file.fileTypeId, correlationId })
+                            await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed ACH file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId })
+                    } catch (achError) {
+                        debugger;
+                        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing ACH file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${achError}]`, correlationId })
+                        throw (achError)
+                    }
                 }
-            }
 
-            // ** PERFORM WIRE PROCESSING ** //
-            if(file.isFedWire){
-                await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId })
-                console.log('WE HAVE A WIRE.')
-                await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId })
+                // ** PERFORM WIRE PROCESSING ** //
+                if(file.isFedWire){
+                    try{
+                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId })
+                        throw('FEDWIRE PROCESSING NOT IMPLEMENTED!')
+                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId })
+                    } catch (fedWireError) {
+                        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${fedWireError}]`, correlationId })
+                        throw (fedWireError)
+                    }
+                }
+
+                // ** SET PROCESSING STATUS ** //
+                // only set the processing status if the file had no errors processing
+                    await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: setting file [${file.fileName}] as processed for environment [${ENVIRONMENT}]...`, correlationId })
+                await baas.sql.file.setFileProcessed({ entityId: file.entityId, contextOrganizationId, correlationId })
+                    await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId })
+
+            } catch (processingError) {
+                // add outer error handler for file processing
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: OUTER ERROR processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${processingError}]`, correlationId })
+                if(!KEEP_PROCESSING_ON_ERROR) throw (processingError)
             }
 
             // ** CLEANUP BUFFER ** //
