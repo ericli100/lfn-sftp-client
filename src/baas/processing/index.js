@@ -16,16 +16,22 @@ let ENVIRONMENT
  processing will need to be done through configuration of what is passed into the function.
 */
 async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CONFIG, CORRELATION_ID}){
+    
+    //**********************************/
+    //**** MAIN PROCESSING FUNCTION ****/
+    //**********************************/
+
     if(!vendorName) throw ('baas.processing.main: vendorName is required!')
     if(!environment) throw ('baas.processing.main: environment is required!')
     
     VENDOR_NAME = vendorName;
     ENVIRONMENT = environment;
 
-    // TODO: refactor this to be passed into the function
-    let ENABLE_FTP_PULL = false // dev time variable
+    // TODO: refactor this to be passed in via the .env or a dedicated .config file
+    let ENABLE_FTP_PULL = true // dev time variable
     let ENABLE_INBOUND_PROCESSING = true
     let ENABLE_OUTBOUND_PROCESSING = true
+    let ENABLE_REMOTE_DELETE = false
 
     baas.logger = logger;
 
@@ -46,7 +52,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
             await baas.audit.log({baas, logger, level: 'info'
             , message: `SFTP [GET] VALIDATED (${remoteValidatedFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] with details of [${JSON.stringify(remoteValidatedFiles.validatedRemoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}] and loaded them into the database.`, correlationId: CORRELATION_ID})
         
-         ////////   await baas.processing.removeRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, remoteValidatedFiles.validatedRemoteFiles)
+            if(ENABLE_REMOTE_DELETE) await baas.processing.removeRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, remoteValidatedFiles.validatedRemoteFiles)
         
             await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing ended for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
     }
@@ -106,7 +112,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
 
     if(baas.processing.settings) {
         // overrides for the baas.processing.settings
-        if(baas.processing.settings.DELETE_DECRYPTED_FILES) { 
+        if('DELETE_DECRYPTED_FILES' in baas.processing.settings) { 
             DELETE_DECRYPTED_FILES = baas.processing.settings.DELETE_DECRYPTED_FILES
         }
     }
@@ -133,7 +139,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
 
     if (output.remoteFileList.length > 0) {
         // create the working directory
-        let workingDirectory = await createWorkingDirectory(baas, VENDOR_NAME, ENVIRONMENT, logger)
+        let workingDirectory = await createWorkingDirectory(baas, VENDOR_NAME, ENVIRONMENT, logger, !DELETE_DECRYPTED_FILES)
 
         // get the file from SFTP (one file at a time)
         for (let file of output.remoteFileList) {
@@ -387,9 +393,15 @@ async function processOutboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMEN
     return
 }
 
-async function createWorkingDirectory(baas, VENDOR_NAME, ENVIRONMENT, logger) {
+async function createWorkingDirectory(baas, VENDOR_NAME, ENVIRONMENT, logger, isManual = false) {
     let workingFolderId = await baas.id.generate()
-    let workingFolder = path.resolve( process.cwd() + `/buffer/${VENDOR_NAME}/${ENVIRONMENT}/${workingFolderId}`)
+    let workingFolder 
+    if(isManual) {
+        workingFolder = path.resolve( process.cwd() + `/buffer/${VENDOR_NAME}/${ENVIRONMENT}/${workingFolderId}_MANUAL`)
+        await baas.audit.log({baas, logger, level: 'info', message: `Working folder [${workingFolder}] for environment [${ENVIRONMENT}] *** MANUAL FLAG WAS SET ***` });
+    } else {
+        workingFolder = path.resolve( process.cwd() + `/buffer/${VENDOR_NAME}/${ENVIRONMENT}/${workingFolderId}`)
+    }
 
     fs.mkdirSync(workingFolder, { recursive: true });
     await baas.audit.log({baas, logger, level: 'verbose', message: `Working folder [${workingFolder}] for environment [${ENVIRONMENT}] was created.` });
