@@ -19,46 +19,40 @@ let wasmPath = path.resolve('./src/baas/wire/wire.wasm')
 const wasmBuffer = fs.readFileSync( wasmPath );
 
 async function parse ( inputfile ) {
-    require('./wasm_exec.js');
-    const go = new Go();
-    const importObject = go.importObject;
-    const wasm = await WebAssembly.instantiate(wasmBuffer, importObject);
-    go.run(wasm.instance)
+    const EXECUTE_MOOV_WASM = false
 
-    // if(!inputfile) inputfile = './src/baas/wire/sample_wire.txt'
     if(!inputfile) inputfile = './src/baas/wire/wire_fed_20220623132146_0.txt'
+    // if(!inputfile) inputfile = './src/baas/wire/sample_wire.txt'
 
     let input = await inputFileToString( inputfile )
-
-    let parsedWireInput
-    try{
-        parsedWireInput = await parseWireFile( inputfile )
-    } catch (moovError) {
-        console.error('wire.parse():', moovError)
-        parsedWireInput = moovError
-    }
+    let parsedWire
     
-
-    let output = ''
-    
-    try{
-        output = await globalThis.parseContents(input)
-    } catch (err) {
-        console.error('wire.parse():', err)
-        output = err
-    }
-
-    if(output){
+    if (EXECUTE_MOOV_WASM) {
         try{
-            return JSON.parse(output);
-        } catch (err) {
-            throw('Invalid Wire File and could not parse JSON!')
+            require('./wasm_exec.js');
+            const go = new Go();
+            const importObject = go.importObject;
+            const wasm = await WebAssembly.instantiate(wasmBuffer, importObject);
+            go.run(wasm.instance)
+
+            let output = ''
+            output = await globalThis.parseContents(input)
+            parsedWire = JSON.parse(output); 
+
+            return parsedWire
+        } catch (moovError) {
+            console.error('wire.parse() Moov FedWire Error:', 'attempted to parse the contents and they were not JSON. This task has failed us.')
         }
-    } else {
-        return parsedWireInput
-        // throw('Invalid Wire File!')
     }
 
+    try{
+        parsedWire = await parseWireFile( inputfile )
+        return parsedWire
+    } catch (err){
+        console.error('wire.parse() parseWireFile Error:', err)
+    }
+
+    return 
 }
 
 async function inputFileToString ( inputfile ) {
