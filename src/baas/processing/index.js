@@ -100,7 +100,16 @@ async function listRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, conf
 }
 
 async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFileList = []){
+
     let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
+    let DELETE_DECRYPTED_FILES = true
+
+    if(baas.processing.settings) {
+        // overrides for the baas.processing.settings
+        if(baas.processing.settings.DELETE_DECRYPTED_FILES) { 
+            DELETE_DECRYPTED_FILES = baas.processing.settings.DELETE_DECRYPTED_FILES
+        }
+    }
 
     var output = {}
     output.validatedRemoteFiles = []
@@ -249,7 +258,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
             fileVaultId = null
             inputFileOutput = null
 
-            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath )
+            if (DELETE_WORKING_DIRECTORY && DELETE_DECRYPTED_FILES) await deleteBufferFile( fullFilePath )
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.VALIDATION' )
 
@@ -257,7 +266,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
         }
 
         // clean up the working directory
-        if (DELETE_WORKING_DIRECTORY) await deleteWorkingDirectory(workingDirectory)
+        if (DELETE_WORKING_DIRECTORY && DELETE_DECRYPTED_FILES) await deleteWorkingDirectory(workingDirectory)
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: The working cache directory [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server. Data is secure.` })
         
     }

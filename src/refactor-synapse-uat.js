@@ -34,6 +34,7 @@ async function main(){
     let baas = await BAAS
 
     baas.processing.setEnvironment( ENVIRONMENT )
+    baas.processing.settings = {DELETE_DECRYPTED_FILES: false};
 
     let config = await sftpConfig(VENDOR_NAME, ENVIRONMENT)
     await baas.sftp.setConfig( config )
