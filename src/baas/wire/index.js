@@ -29,13 +29,22 @@ async function parse ( inputfile ) {
     if(!inputfile) inputfile = './src/baas/wire/wire_fed_20220623132146_0.txt'
 
     let input = await inputFileToString( inputfile )
-    let parsedWireInput = await parseWireFile( inputfile )
+
+    let parsedWireInput
+    try{
+        parsedWireInput = await parseWireFile( inputfile )
+    } catch (moovError) {
+        console.error('wire.parse():', moovError)
+        parsedWireInput = moovError
+    }
+    
 
     let output = ''
     
     try{
         output = await globalThis.parseContents(input)
     } catch (err) {
+        console.error('wire.parse():', err)
         output = err
     }
 
@@ -46,7 +55,8 @@ async function parse ( inputfile ) {
             throw('Invalid Wire File and could not parse JSON!')
         }
     } else {
-        throw('Invalid Wire File!')
+        return parsedWireInput
+        // throw('Invalid Wire File!')
     }
 
 }
