@@ -62,17 +62,17 @@ async function inputFileToString ( inputfile ) {
 
 async function parseWireFile( inputfile ) {
     let output = {}
-    // TODO: check if YFT811 or {1500}
+    // check if YFT811 or {1500}
     // -- parse off the prefix
     output.hasYFT811 = false
     output.YFT811count = 0
 
-    // TODO: check if the wires are on a single line or multiples
+    // check if the wires are on a single line or multiples
     // -- parse to multiline
     output.isMultiline = false
     output.linesCount = 0
 
-    // TODO: check if Multiple Wires in the same file.
+    // check if Multiple Wires in the same file.
     // -- Return an Array of parsed wires
     output.hasMultipleWires = false
     output.wiresCount = 0
@@ -127,13 +127,6 @@ async function parseWireFile( inputfile ) {
             if(output.wiresCount > 1) output.hasMultipleWires = true
         }
 
-        // if(line.includes('{1500}') && output.wiresCount) {
-        //     // this is the start of a new wire
-        //     output.wiresJSON.push(currentWireJSON)
-        //     // reset the current JSON
-        //     currentWireJSON = {}
-        // }
-
         // parse the file based
         let parsedWire = line.split('{')
 
@@ -170,19 +163,12 @@ async function parseWireFile( inputfile ) {
         }
       }
 
-      // output.reformatedFile += `${fixedLine}${EOL}`
-
-    //   console.log('parsedWire:', parsedWire)
-    //   output.parsedFileArray.concat(parsedWire)
-
-
-    console.log(output)
-
     } catch (err) {
       console.error(err);
       throw(err)
     }
-
+    
+    console.log(output)
     return output
 }
 
