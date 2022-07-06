@@ -100,11 +100,28 @@ async function encryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFileP
     return true
 }
 
-async function decryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath) {
+async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath, baas, audit}) {
+    let ALLOW_AUDIT_ENTRIES = false
+    let logger
+    let correlationId
+
+    if (baas && audit) {
+        logger = baas.logger
+        correlationId = audit.correlationId
+
+        if(audit['vendor'] !== undefined 
+        && audit['filename'] !== undefined
+        && audit['environment'] !== undefined
+        ) {
+            ALLOW_AUDIT_ENTRIES = true
+        }
+    }
+
     if (!destinationFilePath) {
         let hasSuffixGPG = ( sourceFilePath.split('.').pop().toLowerCase() == 'gpg' ) 
         if (hasSuffixGPG) {
             destinationFilePath = sourceFilePath.substring(0, sourceFilePath.indexOf('.gpg'))
+            if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] has [.gpg] suffix for environment [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId })
         } else {
             destinationFilePath = sourceFilePath + '_DECRYPTED'
         }
@@ -115,20 +132,24 @@ async function decryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFileP
     try{
         // take an initial look to see if the mimeType is text or Binary
         mimeType = await detectFileMime( sourceFilePath )
+        if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] mime type was initially detected as [${mimeType}] for environment [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId })
 
         if (mimeType == 'application/octet-stream') {
             // we have a buffer / stream, detect the mime type from there
             mimeType = await detectBufferMime( sourceFilePath )
             isOctetStream = true
+            if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] mime type is [application/octet-stream] and detected the binary file mime type to be [${mimeType}] for environment [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
         }
     } catch (mimeTypeError) {
         console.error(mimeTypeError)
         // keep going... do not fail on this.
+        if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'error', message: `${audit.vendor}: file [${audit.filename}] mime type could not be detected for environment [${audit.environment}] with error:[${mimeTypeError}]`, effectedEntityId: audit.entityId, correlationId  })
     }
 
     try{
         let isArmoredFile = await isArmoredCheck(sourceFilePath)
         if (isArmoredFile) {
+            if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] is ASCII Armored PGP for environment [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
             let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
             let decryptedFile = await decrypt(VENDOR, ENVIRONMENT, sourceFile)
             fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
@@ -150,6 +171,7 @@ async function decryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFileP
                     // do not inlude the encoding in the read or write
                     let sourceFile = fs.readFileSync(sourceFilePath, {flag:'r'})
                     fs.writeFileSync(destinationFilePath, sourceFile.toString(), {flag:'w'})
+                    if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'error', message: `${audit.vendor}: file [${audit.filename}] was and unknown type and contents were written out to the buffer. error:[${quickDecryptError}] [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
                     return true
                 }
             }
@@ -157,9 +179,11 @@ async function decryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFileP
             /* perform a binary decrypt, the file may not be ASCII armored */
             let decryptedFile = await decryptBinary(VENDOR, ENVIRONMENT, sourceFilePath)
             fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
+            if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] was decrypted to the buffer successfully [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId })
             return true
         }
     } catch (error) {
+        if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'error', message: `${audit.vendor}: file [${audit.filename}] error in baas.pgp.decryptFile error:[${error}]`, effectedEntityId: audit.entityId, correlationId  })
         console.error('ERROR:', error)
         return false
     }
@@ -197,8 +221,8 @@ module.exports.encryptFile = (VENDOR, ENVIRONMENT, sourceFilePath, destinationFi
     return encryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath)
 }
 
-module.exports.decryptFile = (VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath = null) => {
-    return decryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath)
+module.exports.decryptFile = ( {VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath, baas, audit }) => {
+    return decryptFile({ VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath, baas, audit })
 }
 
 module.exports.isArmoredCheck = (sourceFilePath) => {
