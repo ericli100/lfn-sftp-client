@@ -160,7 +160,6 @@ async function decryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFileP
             return true
         }
     } catch (error) {
-        debugger;
         console.error('ERROR:', error)
         return false
     }
