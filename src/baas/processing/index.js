@@ -47,8 +47,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
         let remoteFiles = await baas.processing.listRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG)
         await baas.audit.log({baas, logger, level: 'info'
         , message: `SFTP there are (${remoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] with details of [${JSON.stringify(remoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}].`, correlationId: CORRELATION_ID})
-
-        let remoteValidatedFiles = await baas.processing.getRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, remoteFiles)
+        let remoteValidatedFiles = await baas.processing.getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, remoteFileList: remoteFiles, correlationId: CORRELATION_ID } )
         await baas.audit.log({baas, logger, level: 'info'
         , message: `SFTP [GET] VALIDATED (${remoteValidatedFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] with details of [${JSON.stringify(remoteValidatedFiles.validatedRemoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}] and loaded them into the database.`, correlationId: CORRELATION_ID})
     
@@ -105,10 +104,11 @@ async function listRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, conf
     return output.remoteFileList.remoteFiles
 }
 
-async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFileList = []){
-
+async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFileList, correlationId }){
     let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
     let DELETE_DECRYPTED_FILES = true
+
+    if(!remoteFileList) remoteFileList = []
 
     if(baas.processing.settings) {
         // overrides for the baas.processing.settings
@@ -122,16 +122,16 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
 
     // validate that the connection is good
     await baas.sftp.testConnection()    
-    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP connection tested to [${config.server.host}] for environment [${ENVIRONMENT}].` })
+    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP connection tested to [${config.server.host}] for environment [${ENVIRONMENT}].`, correlationId })
 
     // validate the required folders are on the SFTP server
     await baas.sftp.initializeFolders( baas, config )
-    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP folders validated on [${config.server.host}] for environment [${ENVIRONMENT}].` })
+    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP folders validated on [${config.server.host}] for environment [${ENVIRONMENT}].`, correlationId  })
 
     if(remoteFileList.length > 0) {
         // set the remoteFileList to what was passed on
         output.remoteFileList = remoteFileList;
-        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP files passed in for processing for environment [${ENVIRONMENT}] count of files [${output.remoteFileList.length}].` })
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP files passed in for processing for environment [${ENVIRONMENT}] count of files [${output.remoteFileList.length}].`, correlationId  })
     } else {
         // remoteFileList was not provided, go get it
         output.remoteFileList = await listRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, config )
@@ -145,29 +145,36 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
         for (let file of output.remoteFileList) {
             // get the raw file from the SFTP server
             await baas.sftp.getFile(file, workingDirectory, config)
-            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] pulled from the server for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId })
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] pulled from the server for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId  })
 
             let fullFilePath = path.resolve(workingDirectory + '/' + file.filename )
+
+            let audit = {}
+            audit.vendor = VENDOR_NAME
+            audit.filename = file.filename
+            audit.environment = ENVIRONMENT
+            audit.entityId = file.entityId
+            audit.correlationId = correlationId 
             
             // decrypt the file
             if (file.encryptedPGP) {
                 let hasSuffixGPG = await baas.pgp.isGPG(file.filename)
                 if(hasSuffixGPG) {
-                    await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath )
-                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was decrypted locally for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId})
+                    await baas.pgp.decryptFile({ VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath, baas, audit })
+                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was decrypted locally for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
                     await deleteBufferFile( fullFilePath ) // delete the original encrypted file locally
 
                     // set this to the decrypted file name without the .gpg suffix. Refactor later.
                     fullFilePath = fullFilePath.substring(0, fullFilePath.indexOf('.gpg'))
                 } else {
-                    await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath + '.gpg' )
-                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}.gpg] was decrypted locally for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId})
+                    await baas.pgp.decryptFile({ VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', baas, audit })
+                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}.gpg] was decrypted locally for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
                     await deleteBufferFile( fullFilePath + '.gpg' ) // delete the original encrypted file locally
                 }
             }
 
             let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
-            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] calculate SHA256: [${sha256}]`, effectedEntityId: file.entityId })
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] calculate SHA256: [${sha256}]`, effectedEntityId: file.entityId, correlationId })
 
             let inputFileOutput
             var fileEntityId
@@ -194,20 +201,28 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
 
                 inputFileOutput = await baas.input.file( inputFileObj )
                 fileEntityId = inputFileOutput.fileEntityId
+                if(!file.entityId) file.entityId = fileEntityId;
+                audit.entityId = fileEntityId
             } catch (err) {
                 if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
                    throw(err);
                 }
+                let existingEntityId = await baas.sql.file.exists( sha256, true )
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] file already exists in the database with SHA256: [${sha256}]`, effectedEntityId: existingEntityId, correlationId  })
             }
     
             // encrypt the file with Lineage GPG keys prior to vaulting
             let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, fullFilePath, fullFilePath + '.gpg' )
-            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId })
+            
 
             if(!fileEntityId) {
                 // check db if sha256 exists
                 fileEntityId = await baas.sql.file.exists( sha256, true )
+                audit.entityId = fileEntityId
+                if(!file.entityId) file.entityId = fileEntityId;
             }
+
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
 
             // (vault the file as PGP armored text)
             let fileVaultExists = await baas.sql.fileVault.exists( '', fileEntityId )
@@ -217,7 +232,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
 
             if(!fileVaultExists) {
                 await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, config.contextOrganizationId, fileEntityId, 'lineage', fullFilePath + '.gpg' )
-                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was loaded into the File Vault encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId })
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was loaded into the File Vault encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId  })
 
                 await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, fileVaultId})
             } else {
@@ -237,9 +252,9 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
             }
             
             await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
-            await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath + '.gpg', fullFilePath + '.VALIDATION' )
+            await baas.pgp.decryptFile({ VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath + '.VALIDATION' })
 
-            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId})
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
 
             let sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath + '.VALIDATION' )
 
@@ -256,24 +271,25 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
                 file.sha256 = sha256_VALIDATION
                 output.validatedRemoteFiles.push(file)
 
-                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: file.entityId })
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: file.entityId, correlationId })
             }
 
             // buffer cleanup
             fileEntityId = null
             fileVaultId = null
             inputFileOutput = null
+            audit.entityId = null
 
             if (DELETE_WORKING_DIRECTORY && DELETE_DECRYPTED_FILES) await deleteBufferFile( fullFilePath )
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.VALIDATION' )
 
-            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] was removed from the working cache directory on the processing server. Data is secure.` })
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] was removed from the working cache directory on the processing server. Data is secure.`, correlationId })
         }
 
         // clean up the working directory
         if (DELETE_WORKING_DIRECTORY && DELETE_DECRYPTED_FILES) await deleteWorkingDirectory(workingDirectory)
-        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: The working cache directory [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server. Data is secure.` })
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: The working cache directory [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server. Data is secure.`, correlationId  })
         
     }
 
@@ -313,6 +329,13 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
             let fullFilePath = path.resolve(workingDirectory + '/' + file.fileName )
             let relativePath = workingDirectory.replace(process.cwd(), '.')
 
+            let audit = {}
+            audit.vendor = VENDOR_NAME
+            audit.filename = file.fileName
+            audit.environment = ENVIRONMENT
+            audit.entityId = file.entityId
+            audit.correlationId = correlationId
+
             let fileVaultObj = {
                 baas: baas,
                 VENDOR: VENDOR_NAME,
@@ -324,7 +347,7 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
             }
 
             await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
-            await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath + '.gpg', fullFilePath )
+            await baas.pgp.decryptFile({ VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath, baas, audit })
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
 
             try{                
