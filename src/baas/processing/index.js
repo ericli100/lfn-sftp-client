@@ -335,7 +335,6 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                         let achProcessing = await input.ach( { baas, VENDOR: VENDOR_NAME, sql:baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: relativePath + '/' + file.fileName, isOutbound:file.isOutboundToFed, fileEntityId:file.entityId, fileTypeId: file.fileTypeId, correlationId })
                         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed ACH file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId })
                     } catch (achError) {
-                        debugger;
                         await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing ACH file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${achError}]`, correlationId })
                         throw (achError)
                     }
@@ -362,7 +361,7 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
             } catch (processingError) {
                 // add outer error handler for file processing
                 await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: OUTER ERROR processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${processingError}]`, correlationId })
-                await baas.sql.file.setFileHasErrorProcessing( {entityId, contextOrganizationId, correlationId} )
+                await baas.sql.file.setFileHasErrorProcessing( {entityId: file.entityId, contextOrganizationId, correlationId} )
                 await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: Updated file [${file.fileName}] hasProcessingErrors status to [true] for environment [${ENVIRONMENT}].`, correlationId })
 
                 if(!KEEP_PROCESSING_ON_ERROR) throw (processingError)
