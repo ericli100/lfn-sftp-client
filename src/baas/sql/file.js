@@ -263,6 +263,7 @@ function Handler(mssql) {
         let sqlStatement = `
             UPDATE [baas].[files]
             SET [isProcessed] = 1
+                ,[hasProcessingErrors] = 0
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
