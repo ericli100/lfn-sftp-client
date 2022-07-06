@@ -320,6 +320,41 @@ function Handler(mssql) {
             return output
     }
 
+    Handler.setFilenameOutbound = async function setFilenameOutbound( {entityId, contextOrganizationId, filenameOutbound, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        if (!filenameOutbound) throw('filenameOutbound required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [filenameOutbound] = '${filenameOutbound}'
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
     return Handler
 }
 
