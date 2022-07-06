@@ -59,13 +59,13 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
 
     if(ENABLE_INBOUND_PROCESSING){
         await baas.audit.log({baas, logger, level: 'info', message: `Inbound Processing started from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
-        await baas.processing.processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, CORRELATION_ID)
+        await processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, CORRELATION_ID)
         await baas.audit.log({baas, logger, level: 'info', message: `Inbound Processing ended from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
     }
 
     if(ENABLE_OUTBOUND_PROCESSING){
         await baas.audit.log({baas, logger, level: 'info', message: `Outbound Processing started from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
-        await baas.processing.processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT)
+        await processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT)
         await baas.audit.log({baas, logger, level: 'info', message: `Outbound Processing ended from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
     }
     
