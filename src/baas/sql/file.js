@@ -35,14 +35,16 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, isReceiptProcessed, dataJSON, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, isReceiptProcessed, dataJSON, quickBalanceJSON, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
         if (!dataJSON) dataJSON = {}
+        if (!quickBalanceJSON) quickBalanceJSON = {}
         if (!correlationId) correlationId = 'SYSTEM'
         if (!isReceiptProcessed) isReceiptProcessed = '0'
         if (!isProcessed) isProcessed = '0'
+        if (!hasProcessingErrors) hasProcessingErrors = '0'
         if (!source) source = ''
         if (!destination) destination = ''
 
@@ -60,10 +62,12 @@ function Handler(mssql) {
                ,[sizeInBytes]
                ,[sha256]
                ,[dataJSON]
+               ,[quickBalanceJSON]
                ,[isOutbound]
                ,[source]
                ,[destination]
                ,[isProcessed]
+               ,[hasProcessingError]
                ,[isReceiptProcessed]
                ,[correlationId])
          VALUES
@@ -78,10 +82,12 @@ function Handler(mssql) {
                ,'${sizeInBytes}'
                ,'${sha256}'
                ,'${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}'
+               ,'${JSON.stringify(quickBalanceJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}'
                ,'${isOutbound}'
                ,'${source}'
                ,'${destination}'
                ,'${isProcessed}'
+               ,'${hasProcessingError}'
                ,'${isReceiptProcessed}'
                ,'${correlationId}'
                )`
@@ -134,9 +140,11 @@ function Handler(mssql) {
             ,[source]
             ,[destination]
             ,[isProcessed]
+            ,[hasProcessingErrors]
             ,[isReceiptProcessed]
             ,[fileVaultId]
             ,[dataJSON]
+            ,[quickBalanceJSON]
             ,[correlationId]
             ,[versionNumber]
             ,[mutatedBy]
@@ -149,18 +157,32 @@ function Handler(mssql) {
         return sqlStatement
     }
 
-    Handler.updateJSON = async function updateJSON({entityId, dataJSON, contextOrganizationId, correlationId}){
+    Handler.updateJSON = async function updateJSON({entityId, dataJSON, quickBalanceJSON, contextOrganizationId, correlationId}){
         if (!entityId) throw ('entityId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!correlationId) correlationId = 'SYSTEM'
+        // if (dataJSON && quickBalanceJSON) throw('baas.sql.file.updateJSON can only update [dataJSON] or [quickBalanceJSON] individually. Please choose one.')
+        if (!dataJSON && quickBalanceJSON) throw('baas.sql.file.updateJSON needs to have [dataJSON] or [quickBalanceJSON] supplied for an update.')
 
-        let sqlStatement = `
-        UPDATE [baas].[files]
-            SET [dataJSON] = '${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
-                [correlationId] = '${correlationId}'
-        WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}' AND [contextOrganizationId] = '${contextOrganizationId}';`
-    
+        let sqlStatement
+
+        if(dataJSON) {
+            sqlStatement = `
+            UPDATE [baas].[files]
+                SET [dataJSON] = '${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
+                    [correlationId] = '${correlationId}'
+            WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}' AND [contextOrganizationId] = '${contextOrganizationId}';`
+        }
+
+        if(quickBalanceJSON) {
+            sqlStatement += `\n
+            UPDATE [baas].[files]
+                SET [quickBalanceJSON] = '${JSON.stringify(quickBalanceJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
+                    [correlationId] = '${correlationId}'
+            WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}' AND [contextOrganizationId] = '${contextOrganizationId}';`
+        }
+        
         return sqlStatement
     }
 
@@ -191,6 +213,7 @@ function Handler(mssql) {
             ,f.[source]
             ,f.[destination]
             ,f.[isProcessed]
+            ,f.[hasProcessingError]
             ,f.[isReceiptProcessed]
             ,t.[isOutboundToFed]
             ,t.[isInboundFromFed]
@@ -204,6 +227,7 @@ function Handler(mssql) {
             ,t.isACH
             ,t.isFedWire
             ,f.[fileVaultId]
+            ,f.[quickBalanceJSON]
         FROM [baas].[files] f
         INNER JOIN [baas].[fileTypes] t
         ON f.[fileTypeId] = t.entityId AND f.[tenantId] = t.[tenantId] AND f.contextOrganizationId = t.contextOrganizationId
@@ -239,6 +263,40 @@ function Handler(mssql) {
         let sqlStatement = `
             UPDATE [baas].[files]
             SET [isProcessed] = 1
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
+    Handler.setFileHasErrorProcessing = async function setFileHasErrorProcessing( {entityId, contextOrganizationId, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [hasProcessingError] = 1
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
