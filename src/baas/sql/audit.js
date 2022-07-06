@@ -58,7 +58,7 @@ function Handler(mssql) {
            ,'${category}'
            ,'${level}'
            ,'${message}'
-           ,'${JSON.stringify(auditJSON)}'
+           ,'${JSON.stringify(auditJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}'
           /* ,'${effectiveDate}' */
            ,'${correlationId}');`
     
