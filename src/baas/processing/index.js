@@ -363,7 +363,7 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                 // add outer error handler for file processing
                 await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: OUTER ERROR processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${processingError}]`, correlationId })
                 await baas.sql.file.setFileHasErrorProcessing( {entityId, contextOrganizationId, correlationId} )
-                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: Updated file [${file.fileName}] hasProcessingError status to [true] for environment [${ENVIRONMENT}].`, correlationId })
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: Updated file [${file.fileName}] hasProcessingErrors status to [true] for environment [${ENVIRONMENT}].`, correlationId })
 
                 if(!KEEP_PROCESSING_ON_ERROR) throw (processingError)
             }

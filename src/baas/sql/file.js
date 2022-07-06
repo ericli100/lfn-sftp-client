@@ -67,7 +67,7 @@ function Handler(mssql) {
                ,[source]
                ,[destination]
                ,[isProcessed]
-               ,[hasProcessingError]
+               ,[hasProcessingErrors]
                ,[isReceiptProcessed]
                ,[correlationId])
          VALUES
@@ -87,7 +87,7 @@ function Handler(mssql) {
                ,'${source}'
                ,'${destination}'
                ,'${isProcessed}'
-               ,'${hasProcessingError}'
+               ,'${hasProcessingErrors}'
                ,'${isReceiptProcessed}'
                ,'${correlationId}'
                )`
@@ -213,7 +213,7 @@ function Handler(mssql) {
             ,f.[source]
             ,f.[destination]
             ,f.[isProcessed]
-            ,f.[hasProcessingError]
+            ,f.[hasProcessingErrors]
             ,f.[isReceiptProcessed]
             ,t.[isOutboundToFed]
             ,t.[isInboundFromFed]
@@ -296,7 +296,7 @@ function Handler(mssql) {
 
         let sqlStatement = `
             UPDATE [baas].[files]
-            SET [hasProcessingError] = 1
+            SET [hasProcessingErrors] = 1
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
