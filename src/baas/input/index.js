@@ -679,7 +679,7 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
             let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
             sqlStatements.push( batchTransactionSQL.param )
         }
-        debugger;
+
         // these totals should match, best to fail the whole task if it does not balance here
         if (CreditBatchRunningTotal != batch.batchControl.totalCredit) throw('baas.input.ach batch total from the individual credit transacitons does not match the batch.batchControl.totalCredit! Aborting because something is wrong.')
         if (DebitBatchRunningTotal != batch.batchControl.totalDebit) throw('baas.input.ach batch total from the individual debit transacitons does not match the batch.batchControl.totalDebit! Aborting because something is wrong.')

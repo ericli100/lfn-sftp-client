@@ -6,6 +6,7 @@
 const openpgp = require('openpgp');
 const fs = require('fs');
 const path = require('path');
+const  { detectFileMime, detectBufferMime } = require('mime-detect');
 
 async function getKeys(VENDOR, ENVIRONMENT) {
     try{
@@ -109,6 +110,22 @@ async function decryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFileP
         }
     }
 
+    let mimeType
+    let isOctetStream = false
+    try{
+        // take an initial look to see if the mimeType is text or Binary
+        mimeType = await detectFileMime( sourceFilePath )
+
+        if (mimeType == 'application/octet-stream') {
+            // we have a buffer / stream, detect the mime type from there
+            mimeType = await detectBufferMime( sourceFilePath )
+            isOctetStream = true
+        }
+    } catch (mimeTypeError) {
+        console.error(mimeTypeError)
+        // keep going... do not fail on this.
+    }
+
     try{
         let isArmoredFile = await isArmoredCheck(sourceFilePath)
         if (isArmoredFile) {
@@ -117,12 +134,33 @@ async function decryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFileP
             fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
             return true
         } else {
+            if(mimeType != 'application/pgp-encrypted; charset=us-ascii'){
+                // we received content that may not be encrypted because it
+                // was binary but is not text/plain; charset=us-ascii'
+
+                // we will try to decrypt it, but if we get any error, we will
+                // just write the content out to disk.
+
+                try{
+                    let decryptedFile = await decryptBinary(VENDOR, ENVIRONMENT, sourceFilePath)
+                     // it decrypted... go ahead and write it out.
+                    fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
+                    return true
+                } catch (quickDecryptError) {
+                    // do not inlude the encoding in the read or write
+                    let sourceFile = fs.readFileSync(sourceFilePath, {flag:'r'})
+                    fs.writeFileSync(destinationFilePath, sourceFile.toString(), {flag:'w'})
+                    return true
+                }
+            }
+
             /* perform a binary decrypt, the file may not be ASCII armored */
             let decryptedFile = await decryptBinary(VENDOR, ENVIRONMENT, sourceFilePath)
             fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
             return true
         }
     } catch (error) {
+        debugger;
         console.error('ERROR:', error)
         return false
     }

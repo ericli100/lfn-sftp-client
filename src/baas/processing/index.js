@@ -106,7 +106,6 @@ async function listRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, conf
 }
 
 async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFileList = []){
-
     let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
     let DELETE_DECRYPTED_FILES = true
 

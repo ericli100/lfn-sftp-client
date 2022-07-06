@@ -90,6 +90,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.folderMappings.push({ type: 'get', source: '/ach/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.ach.outbound`, usePGP:false, actionAfterGet: 'processed' })
     config.folderMappings.push({ type: 'get', source: '/secure_file_delivery', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed'})
     config.folderMappings.push({ type: 'get', source: '/encrypted/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
+    config.folderMappings.push({ type: 'get', source: '/encrypted', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
     config.folderMappings.push({ type: 'get', source: '/encrypted/outbound/txns', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
     config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.ach.inbound`, destination: '/ach/inbound', usePGP:false })
     config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.fis`, destination: '/fis', usePGP:false })
