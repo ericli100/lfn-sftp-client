@@ -145,7 +145,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
         for (let file of output.remoteFileList) {
             // get the raw file from the SFTP server
             await baas.sftp.getFile(file, workingDirectory, config)
-            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] pulled from the server for environment [${ENVIRONMENT}].` })
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] pulled from the server for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId })
 
             let fullFilePath = path.resolve(workingDirectory + '/' + file.filename )
             
@@ -154,20 +154,20 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
                 let hasSuffixGPG = await baas.pgp.isGPG(file.filename)
                 if(hasSuffixGPG) {
                     await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath )
-                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was decrypted locally for environment [${ENVIRONMENT}].` })
+                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was decrypted locally for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId})
                     await deleteBufferFile( fullFilePath ) // delete the original encrypted file locally
 
                     // set this to the decrypted file name without the .gpg suffix. Refactor later.
                     fullFilePath = fullFilePath.substring(0, fullFilePath.indexOf('.gpg'))
                 } else {
                     await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath + '.gpg' )
-                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}.gpg] was decrypted locally for environment [${ENVIRONMENT}].` })
+                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}.gpg] was decrypted locally for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId})
                     await deleteBufferFile( fullFilePath + '.gpg' ) // delete the original encrypted file locally
                 }
             }
 
             let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
-            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] calculate SHA256: [${sha256}]` })
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] calculate SHA256: [${sha256}]`, effectedEntityId: file.entityId })
 
             let inputFileOutput
             var fileEntityId
@@ -202,7 +202,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
     
             // encrypt the file with Lineage GPG keys prior to vaulting
             let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, fullFilePath, fullFilePath + '.gpg' )
-            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].` })
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId })
 
             if(!fileEntityId) {
                 // check db if sha256 exists
@@ -217,7 +217,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
 
             if(!fileVaultExists) {
                 await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, config.contextOrganizationId, fileEntityId, 'lineage', fullFilePath + '.gpg' )
-                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was loaded into the File Vault encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].` })
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was loaded into the File Vault encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId })
 
                 await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, fileVaultId})
             } else {
@@ -239,7 +239,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
             await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
             await baas.pgp.decryptFile( VENDOR_NAME, ENVIRONMENT, fullFilePath + '.gpg', fullFilePath + '.VALIDATION' )
 
-            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].` })
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId})
 
             let sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath + '.VALIDATION' )
 
@@ -256,7 +256,7 @@ async function getRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, confi
                 file.sha256 = sha256_VALIDATION
                 output.validatedRemoteFiles.push(file)
 
-                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.` })
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: file.entityId })
             }
 
             // buffer cleanup
@@ -331,11 +331,11 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                 // ** PERFORM ACH PROCESSING ** //
                 if(file.isACH) {
                     try{
-                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing ACH file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId})
+                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing ACH file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId, effectedEntityId: file.entityId})
                         let achProcessing = await input.ach( { baas, VENDOR: VENDOR_NAME, sql:baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: relativePath + '/' + file.fileName, isOutbound:file.isOutboundToFed, fileEntityId:file.entityId, fileTypeId: file.fileTypeId, correlationId })
-                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed ACH file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId })
+                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed ACH file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId, effectedEntityId: file.entityId })
                     } catch (achError) {
-                        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing ACH file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${achError}]`, correlationId })
+                        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing ACH file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${achError}]`, correlationId, effectedEntityId: file.entityId })
                         throw (achError)
                     }
                 }
@@ -343,26 +343,26 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                 // ** PERFORM WIRE PROCESSING ** //
                 if(file.isFedWire){
                     try{
-                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId })
+                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId, effectedEntityId: file.entityId })
                         throw('FEDWIRE PROCESSING NOT IMPLEMENTED!')
-                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId })
+                        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId, effectedEntityId: file.entityId })
                     } catch (fedWireError) {
-                        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${fedWireError}]`, correlationId })
+                        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${fedWireError}]`, correlationId, effectedEntityId: file.entityId })
                         throw (fedWireError)
                     }
                 }
 
                 // ** SET PROCESSING STATUS ** //
                 // only set the processing status if the file had no errors processing
-                await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: setting file [${file.fileName}] as processed for environment [${ENVIRONMENT}]...`, correlationId })
+                await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: setting file [${file.fileName}] as processed for environment [${ENVIRONMENT}]...`, correlationId, effectedEntityId: file.entityId })
                 await baas.sql.file.setFileProcessed({ entityId: file.entityId, contextOrganizationId, correlationId })
-                await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId })
+                await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId, effectedEntityId: file.entityId })
 
             } catch (processingError) {
                 // add outer error handler for file processing
-                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: OUTER ERROR processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${processingError}]`, correlationId })
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: OUTER ERROR processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${processingError}]`, correlationId, effectedEntityId: file.entityId })
                 await baas.sql.file.setFileHasErrorProcessing( {entityId: file.entityId, contextOrganizationId, correlationId} )
-                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: Updated file [${file.fileName}] hasProcessingErrors status to [true] for environment [${ENVIRONMENT}].`, correlationId })
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: Updated file [${file.fileName}] hasProcessingErrors status to [true] for environment [${ENVIRONMENT}].`, correlationId, effectedEntityId: file.entityId })
 
                 if(!KEEP_PROCESSING_ON_ERROR) throw (processingError)
             }
