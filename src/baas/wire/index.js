@@ -21,7 +21,8 @@ const wasmBuffer = fs.readFileSync( wasmPath );
 async function parse ( inputfile ) {
     const EXECUTE_MOOV_WASM = false
 
-    if(!inputfile) inputfile = './src/baas/wire/wire_fed_20220623132146_0.txt'
+    if(!inputfile) inputfile = './src/baas/wire/sample_wire_southstate.txt'
+    // if(!inputfile) inputfile = './src/baas/wire/wire_fed_20220623132146_0.txt'
     // if(!inputfile) inputfile = './src/baas/wire/sample_wire.txt'
 
     let input = await inputFileToString( inputfile )
@@ -68,6 +69,9 @@ async function parseWireFile( inputfile ) {
     // -- parse off the prefix
     output.hasYFT811 = false
     output.YFT811count = 0
+
+    output.hasXFT811 = false
+    output.XFT811count = 0
 
     // check if the wires are on a single line or multiples
     // -- parse to multiline
@@ -120,6 +124,13 @@ async function parseWireFile( inputfile ) {
         if(line.includes('YFT811')) {
             output.hasYFT811 = true
             output.YFT811count = output.YFT811count + 1
+            currentWireJSON.YFT811 = 'YFT811'
+        }
+
+        if(line.includes('XFT811')) {
+            output.hasXFT811 = true
+            output.XFT811count = output.XFT811count + 1
+            currentWireJSON.XFT811 = 'XFT811'
         }
 
         if(line.includes('{1500}')) {
@@ -133,7 +144,7 @@ async function parseWireFile( inputfile ) {
         for( const pi in parsedWire) {
             let parsedWire2 = parsedWire[pi].split('}')
 
-            if( (parsedWire2[0].trim() == '1500' || parsedWire2[0].trim() == 'YFT811' ) && output.hasMultipleWires && pi < 1) {
+            if( parsedWire2[0].trim() == '1500' && output.hasMultipleWires && pi < 1) {
                 // we detected an additional wire, write what we have
                 currentWireJSON.totalCredits = parseInt(currentWireJSON["'{2000}'"]) || 0
                 currentWireJSON.totalDebits = 0

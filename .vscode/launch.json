@@ -11,7 +11,7 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/spike/email/email_msal_msgraph.js",
+            "program": "${workspaceFolder}/src/refactor-synapse-uat.js",
             "outputCapture": "std"
         }
     ]
