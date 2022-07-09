@@ -181,6 +181,24 @@ async function moveMailFolder({ client, messageId, destinationFolderId }){
     return status
 }
 
+async function createMsGraphAttachments ( inputFile, existingArray ) {
+    if(!inputFile) throw ('inputFile is required to createAttachment for msal-msgraph!')
+    let output = existingArray || []
+
+    let filename = path.basename(inputFile)
+    let base64 = await fs.readFile( inputFile, {encoding: 'base64' });
+
+    let attachment = {
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        "contentBytes": base64,
+        "name": filename
+    }
+
+    output.push( attachment )
+
+    return output
+}
+
 // async function readMailChildFolders({ client, folderId }){
 //     let mailChildFolders = await client.api(`me/mailFolders/${folderId}/childFolders`)
 //         .get();
@@ -193,10 +211,14 @@ async function main() {
 
     const client = getAuthenticatedClient( token.accessToken )
 
+    let inputFile = path.resolve(__dirname + "/data/test_file_attachment.txt");
+    let attachments = await createMsGraphAttachments( inputFile )
+
     let message = { 
         subject: 'Test Message from MS Graph 4', 
         body: { contentType: 'Text', content: 'From Node.js - This is a test message that was sent via the Microsoft Graph API endpoint.' }, 
-        toRecipients: [{ emailAddress: { address: 'admins@lineagebank.com' } }], 
+        toRecipients: [{ emailAddress: { address: 'admins@lineagebank.com' } }],
+        attachments: attachments
     }
 
     await sendEmail({ client, message })
