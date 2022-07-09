@@ -199,6 +199,38 @@ async function createMsGraphAttachments ( inputFile, existingArray ) {
     return output
 }
 
+async function downloadMsGraphAttachments ({ client, messageId, destinationPath }) {
+    // download all the attachments on a message to the destinationPath
+    let mailAttachments = await client.api(`/me/messages/${messageId}/attachments`).get();
+    let output = {}
+    output.emailAttachmentsArray = []
+
+    for(const i in mailAttachments.value) {
+        let attachment = mailAttachments.value[i];
+
+        let fileName = attachment.name
+        let fileBase64 = attachment.contentBytes
+
+        try {
+            await fs.writeFile( path.resolve( destinationPath, fileName ), new Buffer.from( fileBase64, 'base64' ) )
+            let attachmentInfo = {
+                messageId: messageId,
+                attachmentId: attachment.id,
+                fileName: fileName,
+                destinationPath: destinationPath,
+                fullFilePath: path.resolve( destinationPath, fileName ),
+            }
+
+            output.emailAttachmentsArray.push( attachmentInfo )
+
+        } catch (fileWriteError) {
+            throw ( fileWriteError ) 
+        }
+    }
+    
+    return output
+}
+
 // async function readMailChildFolders({ client, folderId }){
 //     let mailChildFolders = await client.api(`me/mailFolders/${folderId}/childFolders`)
 //         .get();
@@ -212,16 +244,16 @@ async function main() {
     const client = getAuthenticatedClient( token.accessToken )
 
     let inputFile = path.resolve(__dirname + "/data/test_file_attachment.txt");
-    let attachments = await createMsGraphAttachments( inputFile )
+    let attachment = await createMsGraphAttachments( inputFile )
 
     let message = { 
         subject: 'Test Message from MS Graph 4', 
         body: { contentType: 'Text', content: 'From Node.js - This is a test message that was sent via the Microsoft Graph API endpoint.' }, 
         toRecipients: [{ emailAddress: { address: 'admins@lineagebank.com' } }],
-        attachments: attachments
+        attachments: attachment
     }
 
-    await sendEmail({ client, message })
+    // await sendEmail({ client, message })
 
     let processFoldername = 'rejected'
     let moveToFoldername = 'acknowledged'
@@ -233,6 +265,8 @@ async function main() {
     console.log(moveToFolder)
 
     let emails = []
+    let attachments = []
+
     for(const i in mailFolders) {
         let folderId = mailFolders[i].id
         let mailInFolder = await readEmails({ client, folderId: folderId})
@@ -241,6 +275,10 @@ async function main() {
         for(const j in mailInFolder) {
             let email = mailInFolder[j]
 
+            // test attachment download
+            let emailAttachmentsArray = await downloadMsGraphAttachments({ client, messageId: email.id, destinationPath: path.resolve(__dirname + "/data/downloads") })
+            attachments = attachments.concat(emailAttachmentsArray.emailAttachmentsArray)
+
             // test moving a message to a new folder
             let moveStatus = await moveMailFolder({ client, messageId: email.id, destinationFolderId: moveToFolder[0].id })
             email.folderName = moveToFolder[0].displayName
@@ -248,7 +286,8 @@ async function main() {
         }
     }
     
-    console.log(emails)
+    console.log('emails:', emails)
+    console.log('attachments:', attachments)
 }
 
 main()
