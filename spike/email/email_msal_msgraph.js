@@ -1,16 +1,12 @@
-require('dotenv').config({ path: __dirname + '/.env' })
+// GH ISSUE: https://github.com/LineageBank/lfn-sftp-client/issues/43
 
-let CLIENT_ID = process.env.CLIENT_ID;
-let TENANT_ID = process.env.TENANT_ID
+const path = require('path')
+require('dotenv').config({ path: path.resolve(__dirname + "/.env") })
 
-let USERNAME = process.env.USERNAME;
-let PASSWORD = process.env.PASSWORD;
-
-let IMAP_SERVER = process.env.IMAP_SERVER;
-let IMAP_PORT = process.env.IMAP_PORT;
-
-let SMTP_PORT = process.env.SMTP_PORT;
-let SMTP_SERVER = process.env.SMTP_SERVER;
+const MSAL_CLIENT_ID = process.env.MSAL_CLIENT_ID;
+const MSAL_TENANT_ID = process.env.MSAL_TENANT_ID
+const MSAL_USERNAME = process.env.MSAL_USERNAME;
+const MSAL_PASSWORD = process.env.MSAL_PASSWORD;
 
 var msal = require("@azure/msal-node");
 const { promises: fs } = require("fs");
@@ -21,7 +17,7 @@ require('isomorphic-fetch');
 /**
  * Cache Plugin configuration
  */
-const cachePath = "./data/cache.json"; // Replace this string with the path to your valid cache file.
+const cachePath = path.resolve(__dirname + "/data/cache.json"); // Replace this string with the path to your valid cache file.
 
 const beforeCacheAccess = async (cacheContext) => {
     try {
@@ -50,8 +46,8 @@ const cachePlugin = {
 
 const msalConfig = {
     auth: {
-        clientId: `${CLIENT_ID}`,
-        authority: `https://login.microsoftonline.com/${TENANT_ID}`,
+        clientId: `${MSAL_CLIENT_ID}`,
+        authority: `https://login.microsoftonline.com/${MSAL_TENANT_ID}`,
     },
     cache: {
         cachePlugin
@@ -97,8 +93,8 @@ async function tokenCalls() {
     } else { // fall back to username password if there is no account
         const usernamePasswordRequest = {
             scopes: ["user.read"],
-            username: USERNAME,
-            password: PASSWORD,
+            username: MSAL_USERNAME,
+            password: MSAL_PASSWORD,
             grant_type: `authorization_code`,
         };
 

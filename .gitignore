@@ -2,6 +2,8 @@
 
 .env
 
+.vscode
+
 .DS_Store
 
 #exclude the local working directory
