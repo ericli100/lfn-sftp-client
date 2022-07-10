@@ -27,7 +27,6 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     VENDOR_NAME = vendorName;
     ENVIRONMENT = environment;
 
-    debugger;
     let ENABLE_FTP_PULL = true // dev time variable
     let ENABLE_INBOUND_EMAIL_PROCESSING = true
     // let ENABLE_WIRE_PROCESSING = false
@@ -308,6 +307,12 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
 }
 
 async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId }) {
+    if(!baas) throw ('processing.getInboundEmailFiles() requires [baas]!')
+    if(!config) throw ('processing.getInboundEmailFiles() requires [config]!')
+    if(!VENDOR_NAME) VENDOR_NAME = config.vendor
+    if(!ENVIRONMENT) ENVIRONMENT = config.environment
+    if(!logger) logger = baas.logger
+
     let output = {}
    
     try {
