@@ -331,7 +331,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         let mailFolders = await baas.email.readMailFolders({ client, displayName: processFoldername, includeChildren: true })
         console.log(mailFolders)
     
-        let moveToFolder = await readMailFolders({ client, displayName: moveToFoldername, includeChildren: true} )
+        let moveToFolder = await baas.email.readMailFolders({ client, displayName: moveToFoldername, includeChildren: true} )
         console.log(moveToFolder)
     
         let emails = []
