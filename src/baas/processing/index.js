@@ -313,7 +313,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
     let output = {}
    
     try {
-        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: INBOUND EMAILS - BEGIN PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${config.email.inbound}].`, correlationId  })
+        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: INBOUND EMAILS - BEGIN PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${ JSON.stringify(config.email.inbound) }].`, correlationId  })
 
         let client = await baas.email.getClient()
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - Got the MSAL client for MS Graph processing for [${ENVIRONMENT}].`, correlationId })
@@ -356,9 +356,9 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         console.log('emails:', emails)
         console.log('attachments:', attachments)
 
-        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: INBOUND EMAILS - END PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${ config.email.inbound }].`, correlationId  })
+        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: INBOUND EMAILS - END PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${ JSON.stringify(config.email.inbound) }].`, correlationId  })
     } catch (inboundEmailProcessingError) {
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ inboundEmailProcessingError }]!`, correlationId  })
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(inboundEmailProcessingError) }]!`, correlationId  })
     }
 
     return output
@@ -370,7 +370,7 @@ async function getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
 
     try{
         debugger;
-        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: OUTBOUND EMAILS - BEGIN PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${config.email.inbound}].`, correlationId  })
+        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: OUTBOUND EMAILS - BEGIN PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${ JSON.stringify(config.email.inbound) }].`, correlationId  })
     
         let client = await baas.email.getClient()
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: OUTBOUND EMAILS - Got the MSAL client for MS Graph processing for [${ENVIRONMENT}].`, correlationId })
@@ -396,9 +396,9 @@ async function getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
     
         // attachments: attachment
         await baas.email.sendEmail({ client, message })
-        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: OUTBOUND EMAILS - END PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${ config.email.inbound }].`, correlationId  })
+        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: OUTBOUND EMAILS - END PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${ JSON.stringify(config.email.inbound) } }].`, correlationId  })
     } catch (outboundEmailProcessingError) {
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: OUTBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ outboundEmailProcessingError }]!`, correlationId  })
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: OUTBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(outboundEmailProcessingError) }]!`, correlationId  })
     }
 
     return output;
