@@ -444,9 +444,14 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                 destinationPath: fullFilePath + '.gpg'
             }
 
-            await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
-            await baas.pgp.decryptFile({ VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath, baas, audit })
-            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
+            try{
+                await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+                await baas.pgp.decryptFile({ VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath, baas, audit })
+                if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
+            } catch (fileVaultError) {
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: There was an issue pulling the file from the File Vault, file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${fileVaultError}]`, correlationId, effectedEntityId: file.entityId })
+                throw (fileVaultError)
+            }
 
             try{                
                 // ** PERFORM ACH PROCESSING ** //
