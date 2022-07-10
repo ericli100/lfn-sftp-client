@@ -589,7 +589,7 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
     let fileName = path.basename( inputFile )
    
-    await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR}: processing ACH file [${ fileName }]...`, correlationId, effectedEntityId: fileEntityId})
+    await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${VENDOR}: processing ACH file [${ fileName }]...`, correlationId, effectedEntityId: fileEntityId})
 
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
     if(!baas) throw('baas.input.ach: baas module is required!')
@@ -610,6 +610,8 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
         isACH = await baas.ach.isACH( inputFile )
     } catch (achParseError) {
         achParseError.Stack = achParseError.stack
+
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR}: ACH parsing error [${ fileName }] and attempting the achFixKnownErrors() function...`, correlationId, effectedEntityId: fileEntityId})
         await achFixKnownErrors( {baas, fileEntityId, inputFile, achParseError} )
     }
 
@@ -692,7 +694,7 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
     // call SQL and run the SQL transaction to import the ach file to the database
     output.results = await sql.execute( sqlStatements )
 
-    await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR}: processed ACH file [${fileName}].`, correlationId, effectedEntityId: fileEntityId })
+    await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${VENDOR}: processed ACH file [${fileName}].`, correlationId, effectedEntityId: fileEntityId })
 
     // output the status
     return output

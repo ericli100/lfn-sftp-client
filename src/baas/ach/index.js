@@ -4,8 +4,13 @@
 */
 
 const util = require('util');
+const fs = require('fs');
 const path = require('path');
 const exec = util.promisify(require('child_process').exec);
+
+const { EOL } = require('os');
+const readline = require('readline');
+const events = require('events');
 
 const DEBUG = false
 
@@ -248,6 +253,107 @@ async function parseBatchACH(achJSON, spacing) {
     return output
 }
 
+async function parseAchFile( inputfile ){
+    if(!inputfile) throw( 'baas.ach.parseAchFile() requires an inputFile!')
+    let output = {}
+
+    output.totalLines = 0
+
+    // dollar total for all ach files
+    output.totalCredits = 0
+    output.totalDebits = 0
+    output.currency = 'USD'
+
+    output.achJSON = []
+
+    let currentLine = 0
+    let currentAchJSON = {}
+
+    output.parsedFileArray = []
+
+    try {
+        const rl = readline.createInterface({
+          input: fs.createReadStream( inputfile ),
+          crlfDelay: Infinity
+        });
+    
+        rl.on('line', (line) => {
+          currentLine++
+          output.totalLines = currentLine;
+  
+          // it will be easier to deal with an array versus reacting to events
+          output.parsedFileArray.push(line);
+        });
+    
+        await events.once(rl, 'close');
+  
+        // let's work with the array that was just processed:
+        // last line of the ACH file should be the control file
+        for(const i in output.parsedFileArray){
+            let line = output.parsedFileArray[i]
+
+            /*
+                101… File Header Record
+                520… Batch Header Record
+                627… Entry Detail Record
+                637… Entry Detail Record
+                7XX… Addenda Record
+                . . . . . .
+                820… Batch Control Record
+                520… Batch Header Record
+                622… Entry Detail Record
+                7XX… Addenda Record
+                622… Entry Detail Record
+                . . . . . .
+                820… Batch Control Record
+                . . . . . .
+                900… File Control Record
+                999… File Padding
+            */
+
+
+            // 101… File Header Record
+            if(line.substring(0,3) == '101') {
+                currentAchJSON['101'] = {lineNumber: i, type:'File Header Record', line: line.substring(0,line.length), values: [] }
+            }
+
+            // 900… File Control Record
+            if(line.substring(0,3) == '900') {
+                /*
+                    NAME                                     | Position | Length | 
+                    Total Debit Entry Dollar Amount in File  | 32-43    | 12     |
+                    Total Credit Entry Dollar Amount in File | 44-55    | 12     |
+                */
+                currentAchJSON['900'] = {lineNumber: i, type:'File Control Record', line: line.substring(0,line.length), entryAdendaCount: parseInt(line.substring(13, 21)) }
+
+                output.totalDebits = parseInt( line.substring(31,43) )
+                output.totalCredits = parseInt( line.substring(43,55) )
+
+                // "fileControl": {
+                //     "batchCount": 2,
+                //     "blockCount": 10,
+                //     "entryAddendaCount": 94,
+                //     "entryHash": 226866882,
+                //     "id": "",
+                //     "totalCredit": 3592500,
+                //     "totalDebit": 3592000
+                //   }
+            }
+
+            if( i == output.parsedFileArray.length - 1 ) {
+                // this is the last line of the array
+                output.achJSON.push(currentAchJSON)
+                currentAchJSON = {}
+            }
+        }
+      } catch (err) {
+        console.error(err);
+        throw(err)
+      }
+
+    return output
+}
+
 module.exports = (args) => {
     let newArgs = []
     if (!util.isArray(args)){
@@ -279,3 +385,5 @@ module.exports.formatMoney = (amount, decimalCount) => {
 module.exports.isACH = (filename) => {
     return isACH([`-reformat json`, `-mask`, `${filename}`])
 }
+
+module.exports.parse = parseAchFile
