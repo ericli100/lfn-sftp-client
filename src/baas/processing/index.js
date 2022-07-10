@@ -324,9 +324,9 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
 
         // get the mail and filter for the CONFIG items listed
         // store the files in the database
-    
-        let processFoldername = 'rejected'
-        let moveToFoldername = 'acknowledged'
+        debugger;
+        let processFoldername = 'processed'
+        let moveToFoldername = 'reprocessed'
     
         let mailFolders = await baas.email.readMailFolders({ client, displayName: processFoldername, includeChildren: true })
         console.log(mailFolders)
