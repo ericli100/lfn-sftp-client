@@ -1,4 +1,0 @@
-'user strict';
-/*
-    SMTP module
-*/

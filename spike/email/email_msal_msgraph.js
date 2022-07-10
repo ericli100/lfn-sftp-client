@@ -17,7 +17,7 @@ require('isomorphic-fetch');
 /**
  * Cache Plugin configuration
  */
-const cachePath = path.resolve(__dirname + "/data/cache.json"); // Replace this string with the path to your valid cache file.
+const cachePath = path.resolve(__dirname + "/data/cache.json");
 
 const beforeCacheAccess = async (cacheContext) => {
     try {

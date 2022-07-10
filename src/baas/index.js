@@ -48,6 +48,9 @@ async function main (args) {
     const wire = require('./wire')
     baas.wire = wire
 
+    const email = require('./email')()
+    baas.email = email
+
     return baas
 }
 

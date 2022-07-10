@@ -116,6 +116,10 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.fromOrganizationId = FROM_ORGANIZATION_ID;
     config.toOrganizationId = '6022d1b33f000000';
 
+    // EMAIL PROCESS CONFIG
+    config.email = {}
+    config.email.inbound = {}
+
     return config
 }
 

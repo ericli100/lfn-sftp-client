@@ -29,14 +29,23 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
 
     // TODO: refactor this to be passed in via the .env or a dedicated .config file
     let ENABLE_FTP_PULL = true // dev time variable
+    let ENABLE_INBOUND_EMAIL_PROCESSING = true
+    let ENABLE_OUTBOUND_EMAIL_PROCESSING = true
+    let ENABLE_WIRE_PROCESSING = true
     let ENABLE_INBOUND_PROCESSING = true
     let ENABLE_OUTBOUND_PROCESSING = true
     let ENABLE_REMOTE_DELETE = false
 
     baas.logger = logger;
 
-    let wires = await baas.wire.parse()
-    await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed wire: ${JSON.stringify(wires)}`, correlationId: CORRELATION_ID} )
+    if(ENABLE_WIRE_PROCESSING){
+        let wires = await baas.wire.parse()
+        await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed wire: ${JSON.stringify(wires)}`, correlationId: CORRELATION_ID} )
+    }
+
+    if(ENABLE_INBOUND_EMAIL_PROCESSING){
+        let inboundEmailsStatus = await getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID } )
+    }
 
     if(ENABLE_FTP_PULL){
         await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID})
@@ -74,6 +83,9 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     
     // TODO: generate email NOTIFICATIONS
     // TODO: send email notifications
+    if(ENABLE_OUTBOUND_EMAIL_PROCESSING){
+        let outboundEmailsStatus = await getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID } )
+    }
 }
 
 async function test(baas) {
@@ -294,6 +306,102 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
     }
 
     return output
+}
+
+async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId }) {
+    debugger;
+    let output = {}
+   
+    try {
+        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: INBOUND EMAILS - BEGIN PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${config.email.inbound}].`, correlationId  })
+
+        let client = await baas.email.getClient()
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - Got the MSAL client for MS Graph processing for [${ENVIRONMENT}].`, correlationId })
+        // use the CONFIG passed in to get the settings on what email to process
+
+        // get the mail and filter for the CONFIG items listed
+        // store the files in the database
+    
+        let processFoldername = 'rejected'
+        let moveToFoldername = 'acknowledged'
+    
+        let mailFolders = await baas.email.readMailFolders({ client, displayName: processFoldername, includeChildren: true })
+        console.log(mailFolders)
+    
+        let moveToFolder = await readMailFolders({ client, displayName: moveToFoldername, includeChildren: true} )
+        console.log(moveToFolder)
+    
+        let emails = []
+        let attachments = []
+    
+        for(const i in mailFolders) {
+            let folderId = mailFolders[i].id
+            let mailInFolder = await baas.email.readEmails({ client, folderId: folderId})
+    
+            // mailFolders[i].folderName = mailFolders[i].displayName
+            for(const j in mailInFolder) {
+                let email = mailInFolder[j]
+    
+                // test attachment download
+                let emailAttachmentsArray = await baas.email.downloadMsGraphAttachments({ client, messageId: email.id, destinationPath: path.resolve(__dirname + "/data/downloads") })
+                attachments = attachments.concat(emailAttachmentsArray.emailAttachmentsArray)
+    
+                // test moving a message to a new folder
+                let moveStatus = await baas.email.moveMailFolder({ client, messageId: email.id, destinationFolderId: moveToFolder[0].id })
+                email.folderName = moveToFolder[0].displayName
+                emails = emails.concat(email)
+            }
+        }
+        
+        console.log('emails:', emails)
+        console.log('attachments:', attachments)
+
+        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: INBOUND EMAILS - END PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${ config.email.inbound }].`, correlationId  })
+    } catch (inboundEmailProcessingError) {
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ inboundEmailProcessingError }]!`, correlationId  })
+    }
+
+    return output
+}
+
+async function getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId }) {
+    debugger;
+    let output = {}
+
+    try{
+        debugger;
+        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: OUTBOUND EMAILS - BEGIN PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${config.email.inbound}].`, correlationId  })
+    
+        let client = await baas.email.getClient()
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: OUTBOUND EMAILS - Got the MSAL client for MS Graph processing for [${ENVIRONMENT}].`, correlationId })
+        
+        // TODO: pull the necessary notification from the DB
+        // Process the files in the returned array
+    
+        let content = 
+        `
+        From Node.js - This is a test message that was sent via the Microsoft Graph API endpoint.
+
+        *****************************************************************************************
+         Vendor: ${VENDOR_NAME}
+         Environment: ${ENVIRONMENT}
+        *****************************************************************************************
+        `
+
+        let message = { 
+            subject: 'Test Message from MS Graph - getOutboudEmailFiles()', 
+            body: { contentType: 'Text', content: content }, 
+            toRecipients: [{ emailAddress: { address: 'admins@lineagebank.com' } }],
+        }
+    
+        // attachments: attachment
+        await baas.email.sendEmail({ client, message })
+        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: OUTBOUND EMAILS - END PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${ config.email.inbound }].`, correlationId  })
+    } catch (outboundEmailProcessingError) {
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: OUTBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ outboundEmailProcessingError }]!`, correlationId  })
+    }
+
+    return output;
 }
 
 async function removeRemoteSftpFiles(baas, logger, VENDOR_NAME, environment, config, arrayOfFiles) {
