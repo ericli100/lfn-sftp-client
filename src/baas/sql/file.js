@@ -247,7 +247,8 @@ function Handler(mssql) {
         WHERE f.tenantId = '${tenantId}'
         AND f.contextOrganizationId = '${contextOrganizationId}'
         AND (f.[fromOrganizationId] = '${fromOrganizationId}' OR f.[toOrganizationId] = '${fromOrganizationId}')
-        AND f.isProcessed = 0;`
+        AND f.isProcessed = 0
+        AND f.[hasProcessingErrors] = 0;`
     
         let param = {}
         param.params = []
