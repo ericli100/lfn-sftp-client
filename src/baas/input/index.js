@@ -302,8 +302,10 @@ async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrg
     return output
 }
 
-async function createUpdateFileJsonSQL( { sql, contextOrganizationId, fileEntityId, correlationId, achJSON } ) {
+async function createUpdateFileJsonSQL( { sql, contextOrganizationId, fileEntityId, correlationId, achJSON, returnSQL } ) {
     let output = {}
+
+    if(!returnSQL) returnSQL = false
 
     let jsonFileData = {}
     jsonFileData.fileHeader  = achJSON.fileHeader
@@ -319,6 +321,7 @@ async function createUpdateFileJsonSQL( { sql, contextOrganizationId, fileEntity
         contextOrganizationId: contextOrganizationId,
         dataJSON: jsonFileData,
         correlationId: correlationId,
+        returnSQL: returnSQL
     }
     let sql2 = await sql.file.updateJSON( jsonUpdate )
 
@@ -611,7 +614,7 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
     } catch (achParseError) {
         achParseError.Stack = achParseError.stack
 
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR}: ACH parsing error [${ fileName }] and attempting the achFixKnownErrors() function...`, correlationId, effectedEntityId: fileEntityId})
+        await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `${VENDOR}: ACH parsing error [${ fileName }] and attempting the achFixKnownErrors() function...`, correlationId, effectedEntityId: fileEntityId})
         await achFixKnownErrors( {baas, fileEntityId, inputFile, achParseError} )
     }
 
@@ -641,7 +644,7 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
     if (jsonBatchData.batchCount != jsonBatchData.batches.length) throw ('baas.input.ach file is invalid! Internal Batch Count does not match the Batches array')
 
     // update the file record with the achJSON data
-    let updateFileJsonSQL = await createUpdateFileJsonSQL( { sql, contextOrganizationId, fileEntityId, correlationId, achJSON } )
+    let updateFileJsonSQL = await createUpdateFileJsonSQL( { sql, contextOrganizationId, fileEntityId, correlationId, achJSON, returnSQL: true } )
     sqlStatements.push( updateFileJsonSQL.param )
     let jsonFileData = updateFileJsonSQL.jsonFileData;
 

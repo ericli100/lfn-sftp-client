@@ -157,7 +157,8 @@ function Handler(mssql) {
         return sqlStatement
     }
 
-    Handler.updateJSON = async function updateJSON({entityId, dataJSON, quickBalanceJSON, contextOrganizationId, correlationId}){
+    Handler.updateJSON = async function updateJSON({entityId, dataJSON, quickBalanceJSON, contextOrganizationId, correlationId, returnSQL}){
+        if(!returnSQL) returnSQL = false
         if (!entityId) throw ('entityId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
         if (!contextOrganizationId) throw ('contextOrganizationId required')
@@ -182,6 +183,8 @@ function Handler(mssql) {
                     [correlationId] = '${correlationId}'
             WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}' AND [contextOrganizationId] = '${contextOrganizationId}';`
         }
+
+        if(returnSQL) return sqlStatement;
 
         let param = {}
         param.params = []
