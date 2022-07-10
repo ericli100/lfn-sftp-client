@@ -586,8 +586,12 @@ async function processLineByLine( {inputFile, fixFileArray} ) {
 }
 
 async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, fileEntityId, fileTypeId, correlationId} ) {
-    if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
+    let fileName = path.basename( inputFile )
+   
+    await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR}: processing ACH file [${ fileName }]...`, correlationId, effectedEntityId: fileEntityId})
+
+    if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
     if(!baas) throw('baas.input.ach: baas module is required!')
     if(!sql) throw('baas.input.ach: sql module is required!')
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId module is required!')
@@ -685,8 +689,10 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
         if (DebitBatchRunningTotal != batch.batchControl.totalDebit) throw('baas.input.ach batch total from the individual debit transacitons does not match the batch.batchControl.totalDebit! Aborting because something is wrong.')
     } 
 
-        // call SQL and run the SQL transaction to import the ach file to the database
-        output.results = await sql.execute( sqlStatements )
+    // call SQL and run the SQL transaction to import the ach file to the database
+    output.results = await sql.execute( sqlStatements )
+
+    await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR}: processed ACH file [${fileName}].`, correlationId, effectedEntityId: fileEntityId })
 
     // output the status
     return output
