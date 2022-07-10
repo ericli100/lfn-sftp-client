@@ -163,9 +163,9 @@ function Handler(mssql) {
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!correlationId) correlationId = 'SYSTEM'
         // if (dataJSON && quickBalanceJSON) throw('baas.sql.file.updateJSON can only update [dataJSON] or [quickBalanceJSON] individually. Please choose one.')
-        if (!dataJSON && quickBalanceJSON) throw('baas.sql.file.updateJSON needs to have [dataJSON] or [quickBalanceJSON] supplied for an update.')
+        if (!dataJSON && !quickBalanceJSON) throw('baas.sql.file.updateJSON needs to have [dataJSON] or [quickBalanceJSON] supplied for an update.')
 
-        let sqlStatement
+        let sqlStatement = ''
 
         if(dataJSON) {
             sqlStatement = `
@@ -182,8 +182,18 @@ function Handler(mssql) {
                     [correlationId] = '${correlationId}'
             WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}' AND [contextOrganizationId] = '${contextOrganizationId}';`
         }
-        
-        return sqlStatement
+
+        let param = {}
+        param.params = []
+        param.tsql = sqlStatement
+
+        try {
+            let results = await mssql.sqlQuery(param);
+            return results.rowsAffected != 0
+        } catch (err) {
+            console.error(err)
+            throw err
+        }
     }
 
     Handler.generateSHA256 = async function generateSHA256(inputFile){

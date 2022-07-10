@@ -21,7 +21,8 @@ const wasmBuffer = fs.readFileSync( wasmPath );
 async function parse ( inputfile ) {
     const EXECUTE_MOOV_WASM = false
 
-    if(!inputfile) inputfile = './src/baas/wire/sample_wire_southstate.txt'
+    if(!inputfile) throw( 'baas.wire.parse() requires an inputFile!')
+    // if(!inputfile) inputfile = './src/baas/wire/sample_wire_southstate.txt'
     // if(!inputfile) inputfile = './src/baas/wire/wire_fed_20220623132146_0.txt'
     // if(!inputfile) inputfile = './src/baas/wire/sample_wire.txt'
 

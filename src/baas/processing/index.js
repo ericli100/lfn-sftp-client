@@ -29,19 +29,14 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
 
     // TODO: refactor this to be passed in via the .env or a dedicated .config file
     let ENABLE_FTP_PULL = false // dev time variable
-    let ENABLE_INBOUND_EMAIL_PROCESSING = true
-    let ENABLE_WIRE_PROCESSING = false
-    let ENABLE_INBOUND_PROCESSING = false
-    let ENABLE_OUTBOUND_PROCESSING = false
-    let ENABLE_OUTBOUND_EMAIL_PROCESSING = true
+    let ENABLE_INBOUND_EMAIL_PROCESSING = false
+    // let ENABLE_WIRE_PROCESSING = false
+    let ENABLE_INBOUND_PROCESSING_FROM_DB = true
+    let ENABLE_OUTBOUND_PROCESSING_FROM_DB = false
+    let ENABLE_OUTBOUND_EMAIL_PROCESSING = false
     let ENABLE_REMOTE_DELETE = false
 
     baas.logger = logger;
-
-    if(ENABLE_WIRE_PROCESSING){
-        let wires = await baas.wire.parse()
-        await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed wire: ${JSON.stringify(wires)}`, correlationId: CORRELATION_ID} )
-    }
 
     if(ENABLE_INBOUND_EMAIL_PROCESSING){
         let inboundEmailsStatus = await getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID } )
@@ -66,12 +61,12 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
         await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing ended for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
     }
 
-    if(ENABLE_INBOUND_PROCESSING){
-        await processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, CORRELATION_ID)
+    if(ENABLE_INBOUND_PROCESSING_FROM_DB){
+        await processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, PROCESSING_DATE, CORRELATION_ID)
     }
 
-    if(ENABLE_OUTBOUND_PROCESSING){
-        await processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT)
+    if(ENABLE_OUTBOUND_PROCESSING_FROM_DB){
+        await processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, PROCESSING_DATE, CORRELATION_ID)
     }
     
     // -- receiptSent (used for FileActivityFile)
@@ -403,8 +398,8 @@ async function removeRemoteSftpFiles(baas, logger, VENDOR_NAME, environment, con
     return false
 }
 
-async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId ) {
-    await baas.audit.log({baas, logger, level: 'info', message: `Inbound Processing started from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT, config, PROCESSING_DATE, correlationId ) {
+    await baas.audit.log({baas, logger, level: 'info', message: `Inbound Processing started from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId})
 
     let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
     let KEEP_PROCESSING_ON_ERROR = true
@@ -470,7 +465,18 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                 if(file.isFedWire){
                     try{
                         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId, effectedEntityId: file.entityId })
-                        throw('FEDWIRE PROCESSING NOT IMPLEMENTED!')
+
+                        let parsedWire = await baas.wire.parse( fullFilePath )
+                        
+                        let quickBalanceJSON = {
+                            totalCredits: parsedWire.totalCredits,
+                            totalDebits: parsedWire.totalDebits,
+                        }
+                        await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed wire quickBalanceJSON: ${JSON.stringify(quickBalanceJSON)}`, correlationId} )
+
+                        let updateJSONSQL = await baas.sql.file.updateJSON({ entityId: file.entityId, quickBalanceJSON: quickBalanceJSON, contextOrganizationId, correlationId })
+
+                        
                         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId, effectedEntityId: file.entityId })
                     } catch (fedWireError) {
                         await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${fedWireError}]`, correlationId, effectedEntityId: file.entityId })
@@ -502,13 +508,13 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
             await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: The working cache directory [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server. Data is secure.`, correlationId })
     }
 
-    await baas.audit.log({baas, logger, level: 'info', message: `Inbound Processing ended from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+    await baas.audit.log({baas, logger, level: 'info', message: `Inbound Processing ended from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId})
     
     return
 }
 
-async function processOutboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT ) {
-    await baas.audit.log({baas, logger, level: 'info', message: `Outbound Processing started from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+async function processOutboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, PROCESSING_DATE, correlationId ) {
+    await baas.audit.log({baas, logger, level: 'info', message: `Outbound Processing started from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId})
     // get unprocessed files from the DB
 
     // TODO: implement DB code
@@ -517,7 +523,7 @@ async function processOutboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMEN
     let fileActivityFileCSV = await output.fileActivity(VENDOR_NAME, ENVIRONMENT, baas.sql, 'date', '30-2010-20404000');
     output.writeCSV(`${process.cwd()}/src/manualImport/`, fileActivityFileCSV.fileName, fileActivityFileCSV.csv)
 
-    await baas.audit.log({baas, logger, level: 'info', message: `Outbound Processing ended from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+    await baas.audit.log({baas, logger, level: 'info', message: `Outbound Processing ended from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId})
 
     return
 }
