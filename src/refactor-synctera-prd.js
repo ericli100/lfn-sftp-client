@@ -102,6 +102,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.destinationFolders.push( '/encrypted/outbound/txns' )
 
     config.environment = ENVIRONMENT;
+    config.vendor = VENDOR_NAME;
 
     /*
         6022d1b33f000000 == Lineage Bank
@@ -115,6 +116,9 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     // EMAIL PROCESS CONFIG
     config.email = {}
     config.email.inbound = {}
+
+    config.email.inbound.fromOrganizationId = '6022d1b33f000000'
+    config.email.inbound.toOrganizationId = FROM_ORGANIZATION_ID
 
     config.email.inbound.emailApprovedSenders = [
         "brandon.hedge@lineagebank.com",

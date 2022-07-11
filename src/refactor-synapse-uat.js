@@ -121,6 +121,9 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.email = {}
     config.email.inbound = {}
 
+    config.email.inbound.fromOrganizationId = '6022d1b33f000000'
+    config.email.inbound.toOrganizationId = FROM_ORGANIZATION_ID
+
     config.email.inbound.emailApprovedSenders = [
         "brandon.hedge@lineagebank.com",
         "jason.ezell@lineagefn.com",
