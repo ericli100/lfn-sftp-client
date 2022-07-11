@@ -111,23 +111,86 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.destinationFolders = ['/fromsynapse', '/tosynapse', '/manual']
 
     config.environment = ENVIRONMENT;
+    config.vendor = VENDOR_NAME;
 
     config.contextOrganizationId = '6022d1b33f000000'; 
     config.fromOrganizationId = FROM_ORGANIZATION_ID;
     config.toOrganizationId = '6022d1b33f000000';
 
-    // SET THE PROCESSING FLAGS
-    config.processing = {}
-    config.processing.ENABLE_FTP_PULL = true
-    config.processing.ENABLE_INBOUND_EMAIL_PROCESSING = true
-    config.processing.ENABLE_INBOUND_PROCESSING_FROM_DB = true
-    config.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB = true
-    config.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING = true
-    config.processing.ENABLE_REMOTE_DELETE = false
-
     // EMAIL PROCESS CONFIG
     config.email = {}
     config.email.inbound = {}
+
+    config.email.inbound.fromOrganizationId = '6022d1b33f000000'
+    config.email.inbound.toOrganizationId = FROM_ORGANIZATION_ID
+
+    config.email.inbound.emailApprovedSenders = [
+        "brandon.hedge@lineagebank.com",
+        "jason.ezell@lineagefn.com",
+        "cheryl.lamberth@lineagefn.com",
+        "gloria.dodd@lineagebank.com",
+        "htc.reports@fisglobal.com",
+        "ellen.hartley@lineagefn.com",
+    ]
+    
+    config.email.inbound.achApprovedSenders = [
+        "cheryl.lamberth@lineagefn.com",
+        "gloria.dodd@lineagebank.com",
+        "ellen.hartley@lineagefn.com",
+        "paul.hignutt@lineagefn.com",
+    ]
+
+    config.email.inbound.achApprovedRecipients = [
+        `${config.vendor}.${config.environment}.ach@lineagebank.com`,
+        `${config.vendor}.ach@lineagebank.com`,
+    ]
+
+    config.email.inbound.wireApprovedSenders = [
+        "cheryl.lamberth@lineagefn.com",
+        "gloria.dodd@lineagebank.com",
+        "ellen.hartley@lineagefn.com",
+        "paul.hignutt@lineagefn.com",
+    ]
+    
+    config.email.inbound.wireApprovedRecipients = [
+        `${config.vendor}.${config.environment}.wire@lineagebank.com`,
+        `${config.vendor}.wire@lineagebank.com`,
+    ]
+    
+    config.email.inbound.approvedRecipients = [
+        `${config.vendor}.${config.environment}.fis@lineagebank.com`,
+        `${config.vendor}.fis@lineagebank.com`,
+        "baas.ach.advice@lineagebank.com",
+        "baas.wire.advice@lineagebank.com",
+    ]
+    
+    config.email.inbound.approvedAttachmentExtensions = [
+        "csv",
+        "pdf",
+        "xls",
+        "xlsx",
+        "ach",
+        "txt",
+    ]
+    
+    config.email.inbound.folderMappings = []
+    
+    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.ach@lineagebank.com`, destination: `${config.vendor}.${config.environment}.ach` })
+    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.wire@lineagebank.com`, destination: `${config.vendor}.${config.environment}.wire` })
+    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.fis@lineagebank.com`, destination: `${config.vendor}.${config.environment}.fis` })
+
+    config.email.inbound.folderMappings.push({ to: `${config.vendor}.ach@lineagebank.com`, destination: `${config.vendor}.prd.ach` })
+    config.email.inbound.folderMappings.push({ to: `${config.vendor}.wire@lineagebank.com`, destination: `${config.vendor}.prd.wire` })
+    config.email.inbound.folderMappings.push({ to: `${config.vendor}.fis@lineagebank.com`, destination: `${config.vendor}.prd.fis` })
+
+    // SET THE PROCESSING FLAGS
+    config.processing = {}
+    config.processing.ENABLE_FTP_PULL = false
+    config.processing.ENABLE_INBOUND_EMAIL_PROCESSING = true
+    config.processing.ENABLE_INBOUND_PROCESSING_FROM_DB = false
+    config.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB = false
+    config.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING = false
+    config.processing.ENABLE_REMOTE_DELETE = false
 
     return config
 }

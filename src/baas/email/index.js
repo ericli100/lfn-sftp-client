@@ -6,6 +6,7 @@
 const path = require('path')
 var msal = require("@azure/msal-node");
 const { promises: fs } = require("fs");
+const fss = require('fs');
 
 const { Client } = require("@microsoft/microsoft-graph-client");
 require('isomorphic-fetch');
@@ -137,6 +138,9 @@ function Handler() {
             .post(sendMail);
     }
     
+//   EMAIL PAGING  https://docs.microsoft.com/en-us/graph/api/user-list-messages?view=graph-rest-1.0&tabs=javascript
+//   https://docs.microsoft.com/en-us/graph/api/user-list-messages?view=graph-rest-1.0&tabs=javascript
+
     Handler.readEmails = async function readEmails({ client, folderId }) {
         if(!client) throw ('A valid [client] object is require, please call getClient() and pass it into this function.')
         if(!folderId){
@@ -225,6 +229,13 @@ function Handler() {
     
             try {
                 await fs.writeFile( path.resolve( destinationPath, fileName ), new Buffer.from( fileBase64, 'base64' ) )
+
+                // read the file in and remove CRLF and put LF
+                const removeCLRF = fss.readFileSync( path.resolve( destinationPath, fileName ))
+                    .toString()
+                    .replace(/\r/g, "")
+                fss.writeFileSync( path.resolve( destinationPath, fileName ), removeCLRF)
+
                 let attachmentInfo = {
                     messageId: messageId,
                     attachmentId: attachment.id,
@@ -308,6 +319,69 @@ function Handler() {
         
         console.log('emails:', emails)
         console.log('attachments:', attachments)
+    }
+
+    Handler.approvedAttachmentCheck = async function approvedAttachment (filename, config){
+        let returnVal = false
+    
+        for (let extension of config.email.inbound.approvedAttachmentExtensions){
+            try{
+                if (extension == filename.substr(filename.length - extension.length)){
+                    returnVal = true
+                }
+            } catch (error) {
+                console.error('File Name:', filename, `Error: Approved attachment check failed.`)
+            }
+        }
+        return returnVal
+    }
+
+    Handler.approvedSenderCheck = async function approvedSenderCheck (sender, config){
+        return config.email.inbound.emailApprovedSenders.includes(sender)
+    }
+
+    Handler.approvedRecipientCheck = async function approvedRecipientCheck (recipients, config){
+        // return the first approved recipient or undefined if no match
+        for(let recipient of recipients) {
+            let isApproved = config.email.inbound.approvedRecipients.includes( recipient.emailAddress.address.toLowerCase() )
+            if (isApproved) {
+                console.log(`Approved Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
+                return recipient.emailAddress.address.toLowerCase()
+            }
+        }
+        return undefined
+    }
+
+    Handler.approvedAchSenderCheck = async function approvedAchSenderCheck (sender, config){
+        return config.email.inbound.achApprovedSenders.includes(sender)
+    }
+
+    Handler.approvedAchRecipientCheck = async function approvedAchRecipientCheck (recipients, config){
+        // return the first approved recipient or undefined if no match
+        for(let recipient of recipients) {
+            let isApproved = config.email.inbound.achApprovedRecipients.includes( recipient.emailAddress.address.toLowerCase() )
+            if (isApproved) {
+                console.log(`Approved ACH Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
+                return recipient.emailAddress.address.toLowerCase()
+            }
+        }
+        return undefined
+    }
+
+    Handler.approvedWireSenderCheck = async function approvedWireSenderCheck (sender, config){
+        return config.email.inbound.wireApprovedSenders.includes(sender)
+    }
+
+    Handler.approvedWireRecipientCheck = async function approvedWireRecipientCheck (recipients, config){
+        // return the first approved recipient or undefined if no match
+        for(let recipient of recipients) {
+            let isApproved = config.email.inbound.wireApprovedRecipients.includes( recipient.address.toLowerCase() )
+            if (isApproved) {
+                console.log(`Approved ACH Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
+                return recipient.address.toLowerCase()
+            }
+        }
+        return undefined
     }
 
     return Handler

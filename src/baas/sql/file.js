@@ -201,7 +201,7 @@ function Handler(mssql) {
 
     Handler.generateSHA256 = async function generateSHA256(inputFile){
         // create sha256 hash
-        const fileBuffer = fs.readFileSync( inputFile );
+        const fileBuffer = fs.readFileSync( inputFile, 'utf8' );
         const hashSum = crypto.createHash('sha256');
         hashSum.update(fileBuffer);
         const sha256 = hashSum.digest('hex');

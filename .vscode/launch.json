@@ -11,7 +11,7 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/src/refactor-synapse-uat.js",
+            "program": "${workspaceFolder}/src/refactor-synctera-prd.js",
             "outputCapture": "std"
         }
     ]
