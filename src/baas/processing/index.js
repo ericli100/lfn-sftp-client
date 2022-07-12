@@ -338,18 +338,20 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
     
         for(const i in mailFolders) {
             let folderId = mailFolders[i].id
+
+            // TODO: refactor to process return batch of emails and then call next to avoind n+1 of full email list
             let mailInFolder = await baas.email.readEmails({ client, folderId: folderId})
     
             // mailFolders[i].folderName = mailFolders[i].displayName
             for(const j in mailInFolder) {
                 let email = mailInFolder[j]
-
+debugger;
                 // **************************************
                 // **************************************
                 // ***  PER EMAIL PROCESSING SECTION  ***
                 // **************************************
                 // **************************************
-debugger;
+
                 let from = email.from.emailAddress.address.toLowerCase();
                 let to = email.toRecipients;
                 let subject = email.subject;
@@ -501,6 +503,7 @@ debugger;
                             let fileVaultId = fileEntityId
                 
                             if(!fileVaultExists) {
+                                console.log(`baas.processing.getInboundEmailFiles: loading NEW file to the fileVault: ${attachment.fileName}`)
                                 await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, config.contextOrganizationId, fileEntityId, 'lineage', fullFilePath + '.gpg' )
                                 await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - file [${attachment.fileName}] was loaded into the File Vault encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId  })
                 
@@ -535,10 +538,11 @@ debugger;
                                 // and validated the sha256 hash.
                 
                                 // *************************************************************
-                                //  ONLY MOVE THE EMAILD WHEN THIS IS TRUE
+                                //  ONLY MOVE THE EMAIL WHEN THIS IS TRUE
                                 // *************************************************************
                                 
                                 // moving message to the processed folder
+                                console.log('baas.processing.getInboundEmailFiles: sha256 validate move message to folder baas.email.moveMailFolder.')
                                 let moveStatus = await baas.email.moveMailFolder({ client, messageId: email.id, destinationFolderId: moveToFolder[0].id })
                                 email.folderName = moveToFolder[0].displayName
                                 processedEmails = processedEmails.concat(email)
