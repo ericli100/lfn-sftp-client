@@ -179,6 +179,9 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.wire@lineagebank.com`, destination: `${config.vendor}.prd.wire` })
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.fis@lineagebank.com`, destination: `${config.vendor}.prd.fis` })
 
+    config.ach = {};
+    config.ach.immediateDestination = ['064109549']
+
     // SET THE PROCESSING FLAGS
     config.processing = {}
     config.processing.ENABLE_FTP_PULL = false

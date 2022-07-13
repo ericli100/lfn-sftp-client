@@ -143,8 +143,8 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.email.inbound.achApprovedRecipients = [
         `${config.vendor}.${config.environment}.ach@lineagebank.com`,
         `${config.vendor}.ach@lineagebank.com`,
+        `synapse.prd.ach@lineagebank.com`, // TEMPORARY
     ]
-
     // TEMPORARY        `synapse.prd.ach@lineagebank.com`,
 
     config.email.inbound.wireApprovedSenders = [
@@ -184,7 +184,13 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.ach@lineagebank.com`, destination: `${config.vendor}.uat.ach` })
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.wire@lineagebank.com`, destination: `${config.vendor}.uat.wire` })
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.fis@lineagebank.com`, destination: `${config.vendor}.uat.fis` })
-    // TEMPORARY config.email.inbound.folderMappings.push({ to: `${config.vendor}.prd.ach@lineagebank.com`, destination: `${config.vendor}.uat.ach` })
+    config.email.inbound.folderMappings.push({ to: `${config.vendor}.prd.ach@lineagebank.com`, destination: `${config.vendor}.uat.ach` }) // TEMPORARY
+     // TEMPORARY config.email.inbound.folderMappings.push({ to: `${config.vendor}.prd.ach@lineagebank.com`, destination: `${config.vendor}.uat.ach` })
+
+
+    config.ach = {};
+    config.ach.inbound = {}
+    config.ach.inbound.immediateDestination = ['064109565']
 
     // SET THE PROCESSING FLAGS
     config.processing = {}
