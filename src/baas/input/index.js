@@ -222,10 +222,14 @@ async function populateLookupCache({ sql, inputFile, contextOrganizationId, from
     // - fileTypeId
     let fileTypeSQL = await sql.fileType.find( fileSelect )
 
-    // TODO: if the fileType does not exist, create it. This is just intended to be a read through Cache in the future anyway
+    console.warn('TODO: if the fileType does not exist, create it. This is just intended to be a read through Cache in the future anyway')
     let fileTypeId = await sql.executeTSQL( fileTypeSQL )//'603c2e56cf800000'
     fileTypeId = await getFileTypeId( fileTypeId[0].data, fileSelect ) // fileTypeId[0].data[0].entityId.trim() 
-    output.fileTypeId = fileTypeId;
+
+    if (!fileTypeId) {
+        console.error('ERROR: the fileType does not exist, we set it to an unknown type and loaded it in the DB. We will fix it in post.')
+    }
+    output.fileTypeId = fileTypeId || '99999999999999999999';
 
     // - entityBatchTypeId
     let entityBatchTypeSQL = await sql.entityType.find({entityType: 'Batch', contextOrganizationId: contextOrganizationId})

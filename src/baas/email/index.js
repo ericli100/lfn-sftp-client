@@ -11,6 +11,8 @@ const fss = require('fs');
 const { Client } = require("@microsoft/microsoft-graph-client");
 require('isomorphic-fetch');
 
+const  { detectFileMime } = require('mime-detect');
+
 const MSAL_CLIENT_ID = process.env.MSAL_CLIENT_ID;
 const MSAL_TENANT_ID = process.env.MSAL_TENANT_ID
 const MSAL_USERNAME = process.env.MSAL_USERNAME;
@@ -132,34 +134,66 @@ function Handler() {
     }
     
     Handler.sendEmail = async function sendEmail({ client, message }) {
-        if(!client) throw ('A valid [client] object is require, please call getClient() and pass it into this function.')
+        if(!client) throw ('A valid [client] object is required, please call getClient() and pass it into this function.')
         const sendMail = { message: message};
         return await client.api('/me/sendMail')
             .post(sendMail);
     }
     
-//   EMAIL PAGING  https://docs.microsoft.com/en-us/graph/api/user-list-messages?view=graph-rest-1.0&tabs=javascript
-//   https://docs.microsoft.com/en-us/graph/api/user-list-messages?view=graph-rest-1.0&tabs=javascript
+    Handler.readEmails = async function readEmails({ client, folderId, nextPageLink }) {
+        if(!client) throw ('A valid [client] object is required, please call getClient() and pass it into this function.')
 
-    Handler.readEmails = async function readEmails({ client, folderId }) {
-        if(!client) throw ('A valid [client] object is require, please call getClient() and pass it into this function.')
-        if(!folderId){
-            let email = await client
+        let output = {}
+        output.responses = []
+        output.emails = []
+        
+        let email = {} // current email batch being processed
+
+        // does not have a folder specified
+        if(!folderId && !nextPageLink){
+            console.log(`baas.email.readEmails: Fetching the first 10 emails without a folder...`)
+            email = await client
             .api('/me/messages')
             .orderby('receivedDateTime desc')
+            .top(10)
             .get();
-            return email.value
-        } else {
-            let email = await client
+            output.responses.push(email)
+            output.emails = output.emails.concat(email.value)
+        } 
+        
+        // has a folder specified
+        if(folderId && !nextPageLink){
+            console.log(`baas.email.readEmails: Fetching the first 10 emails with a folder...`)
+            email = await client
             .api(`/me/mailFolders/${folderId}/messages`)
             .orderby('receivedDateTime desc')
+            .top(10)
             .get();
-            return email.value
+            output.responses.push(email)
+            output.emails = output.emails.concat(email.value)
         }
+
+        // call the next query that was provided
+        if(nextPageLink) {
+            console.log(`baas.email.readEmails: Fetching the next 10 emails...`)
+            email = await client.api( nextPageLink ).get();
+            output.responses.push(email)
+            output.emails = output.emails.concat(email.value)
+        }
+
+        // should we keep going on this n+1 journey?
+        if(email.hasOwnProperty('@odata.nextLink')){
+            output.nextPageLink = email['@odata.nextLink']
+        } else {
+            output.nextPageLink = false
+        }
+    
+        output.responses = []
+        return output
     }
     
     Handler.readMailFolders = async function readMailFolders({ client, displayName, includeChildren }) {
-        if(!client) throw ('A valid [client] object is require, please call getClient() and pass it into this function.')
+        if(!client) throw ('A valid [client] object is required, please call getClient() and pass it into this function.')
         // Check Folder .childFolderCount and fetch children recursively.
     
         // replace the current filter with MS Graph with just an array filter based on the FolderName
@@ -181,7 +215,7 @@ function Handler() {
     }
     
     Handler.moveMailFolder = async function moveMailFolder({ client, messageId, destinationFolderId }){
-        if(!client) throw ('A valid [client] object is require, please call getClient() and pass it into this function.')
+        if(!client) throw ('A valid [client] object is required, please call getClient() and pass it into this function.')
         if(!messageId) throw ('A messageId is required to call this function.')
         if(!destinationFolderId) throw('A destinationFolderId is required to call this function.')
 
@@ -214,7 +248,17 @@ function Handler() {
     }
     
     Handler.downloadMsGraphAttachments = async function downloadMsGraphAttachments ({ client, messageId, destinationPath }) {
-        if(!client) throw ('A valid [client] object is require, please call getClient() and pass it into this function.')
+        if(!client) throw ('A valid [client] object is required, please call getClient() and pass it into this function.')
+
+        let textMimeTypes = []
+        textMimeTypes.push('application/csv; charset=us-ascii')
+        textMimeTypes.push('text/csv; charset=us-ascii')
+        textMimeTypes.push('application/txt; charset=us-ascii')
+        textMimeTypes.push('text/txt; charset=us-ascii')
+        textMimeTypes.push('application/ach; charset=us-ascii')
+        textMimeTypes.push('text/ach; charset=us-ascii')
+        textMimeTypes.push('text/plain; charset=us-ascii')
+        textMimeTypes.push('text/plain; charset=iso-8859-1')
 
         // download all the attachments on a message to the destinationPath
         let mailAttachments = await client.api(`/me/messages/${messageId}/attachments`).get();
@@ -230,11 +274,19 @@ function Handler() {
             try {
                 await fs.writeFile( path.resolve( destinationPath, fileName ), new Buffer.from( fileBase64, 'base64' ) )
 
+                let mimeType = await detectFileMime( path.resolve( destinationPath, fileName ) );
+
+                if(textMimeTypes.includes( mimeType )) {
+                // ONLY DO THIS FOR ASCII MIMETYPE!! OTHERWISE IT WILL CORRUPT THE FILES!!
                 // read the file in and remove CRLF and put LF
-                const removeCLRF = fss.readFileSync( path.resolve( destinationPath, fileName ))
-                    .toString()
-                    .replace(/\r/g, "")
-                fss.writeFileSync( path.resolve( destinationPath, fileName ), removeCLRF)
+                    const removeCLRF = fss.readFileSync( path.resolve( destinationPath, fileName ))
+                        .toString()
+                        .replace(/\r/g, "")
+                    fss.writeFileSync( path.resolve( destinationPath, fileName ), removeCLRF)
+                } else {
+                    console.log('baas.email.downloadMsGraphAttachments: Non-Text Mime Type:' + mimeType)
+                }
+
 
                 let attachmentInfo = {
                     messageId: messageId,
