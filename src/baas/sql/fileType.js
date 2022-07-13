@@ -134,7 +134,9 @@ function Handler(mssql) {
         WHERE [contextOrganizationId] = '${contextOrganizationId}'
             AND [tenantId] = '${tenantId}'
             AND [fileExtension] = '${fileExtension}'
-            AND [fromOrganizationId] = '${fromOrganizationId}'`
+            AND [fromOrganizationId] = '${fromOrganizationId}'
+            AND [toOrganizationId] = '${toOrganizationId}';
+            `
         
         return sqlStatement
     }
