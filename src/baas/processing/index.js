@@ -7,8 +7,21 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-let VENDOR_NAME
-let ENVIRONMENT
+var VENDOR_NAME
+var ENVIRONMENT
+
+// OVERRIDE PROCESSING FLAGS FROM THE CONFIG
+var ENABLE_FTP_PULL
+var ENABLE_INBOUND_EMAIL_PROCESSING
+// let ENABLE_WIRE_PROCESSING = false
+var ENABLE_INBOUND_PROCESSING_FROM_DB
+var ENABLE_OUTBOUND_PROCESSING_FROM_DB
+var ENABLE_OUTBOUND_EMAIL_PROCESSING
+var ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
+
+
+var DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
+var KEEP_PROCESSING_ON_ERROR = true
 
 // ** MAIN PROCESSING FUNCTION ** //
 /*
@@ -28,13 +41,13 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     ENVIRONMENT = environment;
 
     // OVERRIDE PROCESSING FLAGS FROM THE CONFIG
-    let ENABLE_FTP_PULL = CONFIG.processing.ENABLE_FTP_PULL 
-    let ENABLE_INBOUND_EMAIL_PROCESSING = CONFIG.processing.ENABLE_INBOUND_EMAIL_PROCESSING
+    ENABLE_FTP_PULL = CONFIG.processing.ENABLE_FTP_PULL 
+    ENABLE_INBOUND_EMAIL_PROCESSING = CONFIG.processing.ENABLE_INBOUND_EMAIL_PROCESSING
     // let ENABLE_WIRE_PROCESSING = false
-    let ENABLE_INBOUND_PROCESSING_FROM_DB = CONFIG.processing.ENABLE_INBOUND_PROCESSING_FROM_DB
-    let ENABLE_OUTBOUND_PROCESSING_FROM_DB = CONFIG.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB
-    let ENABLE_OUTBOUND_EMAIL_PROCESSING = CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING
-    let ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
+    ENABLE_INBOUND_PROCESSING_FROM_DB = CONFIG.processing.ENABLE_INBOUND_PROCESSING_FROM_DB
+    ENABLE_OUTBOUND_PROCESSING_FROM_DB = CONFIG.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB
+    ENABLE_OUTBOUND_EMAIL_PROCESSING = CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING
+    ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
 
     baas.logger = logger;
 
@@ -307,9 +320,6 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
     if(!logger) logger = baas.logger
 
     let output = {}
-
-    let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
-    let KEEP_PROCESSING_ON_ERROR = true
    
     try {
         // SET UP WORKING DIRECTORY
@@ -337,256 +347,66 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         output.validatedEmailFiles = []
     
         for(const i in mailFolders) {
+
+            //   EMAIL PAGING  https://docs.microsoft.com/en-us/graph/api/user-list-messages?view=graph-rest-1.0&tabs=javascript
+            //   https://docs.microsoft.com/en-us/graph/api/user-list-messages?view=graph-rest-1.0&tabs=javascript
+
+            let next = true  // set this to false to stop the loop
+            let nextPageLink = '' // next email page link. Should be contents of '@odata.nextLink'
+            let nextCount = 0
+            let nextLimit = 500
+
+            let readMail = {} // current email batch being processed
+            let mailInFolder = []
+
             let folderId = mailFolders[i].id
+            
+            while(next){
+                nextCount++
+                if(nextCount >= nextLimit) next = false // infinite loop protection
 
-            // TODO: refactor to process return batch of emails and then call next to avoind n+1 of full email list
-            let mailInFolder = await baas.email.readEmails({ client, folderId: folderId})
-    
-            // mailFolders[i].folderName = mailFolders[i].displayName
-            for(const j in mailInFolder) {
-                let email = mailInFolder[j]
-debugger;
-                // **************************************
-                // **************************************
-                // ***  PER EMAIL PROCESSING SECTION  ***
-                // **************************************
-                // **************************************
+                // does not have a folder specified
+                if(!folderId && nextCount <= 1){
+                    console.log(`baas.email.readEmails: Fetching the first 10 emails without a folder ... execution count:${nextCount}`)
+                    readMail = await baas.email.readEmails({ client })
+                    mailInFolder = readMail.value
+                }
 
-                let from = email.from.emailAddress.address.toLowerCase();
-                let to = email.toRecipients;
-                let subject = email.subject;
-                let msgDate = email.sentDateTime;
-                let msgUID = email.id;
+                // has a folder specified
+                if(folderId && nextCount <= 1){
+                    console.log(`baas.email.readEmails: Fetching the first 10 emails with a folder ... execution count:${nextCount}`)
+                    readMail = await baas.email.readEmails({ client, folderId: folderId })
+                    mailInFolder = readMail.emails
+                }
 
-                let isAchApprovedSender = await baas.email.approvedAchSenderCheck(from, config)
-                let isAchApprovedRecipient = await baas.email.approvedAchRecipientCheck(to, config)
-                let isApprovedSender = await baas.email.approvedSenderCheck(from, config)
-                let isApprovedRecipient = await baas.email.approvedRecipientCheck(to, config)   
+                // call the next query in the list until completed
+                // this is an n+1... consider refactoring
+                if(nextPageLink.length > 5 && nextCount > 1) {
+                    console.log(`baas.email.readEmails: Fetching the next 10 emails... execution count:${nextCount}`)
+                    readMail = await baas.email.readEmails({ client, nextPageLink })
+                    mailInFolder = readMail.emails
+                }
 
-                // VALID SENDER CHECKS
-                if (isAchApprovedRecipient){
-                    if (isAchApprovedSender){
-                        console.log('Message UID:', msgUID, 'Approved ACH Sender.')
-                    } else {
-                        console.error('Message UID:', msgUID, 'Not an Approved ACH Sender!!!')
-                        await baas.email.achSenderError(from, config)
-                        // await moveMessage(imap, msgUID, "rejected")
-    
+                // should we keep going on this n+1 journey?
+                if(readMail.nextPageLink){
+                    nextPageLink = readMail.nextPageLink
+                } else {
+                    next = false
+                }
 
-                        // THIS SHOULD BE PROCESSED IN THE ACH PROCESSING SECTION :thinking:
-                        // let messageBody = `ACH Inbound Email Sent TO:[${JSON.stringify(to)}] \n FROM:[${from}] \n\n But this user is not in the ALLOWED ACH SENDERS: [${achApprovedSenders}]`
-                        // await sendSMTP(transporter, "baas.ach.advice@lineagebank.com", "BaaS: ACH Inbound - REJECTED!", messageBody)
-                        // continue;
+                // mailFolders[i].folderName = mailFolders[i].displayName
+                for(const j in mailInFolder) {
+                    let email = mailInFolder[j]
+
+                    try{
+                        await perEmailInboundProcessing({ baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId })
+                    } catch (perEmailProcessingError) {
+                        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INBOUND EMAILS - ERROR PROCESSING [Per Email] for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(perEmailProcessingError) }]!`, correlationId  })
+                        if(!KEEP_PROCESSING_ON_ERROR) throw(perEmailProcessingError)
                     }
-                }
-
-                // is the user approved to send at all
-                if (isApprovedSender) {
-                    console.log('Message UID:', msgUID, 'Approved Sender.')
-                } else {
-                    console.error('Message UID:', msgUID, 'Not an Approved Sender!!!')
-                    await baas.email.badSenderError(msgUID, from, emailApprovedSenders)
-                    // await moveMessage(imap, msgUID, "rejected")
-                    //continue;
-                }
-
-                // is the user approved to send at all
-                if (isApprovedRecipient || (isAchApprovedSender && !!isAchApprovedRecipient )) {
-                    console.log('Message UID:', msgUID, `Approved Recipient matched ${isApprovedRecipient} or ACH approve ${isAchApprovedRecipient}.`)
-                } else {
-                    console.warn('Message UID:', msgUID, 'Not an Approved Recipient. Skipping message.')
-                    //await baas.email.badRecipientError(to, config)
-                    // await baas.email.moveMessage(imap, msgUID, "rejected")
-
-                    // skip this message
-                    continue;
-                }
-
-                // capture where the attachement should be written
-                let approved = isAchApprovedRecipient || isApprovedRecipient 
-                let attachmentPath = config.email.inbound.folderMappings.find(x => x.to === approved);
-
-                if(!attachmentPath) {
-                    console.error('Message UID:', msgUID, `There is no attachment path defined on the SFTP server for the approved recipient [${isApprovedRecipient}]! `)
-                    // await baas.email.badPathError(msgUID, sApprovedRecipient)
-                    // continue;
-                }
-
-                // test attachment download
-                let emailAttachmentsArray = await baas.email.downloadMsGraphAttachments({ client, messageId: email.id, destinationPath: path.resolve( workingDirectory ) })
-                attachments = attachments.concat(emailAttachmentsArray.emailAttachmentsArray)
-
-                if (emailAttachmentsArray.emailAttachmentsArray.length) {
-                    for (let attachment of emailAttachmentsArray.emailAttachmentsArray){
-                        let isApprovedAttachment = await baas.email.approvedAttachmentCheck(attachment.fileName, config)
                     
-                        if(isApprovedAttachment) {
-                            // console.log('Message UID:', msgUID, `Writing the attachment [${attachment.filename}]... `)
-                            // let fileName = attachmentPath.destination + '\\' + EMAIL_DATE + '_' + attachment.filename
-                            // let fileWriter = fs.createWriteStream( fileName )
-                            // await fileWriter.write(attachment.content)
-
-                            //// *************************************************************************** ////
-                            //// **** BEGIN -- FILE TO THE DATABASE AND VALIDATION
-                            //// *********************************************************
-
-                            let fullFilePath = path.resolve(workingDirectory + '/' + attachment.fileName )
-                            let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
-
-                            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - file [${attachment.fileName}] for environment [${ENVIRONMENT}] calculated SHA256: [${sha256}]`, effectedEntityId: undefined, correlationId })
-
-                            // WRITE THE FILE TO THE DATABASE
-                            // DOWNLOAD THE FILE TO BUFFER
-                            // LOAD IT
-                            // DELETE THE FILE FROM BUFFER
-                            let inputFileOutput
-                            var fileEntityId
-                            let file = {}
-                            file.filename = attachment.fileName
-                            file.entityId = undefined
-
-                            let audit = {}
-                            audit.vendor = VENDOR_NAME
-                            audit.filename = attachment.fileName
-                            audit.environment = ENVIRONMENT
-                            audit.entityId = undefined
-                            audit.correlationId = correlationId 
-                
-                            try{
-                                let inputFileObj = {
-                                    baas, 
-                                    vendor: VENDOR_NAME,
-                                    sql: baas.sql, 
-                                    contextOrganizationId: config.contextOrganizationId, 
-                                    fromOrganizationId: config.email.inbound.fromOrganizationId, 
-                                    toOrganizationId: config.email.inbound.toOrganizationId, 
-                                    inputFile: fullFilePath, 
-                                    isOutbound: false, 
-                                }
-                
-                                if (inputFileObj.isOutbound == false) {
-                                    inputFileObj.source = 'lineage:/' + 'email' + ':' + approved
-                                    inputFileObj.destination = `${config.vendor}.${config.environment}:/` + attachmentPath.destination
-                                } else {
-                                    inputFileObj.source = 'lineage:/' + 'email' + ':' + approved 
-                                    inputFileObj.destination = `${config.vendor}.${config.environment}:/` + attachmentPath.destination
-                                }
-                
-                                inputFileOutput = await baas.input.file( inputFileObj )
-                                fileEntityId = inputFileOutput.fileEntityId
-                                if(!file.entityId) file.entityId = fileEntityId;
-                                audit.entityId = fileEntityId
-                            } catch (err) {
-                                if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
-                                   throw(err);
-                                }
-                                let existingEntityId = await baas.sql.file.exists( sha256, true )
-                                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - file [${attachment.fileName}] for environment [${ENVIRONMENT}] file already exists in the database with SHA256: [${sha256}]`, effectedEntityId: existingEntityId, correlationId  })
-                            }
-                    
-                            // encrypt the file with Lineage GPG keys prior to vaulting
-                            let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, fullFilePath, fullFilePath + '.gpg' )          
-                
-                            if(!fileEntityId) {
-                                // check db if sha256 exists
-                                fileEntityId = await baas.sql.file.exists( sha256, true )
-                                audit.entityId = fileEntityId
-                                if(!file.entityId) file.entityId = fileEntityId;
-                            }
-                
-                            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - file [${attachment.fileName}] was encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
-                
-                            // (vault the file as PGP armored text)
-                            let fileVaultExists = await baas.sql.fileVault.exists( '', fileEntityId )
-                
-                            // this is the same for now. Hard code this and move on.
-                            let fileVaultId = fileEntityId
-                
-                            if(!fileVaultExists) {
-                                console.log(`baas.processing.getInboundEmailFiles: loading NEW file to the fileVault: ${attachment.fileName}`)
-                                await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, config.contextOrganizationId, fileEntityId, 'lineage', fullFilePath + '.gpg' )
-                                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - file [${attachment.fileName}] was loaded into the File Vault encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId  })
-                
-                                await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, fileVaultId})
-                            } else {
-                                await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, fileVaultId})
-                            }
-                            await deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
-                            
-                            // download the file to validate it ( check the SHA256 Hash )
-                            let fileVaultObj = {
-                                baas: baas,
-                                VENDOR: VENDOR_NAME,
-                                contextOrganizationId: config.contextOrganizationId,
-                                sql: baas.sql, 
-                                entityId: '', 
-                                fileEntityId: fileEntityId, 
-                                destinationPath: fullFilePath + '.gpg'
-                            }
-                            
-                            await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
-                            await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath + '.VALIDATION' })
-                
-                            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - file [${file.filename}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
-                
-                            let sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath + '.VALIDATION' )
-                
-                            if (sha256 == sha256_VALIDATION) {
-                                // okay... we are 100% validated. We pulled the file, 
-                                // decrypted it, encrypted with our key, wrote it to 
-                                // the DB, downloaded it, decrypted it 
-                                // and validated the sha256 hash.
-                
-                                // *************************************************************
-                                //  ONLY MOVE THE EMAIL WHEN THIS IS TRUE
-                                // *************************************************************
-                                
-                                // moving message to the processed folder
-                                console.log('baas.processing.getInboundEmailFiles: sha256 validate move message to folder baas.email.moveMailFolder.')
-                                let moveStatus = await baas.email.moveMailFolder({ client, messageId: email.id, destinationFolderId: moveToFolder[0].id })
-                                email.folderName = moveToFolder[0].displayName
-                                processedEmails = processedEmails.concat(email)
-                
-                                file.sha256 = sha256_VALIDATION
-                                output.validatedEmailFiles.push(file)
-                
-                                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: file.entityId, correlationId })
-                                if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.VALIDATION' )
-                            }
-                
-                            // buffer cleanup
-                            fileEntityId = null
-                            fileVaultId = null
-                            inputFileOutput = null
-                            audit.entityId = null
-                
-                            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath )
-                            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
-                            
-                            //// *********************************************************
-                            //// **** END -- FILE TO THE DATABASE AND VALIDATION
-                            //// *************************************************************************** ////
-
-                            // // if the attachement is an ACH file, send an advice to the internal distribution list
-                            // if(isAchApprovedRecipient && isAchApprovedSender){
-                            //    await send_ach_advice (fileName, "baas.ach.advice@lineagebank.com", false) 
-                            // }
-                            
-                            console.log('Message UID:', msgUID, `Wrote attachment [${attachment.filename}].`)
-                        } else {
-                            console.error('Message UID:', msgUID, `The attachment file type is not approved, skipping processing for [${attachment.filename}]... `)
-                        }
-                    }
-                } else {
-                    console.error('Message UID:', msgUID, `No attachment on the message, moving it to the rejected folder... `)
-                    // await moveMessage(imap, msgUID, "rejected")
-                    // continue;
                 }
-                
-                // **************************************
-                // *** END PER EMAIL PROCESSING *********
-                // **************************************
-            }
+            } // WHILE LOOP END
         }
         
         console.log('processedEmails:', processedEmails)
@@ -601,6 +421,271 @@ debugger;
     } catch (inboundEmailProcessingError) {
         await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(inboundEmailProcessingError) }]!`, correlationId  })
     }
+
+    return output
+}
+
+async function perEmailInboundProcessing({baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId}){
+    let output = {}
+    output.file = {}
+    output.attachments = []
+    output.processedEmails = []
+    output.validatedEmailFiles = []
+    
+    // **************************************
+    // **************************************
+    // ***  PER EMAIL PROCESSING SECTION  ***
+    // **************************************
+    // **************************************
+
+    let from = email.from.emailAddress.address.toLowerCase();
+    let to = email.toRecipients;
+    let subject = email.subject;
+    let msgDate = email.sentDateTime;
+    let msgUID = email.id;
+
+    let isAchApprovedSender = await baas.email.approvedAchSenderCheck(from, config)
+    let isAchApprovedRecipient = await baas.email.approvedAchRecipientCheck(to, config)
+    let isApprovedSender = await baas.email.approvedSenderCheck(from, config)
+    let isApprovedRecipient = await baas.email.approvedRecipientCheck(to, config)   
+
+    // VALID SENDER CHECKS
+    if (isAchApprovedRecipient){
+        if (isAchApprovedSender){
+            console.log('Message UID:', msgUID, 'Approved ACH Sender.')
+        } else {
+            console.error('Message UID:', msgUID, 'Not an Approved ACH Sender!!!')
+            await baas.email.achSenderError(from, config)
+            // await moveMessage(imap, msgUID, "rejected")
+
+
+            // THIS SHOULD BE PROCESSED IN THE ACH PROCESSING SECTION :thinking:
+            // let messageBody = `ACH Inbound Email Sent TO:[${JSON.stringify(to)}] \n FROM:[${from}] \n\n But this user is not in the ALLOWED ACH SENDERS: [${achApprovedSenders}]`
+            // await sendSMTP(transporter, "baas.ach.advice@lineagebank.com", "BaaS: ACH Inbound - REJECTED!", messageBody)
+            // continue;
+        }
+    }
+
+    // is the user approved to send at all
+    if (isApprovedSender) {
+        console.log('Message UID:', msgUID, 'Approved Sender.')
+    } else {
+        console.error('Message UID:', msgUID, 'Not an Approved Sender!!!')
+        await baas.email.badSenderError(msgUID, from, emailApprovedSenders)
+        // await moveMessage(imap, msgUID, "rejected")
+        //continue;
+    }
+
+    // is the user approved to send at all
+    if (isApprovedRecipient || (isAchApprovedSender && !!isAchApprovedRecipient )) {
+        console.log('Message UID:', msgUID, `Approved Recipient matched ${isApprovedRecipient} or ACH approve ${isAchApprovedRecipient}.`)
+    } else {
+        console.warn('Message UID:', msgUID, 'Not an Approved Recipient. Skipping message.')
+        //await baas.email.badRecipientError(to, config)
+        // await baas.email.moveMessage(imap, msgUID, "rejected")
+
+        // skip this message
+        return 'CONTINUE:'
+    }
+
+    // capture where the attachement should be written
+    let approved = isAchApprovedRecipient || isApprovedRecipient 
+    let attachmentPath = config.email.inbound.folderMappings.find(x => x.to === approved);
+
+    if(!attachmentPath) {
+        console.error('Message UID:', msgUID, `There is no attachment path defined on the SFTP server for the approved recipient [${isApprovedRecipient}]! `)
+        // await baas.email.badPathError(msgUID, sApprovedRecipient)
+        return 'CONTINUE:'
+    }
+
+    // test attachment download
+    let emailAttachmentsArray = await baas.email.downloadMsGraphAttachments({ client, messageId: email.id, destinationPath: path.resolve( workingDirectory ) })
+    output.attachments = output.attachments.concat(emailAttachmentsArray.emailAttachmentsArray)
+
+    let processedAttachementsCount = 0
+    if (emailAttachmentsArray.emailAttachmentsArray.length) {
+        for (let attachment of emailAttachmentsArray.emailAttachmentsArray){
+            processedAttachementsCount++
+
+            let isApprovedAttachment = await baas.email.approvedAttachmentCheck(attachment.fileName, config)
+        
+            if(isApprovedAttachment) {
+                // console.log('Message UID:', msgUID, `Writing the attachment [${attachment.filename}]... `)
+                // let fileName = attachmentPath.destination + '\\' + EMAIL_DATE + '_' + attachment.filename
+                // let fileWriter = fs.createWriteStream( fileName )
+                // await fileWriter.write(attachment.content)
+
+                //// *************************************************************************** ////
+                //// **** BEGIN -- FILE TO THE DATABASE AND VALIDATION
+                //// *********************************************************
+
+                let fullFilePath = path.resolve(workingDirectory + '/' + attachment.fileName )
+                let sha256 = await baas.sql.file.generateSHA256( fullFilePath )
+
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - file [${attachment.fileName}] for environment [${ENVIRONMENT}] calculated SHA256: [${sha256}]`, effectedEntityId: undefined, correlationId })
+
+                // WRITE THE FILE TO THE DATABASE
+                // DOWNLOAD THE FILE TO BUFFER
+                // LOAD IT
+                // DELETE THE FILE FROM BUFFER
+                let inputFileOutput
+                var fileEntityId
+                let file = {}
+                file.filename = attachment.fileName
+                file.entityId = undefined
+
+                let audit = {}
+                audit.vendor = VENDOR_NAME
+                audit.filename = attachment.fileName
+                audit.environment = ENVIRONMENT
+                audit.entityId = undefined
+                audit.correlationId = correlationId 
+    
+                try{
+                    let inputFileObj = {
+                        baas, 
+                        vendor: VENDOR_NAME,
+                        sql: baas.sql, 
+                        contextOrganizationId: config.contextOrganizationId, 
+                        fromOrganizationId: config.email.inbound.fromOrganizationId, 
+                        toOrganizationId: config.email.inbound.toOrganizationId, 
+                        inputFile: fullFilePath, 
+                        isOutbound: false, 
+                    }
+    
+                    if (inputFileObj.isOutbound == false) {
+                        inputFileObj.source = 'lineage:/' + 'email' + ':' + approved
+                        inputFileObj.destination = `${config.vendor}.${config.environment}:/` + attachmentPath.destination
+                    } else {
+                        inputFileObj.source = 'lineage:/' + 'email' + ':' + approved 
+                        inputFileObj.destination = `${config.vendor}.${config.environment}:/` + attachmentPath.destination
+                    }
+    
+                    // ***********************************
+                    // *** WRITE THE FILE TO THE DB ****
+                    // ***********************************
+                    inputFileOutput = await baas.input.file( inputFileObj )
+                    fileEntityId = inputFileOutput.fileEntityId
+                    if(!file.entityId) file.entityId = fileEntityId;
+                    audit.entityId = fileEntityId
+                } catch (err) {
+                    if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
+                    throw(err);
+                    }
+                    let existingEntityId = await baas.sql.file.exists( sha256, true )
+                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - file [${attachment.fileName}] for environment [${ENVIRONMENT}] file already exists in the database with SHA256: [${sha256}]`, effectedEntityId: existingEntityId, correlationId  })
+                }
+        
+                // encrypt the file with Lineage GPG keys prior to vaulting
+                let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, fullFilePath, fullFilePath + '.gpg' )          
+    
+                if(!fileEntityId) {
+                    // check db if sha256 exists
+                    fileEntityId = await baas.sql.file.exists( sha256, true )
+                    audit.entityId = fileEntityId
+                    if(!file.entityId) file.entityId = fileEntityId;
+                }
+    
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - file [${attachment.fileName}] was encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
+    
+                // (vault the file as PGP armored text)
+                let fileVaultExists = await baas.sql.fileVault.exists( '', fileEntityId )
+    
+                // this is the same for now. Hard code this and move on.
+                let fileVaultId = fileEntityId
+    
+                if(!fileVaultExists) {
+                    console.log(`baas.processing.getInboundEmailFiles: loading NEW file to the fileVault: ${attachment.fileName}`)
+                    await baas.input.fileVault(baas, VENDOR_NAME, baas.sql, config.contextOrganizationId, fileEntityId, 'lineage', fullFilePath + '.gpg' )
+                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - file [${attachment.fileName}] was loaded into the File Vault encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId  })
+    
+                    await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, fileVaultId})
+                } else {
+                    await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, fileVaultId})
+                }
+                await deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
+                
+                // download the file to validate it ( check the SHA256 Hash )
+                let fileVaultObj = {
+                    baas: baas,
+                    VENDOR: VENDOR_NAME,
+                    contextOrganizationId: config.contextOrganizationId,
+                    sql: baas.sql, 
+                    entityId: '', 
+                    fileEntityId: fileEntityId, 
+                    destinationPath: fullFilePath + '.gpg'
+                }
+                
+                await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+                await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath + '.VALIDATION' })
+    
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - file [${file.filename}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
+    
+                let sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath + '.VALIDATION' )
+    
+                if (sha256 == sha256_VALIDATION) {
+                    // okay... we are 100% validated. We pulled the file, 
+                    // decrypted it, encrypted with our key, wrote it to 
+                    // the DB, downloaded it, decrypted it 
+                    // and validated the sha256 hash.
+    
+                    // *************************************************************
+                    //  ONLY MOVE THE EMAIL WHEN THIS IS TRUE
+                    // *************************************************************
+                    
+                    // moving message to the processed folder
+                    console.log('baas.processing.getInboundEmailFiles: sha256 validate move message to folder baas.email.moveMailFolder.')
+
+                    if(processedAttachementsCount == emailAttachmentsArray.emailAttachmentsArray.length) {
+                        // Only move the message when it is the last message in the attachments array
+                        let moveStatus = await baas.email.moveMailFolder({ client, messageId: email.id, destinationFolderId: moveToFolder[0].id })
+                    }
+
+                    email.folderName = moveToFolder[0].displayName
+                    output.processedEmails = output.processedEmails.concat(email)
+    
+                    output.file.sha256 = sha256_VALIDATION
+                    output.validatedEmailFiles.push(file)
+                    output.file = {}
+    
+                    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: file.entityId, correlationId })
+                    if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.VALIDATION' )
+                } else {
+                    throw(`baas.email.processing.perEmailInboundProcessing: Error: The SHA256 Validation Failed. This is not expected to happen. This file ${attachment.fileName} is bogus. SourceHASH:[${sha256}] DatabaseHASH:[${sha256_VALIDATION}]`)
+                }
+    
+                // buffer cleanup
+                fileEntityId = null
+                fileVaultId = null
+                inputFileOutput = null
+                audit.entityId = null
+    
+                if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath )
+                if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
+                
+                //// *********************************************************
+                //// **** END -- FILE TO THE DATABASE AND VALIDATION
+                //// *************************************************************************** ////
+
+                // // if the attachement is an ACH file, send an advice to the internal distribution list
+                // if(isAchApprovedRecipient && isAchApprovedSender){
+                //    await send_ach_advice (fileName, "baas.ach.advice@lineagebank.com", false) 
+                // }
+                
+                console.log('Message UID:', msgUID, `Wrote attachment [${attachment.filename}].`)
+            } else {
+                console.error('Message UID:', msgUID, `The attachment file type is not approved, skipping processing for [${attachment.filename}]... `)
+            }
+        }
+    } else {
+        console.error('Message UID:', msgUID, `No attachment on the message, moving it to the rejected folder... `)
+        // await moveMessage(imap, msgUID, "rejected")
+        // continue;
+    }
+    
+    // **************************************
+    // *** END PER EMAIL PROCESSING *********
+    // **************************************
 
     return output
 }
@@ -819,7 +904,7 @@ async function deleteWorkingDirectory(workingFolder) {
     let last = arr[arr.length-1] || arr[arr.length-2];
 
     try {
-        fs.rmdirSync(workingFolder, { recursive: true });
+        fs.rmSync(workingFolder, { recursive: true });
     
         await baas.audit.log({baas, logger, level: 'verbose', message: `Working folder [${last}] was deleted.`} );
     } catch (err) {

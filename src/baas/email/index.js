@@ -11,6 +11,8 @@ const fss = require('fs');
 const { Client } = require("@microsoft/microsoft-graph-client");
 require('isomorphic-fetch');
 
+const  { detectFileMime } = require('mime-detect');
+
 const MSAL_CLIENT_ID = process.env.MSAL_CLIENT_ID;
 const MSAL_TENANT_ID = process.env.MSAL_TENANT_ID
 const MSAL_USERNAME = process.env.MSAL_USERNAME;
@@ -138,68 +140,56 @@ function Handler() {
             .post(sendMail);
     }
     
-    Handler.readEmails = async function readEmails({ client, folderId }) {
+    Handler.readEmails = async function readEmails({ client, folderId, nextPageLink }) {
         if(!client) throw ('A valid [client] object is required, please call getClient() and pass it into this function.')
 
         let output = {}
         output.responses = []
         output.emails = []
         
-        //   EMAIL PAGING  https://docs.microsoft.com/en-us/graph/api/user-list-messages?view=graph-rest-1.0&tabs=javascript
-        //   https://docs.microsoft.com/en-us/graph/api/user-list-messages?view=graph-rest-1.0&tabs=javascript
-
-        let next = true  // set this to false to stop the loop
-        let nextPageLink = '' // next email page link. Should be contents of '@odata.nextLink'
-        let nextCount = 0
-        let nextLimit = 500
-
         let email = {} // current email batch being processed
 
-        while(next){
-            nextCount++
-            if(nextCount >= nextLimit) next = false // infinite loop protection
+        // does not have a folder specified
+        if(!folderId && !nextPageLink){
+            console.log(`baas.email.readEmails: Fetching the first 10 emails without a folder...`)
+            email = await client
+            .api('/me/messages')
+            .orderby('receivedDateTime desc')
+            .top(10)
+            .get();
+            output.responses.push(email)
+            output.emails = output.emails.concat(email.value)
+        } 
+        
+        // has a folder specified
+        if(folderId && !nextPageLink){
+            console.log(`baas.email.readEmails: Fetching the first 10 emails with a folder...`)
+            email = await client
+            .api(`/me/mailFolders/${folderId}/messages`)
+            .orderby('receivedDateTime desc')
+            .top(10)
+            .get();
+            output.responses.push(email)
+            output.emails = output.emails.concat(email.value)
+        }
 
-            // does not have a folder specified
-            if(!folderId && nextCount <= 1){
-                console.log(`baas.email.readEmails: Fetching the first 10 emails without a folder ... execution count:${nextCount}`)
-                email = await client
-                .api('/me/messages')
-                .orderby('receivedDateTime desc')
-                .get();
-                output.responses.push(email)
-                output.emails = output.emails.concat(email.value)
-            } 
-            
-            // has a folder specified
-            if(folderId && nextCount <= 1){
-                console.log(`baas.email.readEmails: Fetching the first 10 emails with a folder ... execution count:${nextCount}`)
-                email = await client
-                .api(`/me/mailFolders/${folderId}/messages`)
-                .orderby('receivedDateTime desc')
-                .get();
-                output.responses.push(email)
-                output.emails = output.emails.concat(email.value)
-            }
+        // call the next query that was provided
+        if(nextPageLink) {
+            console.log(`baas.email.readEmails: Fetching the next 10 emails...`)
+            email = await client.api( nextPageLink ).get();
+            output.responses.push(email)
+            output.emails = output.emails.concat(email.value)
+        }
 
-            // call the next query in the list until completed
-            // this is an n+1 and consider refactoring in to a ne function
-            if(nextPageLink.length > 5 && nextCount > 1) {
-                console.log(`baas.email.readEmails: Fetching the next 10 emails... execution count:${nextCount}`)
-                email = await client.api( nextPageLink ).get();
-                output.responses.push(email)
-                output.emails = output.emails.concat(email.value)
-            }
-
-            // should we keep going on this n+1 journey?
-            if(email.hasOwnProperty('@odata.nextLink')){
-                nextPageLink = email['@odata.nextLink']
-            } else {
-                next = false
-            }
+        // should we keep going on this n+1 journey?
+        if(email.hasOwnProperty('@odata.nextLink')){
+            output.nextPageLink = email['@odata.nextLink']
+        } else {
+            output.nextPageLink = false
         }
     
         output.responses = []
-        return output.emails
+        return output
     }
     
     Handler.readMailFolders = async function readMailFolders({ client, displayName, includeChildren }) {
@@ -260,6 +250,14 @@ function Handler() {
     Handler.downloadMsGraphAttachments = async function downloadMsGraphAttachments ({ client, messageId, destinationPath }) {
         if(!client) throw ('A valid [client] object is required, please call getClient() and pass it into this function.')
 
+        let textMimeTypes = []
+        textMimeTypes.push('application/csv; charset=us-ascii')
+        textMimeTypes.push('text/csv; charset=us-ascii')
+        textMimeTypes.push('application/txt; charset=us-ascii')
+        textMimeTypes.push('text/txt; charset=us-ascii')
+        textMimeTypes.push('application/ach; charset=us-ascii')
+        textMimeTypes.push('text/ach; charset=us-ascii')
+
         // download all the attachments on a message to the destinationPath
         let mailAttachments = await client.api(`/me/messages/${messageId}/attachments`).get();
         let output = {}
@@ -274,11 +272,19 @@ function Handler() {
             try {
                 await fs.writeFile( path.resolve( destinationPath, fileName ), new Buffer.from( fileBase64, 'base64' ) )
 
+                let mimeType = await detectFileMime( path.resolve( destinationPath, fileName ) );
+
+                if(textMimeTypes.includes( mimeType )) {
+                // ONLY DO THIS FOR ASCII MIMETYPE!! OTHERWISE IT WILL CORRUPT THE FILES!!
                 // read the file in and remove CRLF and put LF
-                const removeCLRF = fss.readFileSync( path.resolve( destinationPath, fileName ))
-                    .toString()
-                    .replace(/\r/g, "")
-                fss.writeFileSync( path.resolve( destinationPath, fileName ), removeCLRF)
+                    const removeCLRF = fss.readFileSync( path.resolve( destinationPath, fileName ))
+                        .toString()
+                        .replace(/\r/g, "")
+                    fss.writeFileSync( path.resolve( destinationPath, fileName ), removeCLRF)
+                } else {
+                    console.log('baas.email.downloadMsGraphAttachments: Non-Text Mime Type:' + mimeType)
+                }
+
 
                 let attachmentInfo = {
                     messageId: messageId,
