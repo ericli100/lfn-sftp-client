@@ -276,10 +276,9 @@ async function createFileEntitySQL({ sql, fileEntityId, correlationId, contextOr
     return output
 }
 
-async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId, source, destination } ){
+async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, effectiveDate, isOutbound, correlationId, source, destination } ){
     let output = {}
     
-    // - create new File (File Type Id (ACH) == 603c2e56cf800000 )
     let fileInsert = {
         entityId: fileEntityId,
         contextOrganizationId: contextOrganizationId,
@@ -293,7 +292,8 @@ async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrg
         isOutbound: isOutbound,
         correlationId: correlationId,
         source: source,
-        destination: destination
+        destination: destination,
+        effectiveDate: effectiveDate,
     }
     let sql1 = await sql.file.insert( fileInsert )
 
