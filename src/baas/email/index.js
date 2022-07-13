@@ -257,6 +257,7 @@ function Handler() {
         textMimeTypes.push('text/txt; charset=us-ascii')
         textMimeTypes.push('application/ach; charset=us-ascii')
         textMimeTypes.push('text/ach; charset=us-ascii')
+        textMimeTypes.push('text/plain; charset=us-ascii')
 
         // download all the attachments on a message to the destinationPath
         let mailAttachments = await client.api(`/me/messages/${messageId}/attachments`).get();
