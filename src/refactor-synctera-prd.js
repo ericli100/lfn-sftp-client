@@ -109,15 +109,15 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         602bd52e1c000000 == Synctera
     */
 
-    config.contextOrganizationId = '6022d1b33f000000'; 
+    config.contextOrganizationId = '6022d4e2b0800000'; 
     config.fromOrganizationId = FROM_ORGANIZATION_ID;
-    config.toOrganizationId = '6022d1b33f000000';
+    config.toOrganizationId = '6022d4e2b0800000';
 
     // EMAIL PROCESS CONFIG
     config.email = {}
     config.email.inbound = {}
 
-    config.email.inbound.fromOrganizationId = '6022d1b33f000000'
+    config.email.inbound.fromOrganizationId = '6022d4e2b0800000'
     config.email.inbound.toOrganizationId = FROM_ORGANIZATION_ID
 
     config.email.inbound.emailApprovedSenders = [

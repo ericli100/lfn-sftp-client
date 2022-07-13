@@ -66,12 +66,12 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
 
     /*
         6022d1b33f000000 == Lineage Bank
-        6022d4e2b0800000 == Synapse UAT
-        6022d4e2b0800000 == Synapse PRD
+        606ae4f54e800000 == Synapse UAT
+        606ae47a5b000000 == Synapse PRD
 
-         contextOrganizationId	organizationNumber	name
-         6022d4e2b0800000    	900150	Synapse (prd)
-         6022d4e2b0800000    	900175	Synapse (uat)
+                            	organizationNumber	name
+         606ae47a5b000000    	900150	Synapse (prd)
+         606ae4f54e800000    	900175	Synapse (uat)
     */
 
     if (ENVIRONMENT == 'prd') {
@@ -80,14 +80,14 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         USERNAME = 'lfn'
     //    SSH_PASSPHRASE = fs.readFileSync(`./certs/${VENDOR_NAME}/prd_passphrase.key`)
         SSH_PRIVATEKEY = fs.readFileSync(`./certs/${VENDOR_NAME}/${ENVIRONMENT}/synapse_lfn_${ENVIRONMENT}_rsa_pem.key`)
-        FROM_ORGANIZATION_ID = '6022d4e2b0800000'
+        FROM_ORGANIZATION_ID = '606ae47a5b000000'
     } else if (ENVIRONMENT == 'uat') {
         REMOTE_HOST = 's-00cf6a49dae04eba8.server.transfer.us-west-2.amazonaws.com'
         PORT = 22
         USERNAME = 'lfn'
         SSH_PASSPHRASE = ''
         SSH_PRIVATEKEY = fs.readFileSync(`./certs/${VENDOR_NAME}/${ENVIRONMENT}/synapse_lfn_${ENVIRONMENT}_rsa_pem.key`)
-        FROM_ORGANIZATION_ID = '6022d4e2b0800000'
+        FROM_ORGANIZATION_ID = '606ae4f54e800000'
     }
 
     config.server = {
@@ -113,15 +113,15 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.environment = ENVIRONMENT;
     config.vendor = VENDOR_NAME;
 
-    config.contextOrganizationId = '6022d1b33f000000'; 
+    config.contextOrganizationId = '6022d4e2b0800000'; 
     config.fromOrganizationId = FROM_ORGANIZATION_ID;
-    config.toOrganizationId = '6022d1b33f000000';
+    config.toOrganizationId = '6022d4e2b0800000';
 
     // EMAIL PROCESS CONFIG
     config.email = {}
     config.email.inbound = {}
-
-    config.email.inbound.fromOrganizationId = '6022d1b33f000000'
+  
+    config.email.inbound.fromOrganizationId = '6022d4e2b0800000'
     config.email.inbound.toOrganizationId = FROM_ORGANIZATION_ID
 
     config.email.inbound.emailApprovedSenders = [
