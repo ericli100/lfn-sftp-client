@@ -35,7 +35,7 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, isReceiptProcessed, dataJSON, quickBalanceJSON, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isReceiptProcessed, dataJSON, quickBalanceJSON, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
@@ -90,7 +90,15 @@ function Handler(mssql) {
                ,'${hasProcessingErrors}'
                ,'${isReceiptProcessed}'
                ,'${correlationId}'
-               )`
+               );`
+
+        if(effectiveDate) {
+            sqlStatement += `
+                UPDATE [baas].[files]
+                  SET [effectiveDate] = '${effectiveDate}'
+                WHERE [entityId] = '${entityId}';
+            `
+        }
     
         return sqlStatement
     }
