@@ -420,6 +420,9 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
     
     } catch (inboundEmailProcessingError) {
         await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(inboundEmailProcessingError) }]!`, correlationId  })
+        
+        // one final try to delete the folder
+        await deleteWorkingDirectory(workingDirectory)
     }
 
     return output
@@ -443,8 +446,6 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     let subject = email.subject;
     let msgDate = email.sentDateTime;
     let msgUID = email.id;
-
-debugger;
 
     let isAchApprovedSender = await baas.email.approvedAchSenderCheck(from, config)
     let isAchApprovedRecipient = await baas.email.approvedAchRecipientCheck(to, config)
@@ -644,6 +645,7 @@ debugger;
 
                     if(processedAttachementsCount == emailAttachmentsArray.emailAttachmentsArray.length) {
                         // Only move the message when it is the last message in the attachments array
+                        console.log(`baas.processing.getInboundEmailFiles: Moving the email to Folder: [${moveToFolder[0].displayName}]`)
                         let moveStatus = await baas.email.moveMailFolder({ client, messageId: email.id, destinationFolderId: moveToFolder[0].id })
                     }
 
@@ -681,6 +683,12 @@ debugger;
                 console.log('Message UID:', msgUID, `Wrote attachment [${attachment.filename}].`)
             } else {
                 console.error('Message UID:', msgUID, `The attachment file type is not approved, skipping processing for [${attachment.filename}]... `)
+
+                if(processedAttachementsCount == emailAttachmentsArray.emailAttachmentsArray.length) {
+                    // Only move the message when it is the last message in the attachments array
+                    console.log(`baas.processing.getInboundEmailFiles: Moving the email to Folder (End of Array): [${moveToFolder[0].displayName}]`)
+                    let moveStatus = await baas.email.moveMailFolder({ client, messageId: email.id, destinationFolderId: moveToFolder[0].id })
+                }    
             }
         }
     } else {
