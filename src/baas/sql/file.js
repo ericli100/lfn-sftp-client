@@ -35,7 +35,7 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isReceiptProcessed, dataJSON, quickBalanceJSON, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isReceiptProcessed, dataJSON, quickBalanceJSON, fileNameOutbound, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
@@ -47,6 +47,7 @@ function Handler(mssql) {
         if (!hasProcessingErrors) hasProcessingErrors = '0'
         if (!source) source = ''
         if (!destination) destination = ''
+        if (!fileNameOutbound) fileNameOutbound = ''
 
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
@@ -69,6 +70,7 @@ function Handler(mssql) {
                ,[isProcessed]
                ,[hasProcessingErrors]
                ,[isReceiptProcessed]
+               ,[fileNameOutbound]
                ,[correlationId])
          VALUES
                ('${entityId}'
@@ -89,6 +91,7 @@ function Handler(mssql) {
                ,'${isProcessed}'
                ,'${hasProcessingErrors}'
                ,'${isReceiptProcessed}'
+               ,'${fileNameOutbound}'
                ,'${correlationId}'
                );`
 
@@ -96,7 +99,9 @@ function Handler(mssql) {
             sqlStatement += `
                 UPDATE [baas].[files]
                   SET [effectiveDate] = '${effectiveDate}'
-                WHERE [entityId] = '${entityId}';
+                WHERE [entityId] = '${entityId}'
+                 AND [tenantId] = '${tenantId}'
+                 AND [contextOrganizationId] = '${contextOrganizationId}';
             `
         }
     
