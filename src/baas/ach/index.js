@@ -156,9 +156,13 @@ async function main(args) {
 
 async function isACH(args){
     // parse the entire file an check if it is valid JSON to determine if it is an ACH file.
-    let achJSON = await main(args)
-    let isJSON = await isValidJSON( achJSON )
-    return isJSON
+    try{
+        let achJSON = await main(args)
+        let isJSON = await isValidJSON( achJSON )
+        return isJSON
+    } catch {
+        return false
+    }
 }
 
 async function getHeader( achJSON ) {
