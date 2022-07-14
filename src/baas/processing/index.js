@@ -769,7 +769,8 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         throw(`ACH PARSE ERROR! The file provided [${output.fileName}] could not be parsed and needs to be validated and resumbitted! baas.processing.determinInputFileTypeId()`)
     }
 
-    output.isCSV = await isCSVcheck( {inputFile: inputFileObj.inputFile} )
+    output.isCSV = false 
+    if(!isACH) output.isCSV = await isCSVcheck( {inputFile: inputFileObj.inputFile} )
     output.isCsvAccountBalances = false
     output.isCsvFileActivity = false
 
