@@ -194,7 +194,7 @@ async function isValidJSON( data ) {
 }
 
 async function achAdvice(filename, isOutbound){
-    let ach_data = await main( [`-reformat json`, `-mask`, `${filename}`] )
+    let ach_data = await main( [`-reformat json`, `-mask`, `"${filename}"`] )
 
     let isJSON = await isValidJSON( ach_data )
     let achJSON = {}
