@@ -748,7 +748,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     if(output.isACH) {
         let parsedACH = JSON.parse( await baas.ach.parseACH( inputFileObj.inputFile ) )
         if (config.ach.inbound.immediateDestination.includes( parsedACH.fileHeader.immediateDestination )) {
-            if(parsedACH.ReturnEntries.length > 0) {
+            if(parsedACH.ReturnEntries) {
                 console.warn('ACH PARSE -- is we see a count of arsedACH.ReturnEntries.length > 0 treat it as a return file. Watch this closely.')
                 output.isAchReturn = true
                 FILE_TYPE_MATCH = 'ACH_RETURN'
