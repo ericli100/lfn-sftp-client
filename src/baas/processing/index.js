@@ -322,6 +322,13 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
     if(!ENVIRONMENT) ENVIRONMENT = config.environment
     if(!logger) logger = baas.logger
 
+
+    /***********************************/
+    /***********************************/
+    // **  Inbound Email Processing   **
+    /***********************************/
+    /***********************************/
+
     let output = {}
    
     try {
@@ -738,6 +745,8 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     let FILE_TYPE_MATCH = 'UNMATCHED';
     let extensionOverride
 
+    debugger;
+
     // Set these flags in the future by evaluating the file content
     output.isACH = await baas.ach.isACH( inputFileObj.inputFile )
     output.isAchReturn = false // ACH_RETURN https://moov-io.github.io/ach/returns/
@@ -747,7 +756,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         let parsedACH = JSON.parse( await baas.ach.parseACH( inputFileObj.inputFile ) )
         if (config.ach.inbound.immediateDestination.includes( parsedACH.fileHeader.immediateDestination )) {
             if(parsedACH.ReturnEntries) {
-                console.warn('ACH PARSE -- is we see a count of arsedACH.ReturnEntries.length > 0 treat it as a return file. Watch this closely.')
+                console.warn('ACH PARSE -- is we see a count of ParsedACH.ReturnEntries.length > 0 treat it as a return file. Watch this closely.')
                 output.isAchReturn = true
                 FILE_TYPE_MATCH = 'ACH_RETURN'
                 extensionOverride = 'ach'
@@ -777,8 +786,13 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     }
 
     output.isAchConfirmation = false; // ACH_ACK
-    output.isFedWire = false; // WIRE_INBOUND
+    output.isFedWire = await baas.wire.isFedWireCheck( { inputFile: inputFileObj.inputFile }) // false; // WIRE_INBOUND
     output.isFedWireConfirmaiton = false;
+
+    if(output.isFedWire) {
+        FILE_TYPE_MATCH = 'WIRE_INBOUND'
+        extensionOverride = 'txt'
+    }
 
     output.extensionOverride = extensionOverride 
     output.fileExtension = extensionOverride || path.extname( inputFileObj.inputFile ).substring(1, path.extname( inputFileObj.inputFile ).length)

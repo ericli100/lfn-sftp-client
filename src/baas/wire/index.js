@@ -63,7 +63,6 @@ async function inputFileToString ( inputfile ) {
     return output.toString()
 }
 
-
 async function parseWireFile( inputfile ) {
     let output = {}
     // check if YFT811 or {1500}
@@ -134,9 +133,17 @@ async function parseWireFile( inputfile ) {
             currentWireJSON.XFT811 = 'XFT811'
         }
 
-        if(line.includes('{1500}')) {
+        if(line.includes('{1500}') || line.includes('{1100}}') ) {
             output.wiresCount = output.wiresCount + 1;
             if(output.wiresCount > 1) output.hasMultipleWires = true
+
+            if(line.includes('{1500}')){
+                output.wireDirection = 'OUTBOUND'
+            }
+
+            if(line.includes('{1100}')){
+                output.wireDirection = 'INBOUND'
+            }
         }
 
         // parse the file based
@@ -183,6 +190,68 @@ async function parseWireFile( inputfile ) {
     return output
 }
 
+async function isFedWireCheck( { inputFile, listDetails } ) {
+    if (!inputFile) throw('baas.wire.isFedWireCheck requires an inputFile')
+
+    let output
+    if (listDetails) {
+        output = {}
+    } else {
+        output = false;
+    }
+
+    let parsedWireFile = await parseWireFile( inputFile )
+    parsedWireFile = parsedWireFile.wiresJSON[0]
+    
+    let outboundWire = parsedWireFile.hasOwnProperty("'{1500}'")
+    let e1500 = parsedWireFile.hasOwnProperty("'{1500}'")
+    let e1510 = parsedWireFile.hasOwnProperty("'{1510}'")
+    let e1520 = parsedWireFile.hasOwnProperty("'{1520}'")
+    let e2000 = parsedWireFile.hasOwnProperty("'{2000}'")
+    let e3100 = parsedWireFile.hasOwnProperty("'{3100}'")
+    let e3400 = parsedWireFile.hasOwnProperty("'{3400}'")
+    let e3600 = parsedWireFile.hasOwnProperty("'{3600}'")
+
+    let inboundWire = parsedWireFile.hasOwnProperty("'{1100}'")
+    let e1100 = parsedWireFile.hasOwnProperty("'{1100}'")
+    let e1110 = parsedWireFile.hasOwnProperty("'{1110}'")
+    let e1120 = parsedWireFile.hasOwnProperty("'{1120}'")
+
+    if (listDetails) {
+        // DETAILS
+        if (outboundWire) {
+            if(e1500 && e1510 && e1520 && e2000 && e3100 && e3400 && e3600) {
+                output.isFedWire = true
+                output.isInbound = false
+                output.isOutbound = true
+                output.parsedWire = parsedWireFile
+            }
+        }
+
+        if (inboundWire){
+            if(e1100 && e1110 && e1120) {
+                output.isFedWire = true
+                output.isInbound = true
+                output.isOutbound = false
+                output.parsedWire = parsedWireFile
+            }
+        }
+    } else {
+        // NO DETAILS - JUST SEND TRUE OR FALSE
+        if (outboundWire) {
+            if(e1500 && e1510 && e1520 && e2000 && e3100 && e3400 && e3600) output = true
+        }
+
+        if (inboundWire){
+            if(e1100 && e1110 && e1120) output = true
+        }
+    } 
+
+    return output
+}
+
 module.exports.parse = parse
+
+module.exports.isFedWireCheck = isFedWireCheck
 
 
