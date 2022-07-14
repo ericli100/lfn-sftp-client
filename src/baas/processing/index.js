@@ -745,8 +745,6 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     let FILE_TYPE_MATCH = 'UNMATCHED';
     let extensionOverride
 
-    debugger;
-
     // Set these flags in the future by evaluating the file content
     output.isACH = await baas.ach.isACH( inputFileObj.inputFile )
     output.isAchReturn = false // ACH_RETURN https://moov-io.github.io/ach/returns/
