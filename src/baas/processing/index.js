@@ -739,8 +739,6 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     let extensionOverride
 
     // Set these flags in the future by evaluating the file content
-    debugger;
-
     output.isACH = await baas.ach.isACH( inputFileObj.inputFile )
     output.isAchReturn = false // ACH_RETURN https://moov-io.github.io/ach/returns/
     output.isAchInbound = false;
