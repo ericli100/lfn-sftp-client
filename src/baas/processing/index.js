@@ -740,7 +740,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
 
     // Set these flags in the future by evaluating the file content
     debugger;
-    
+
     output.isACH = await baas.ach.isACH( inputFileObj.inputFile )
     output.isAchReturn = false // ACH_RETURN https://moov-io.github.io/ach/returns/
     output.isAchInbound = false;
@@ -748,9 +748,16 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     if(output.isACH) {
         let parsedACH = JSON.parse( await baas.ach.parseACH( inputFileObj.inputFile ) )
         if (config.ach.inbound.immediateDestination.includes( parsedACH.fileHeader.immediateDestination )) {
-            output.isAchInbound = true
-            FILE_TYPE_MATCH = 'ACH_INBOUND'
-            extensionOverride = 'ach'
+            if(parsedACH.ReturnEntries.length > 0) {
+                console.warn('ACH PARSE -- is we see a count of arsedACH.ReturnEntries.length > 0 treat it as a return file. Watch this closely.')
+                output.isAchReturn = true
+                FILE_TYPE_MATCH = 'ACH_RETURN'
+                extensionOverride = 'ach'
+            } else {
+                output.isAchInbound = true
+                FILE_TYPE_MATCH = 'ACH_INBOUND'
+                extensionOverride = 'ach'
+            }
         } else {
             // there is a clerical error.
             throw(`ERROR: INVALID ACH FILE SENT TO [${config.vendor}].[${config.environment}] the ACH Immediate Destination in the file [${output.fileName}] is: [${parsedACH.fileHeader.immediateDestination}] and is not listed in the ALLOWED LIST:[${config.ach.inbound.immediateDestination}]`)
