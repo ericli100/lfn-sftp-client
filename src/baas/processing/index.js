@@ -770,7 +770,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     }
 
     output.isCSV = false 
-    if(!isACH) output.isCSV = await isCSVcheck( {inputFile: inputFileObj.inputFile} )
+    if(!output.isACH) output.isCSV = await isCSVcheck( {inputFile: inputFileObj.inputFile} )
     output.isCsvAccountBalances = false
     output.isCsvFileActivity = false
 
