@@ -160,7 +160,8 @@ async function isACH(args){
         let achJSON = await main(args)
         let isJSON = await isValidJSON( achJSON )
         return isJSON
-    } catch {
+    } catch (error) {
+        console.error('ACH PARSE ERROR:' + error)
         return false
     }
 }

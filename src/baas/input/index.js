@@ -185,6 +185,9 @@ function achTypeCheck( transaction ) {
 }
 
 async function getFileTypeId( sqlDataRows, fileInfo ){
+    let output = {}
+    output.fileTypes = []
+
     if(sqlDataRows.length == 0) throw('The database does not contain this FileType!')
     if(sqlDataRows.length == 1) return sqlDataRows[0].entityId.trim()
 
@@ -195,14 +198,22 @@ async function getFileTypeId( sqlDataRows, fileInfo ){
 
             if(fileTypes.fileNameFormat == '%') return fileTypes.entityId.trim() // return the first splat match that is returned
             if(filename.includes(fileTypes.fileNameFormat)) return fileTypes.entityId.trim() // we matched an in string match
+
+            // we need to inspect the file and match based on content when inbound from email or other sources
+            console.log('getFileTypeId: looking at file content at the type is not matched yet and there are multiple options.')
+
+            // build an array for the caller to evaluate with additional logic for matching
+            output.fileTypes.push(fileTypes)
         }
     }
     
-    return 'NO_MATCH'
+    output.status = 'NO_MATCH'
+    return output
 }
 
-async function populateLookupCache({ sql, inputFile, contextOrganizationId, fromOrganizationId, toOrganizationId, achJSON = null}){
+async function populateLookupCache({ sql, inputFile, contextOrganizationId, fromOrganizationId, toOrganizationId, fileSelect, achJSON = null}){
     let output = {}
+    if(!fileSelect) fileSelect = {}
 
     const {size: fileSize} = fs.statSync( inputFile );
     output.fileSize = fileSize;
@@ -210,13 +221,12 @@ async function populateLookupCache({ sql, inputFile, contextOrganizationId, from
     output.fileName = path.basename( inputFile )
     
     output.fileExtension = path.extname( inputFile ).substring(1, path.extname( inputFile ).length)
-    let fileSelect = {
-        fileExtension: output.fileExtension,
-        contextOrganizationId: contextOrganizationId,
-        fromOrganizationId: fromOrganizationId,
-        toOrganizationId: toOrganizationId, 
-        fileName: output.fileName,
-    }
+
+    fileSelect.fileExtension = output.fileExtension
+    fileSelect.contextOrganizationId = contextOrganizationId
+    fileSelect.fromOrganizationId = fromOrganizationId
+    fileSelect.toOrganizationId = toOrganizationId
+    fileSelect.fileName = output.fileName
 
     // MASTER DATA LOOKUP TO AVOID REDUNDANT CALLS TO THE DATABASE
     // - fileTypeId
@@ -226,10 +236,16 @@ async function populateLookupCache({ sql, inputFile, contextOrganizationId, from
     let fileTypeId = await sql.executeTSQL( fileTypeSQL )//'603c2e56cf800000'
     fileTypeId = await getFileTypeId( fileTypeId[0].data, fileSelect ) // fileTypeId[0].data[0].entityId.trim() 
 
-    if (!fileTypeId) {
-        console.error('ERROR: the fileType does not exist, we set it to an unknown type and loaded it in the DB. We will fix it in post.')
+    if (typeof fileTypeId === 'object') {
+        // there were multiple things returned
+        if (!fileTypeId) {
+            console.error('ERROR: the fileType does not exist, we set it to an unknown type and loaded it in the DB. We will fix it in post.')
+        }
+        output.fileTypeId = fileTypeId;
+        output.fileTypeReturnedData = fileTypeId
+    } else {
+        output.fileTypeId = fileTypeId || '99999999999999999999'
     }
-    output.fileTypeId = fileTypeId || '99999999999999999999';
 
     // - entityBatchTypeId
     let entityBatchTypeSQL = await sql.entityType.find({entityType: 'Batch', contextOrganizationId: contextOrganizationId})
@@ -276,7 +292,7 @@ async function createFileEntitySQL({ sql, fileEntityId, correlationId, contextOr
     return output
 }
 
-async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, effectiveDate, isOutbound, correlationId, source, destination } ){
+async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, effectiveDate, isOutbound, correlationId, source, destination, fileNameOutbound } ){
     let output = {}
     
     let fileInsert = {
@@ -294,6 +310,7 @@ async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrg
         source: source,
         destination: destination,
         effectiveDate: effectiveDate,
+        fileNameOutbound: fileNameOutbound,
     }
     let sql1 = await sql.file.insert( fileInsert )
 
@@ -731,7 +748,7 @@ async function fileVault(baas, VENDOR, sql, contextOrganizationId, fileEntityId,
     return output
 }
 
-async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, source, destination } ) {
+async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, source, destination, effectiveDate, fileTypeId, overrideExtension, fileNameOutbound } ) {
     if(!contextOrganizationId) throw('baas.input.file: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.file: inputFile is required!')
     if(!baas) throw('baas.input.file: baas module is required!')
@@ -753,7 +770,11 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
         let sqlStatements = []
         
         const cache = await populateLookupCache( { sql, inputFile, fromOrganizationId, toOrganizationId, contextOrganizationId } )
-        let fileTypeId = cache.fileTypeId
+        
+        if(!fileTypeId) {
+            console.warn('FileTypeId was not specified, falling back to naive matching in the function...')
+            fileTypeId = cache.fileTypeId
+        }
        // let entityBatchTypeId = cache.entityBatchTypeId
        // let entityTransactionTypeId = cache.entityTransactionTypeId
         let fileSize = cache.fileSize
@@ -767,7 +788,7 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
         sqlStatements.push( fileEntitySQL.param )
 
         // create the file record
-        let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, correlationId, source, destination } )
+        let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, effectiveDate, correlationId, source, destination, fileNameOutbound } )
         sqlStatements.push( fileSQL.param )
 
         // call SQL and run the SQL transaction to import the ach file to the database

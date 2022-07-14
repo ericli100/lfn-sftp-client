@@ -7,6 +7,9 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+const papa = require('papaparse');
+const parseCSV = papa.unparse
+
 var VENDOR_NAME
 var ENVIRONMENT
 
@@ -442,6 +445,8 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     // **************************************
 
     let from = email.from.emailAddress.address.toLowerCase();
+
+    let effectiveDate = email.sentDateTime
     let to = email.toRecipients;
     let subject = email.subject;
     let msgDate = email.sentDateTime;
@@ -453,8 +458,6 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     let isApprovedRecipient = await baas.email.approvedRecipientCheck(to, config) 
     
     let emailApprovedSenders = config.email.inbound.emailApprovedSenders
-
-
 
     // VALID SENDER CHECKS
     if (isAchApprovedRecipient){
@@ -557,7 +560,9 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                         fromOrganizationId: config.email.inbound.fromOrganizationId, 
                         toOrganizationId: config.email.inbound.toOrganizationId, 
                         inputFile: fullFilePath, 
-                        isOutbound: false, 
+                        isOutbound: false,
+                        effectiveDate: effectiveDate,
+                        overrideExtension: undefined,
                     }
     
                     if (inputFileObj.isOutbound == false) {
@@ -567,7 +572,19 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                         inputFileObj.source = 'lineage:/' + 'email' + ':' + approved 
                         inputFileObj.destination = `${config.vendor}.${config.environment}:/` + attachmentPath.destination
                     }
-    
+
+                    /// ******************************
+                    /// ** DETERMINE THE FILE TYPE **    <----
+                    /// ******************************
+
+                    let fileTypeId
+                    let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId } )
+                    if( determinedFileTypeId.fileTypeId ) {
+                        inputFileObj.fileTypeId = determinedFileTypeId.fileTypeId;
+                        fileTypeId = determinedFileTypeId.fileTypeId;
+                        inputFileObj.fileNameOutbound = determinedFileTypeId.fileNameOutbound
+                        inputFileObj.overrideExtension = determinedFileTypeId.overrideExtension
+                    }
                     // ***********************************
                     // *** WRITE THE FILE TO THE DB ****
                     // ***********************************
@@ -575,6 +592,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                     fileEntityId = inputFileOutput.fileEntityId
                     if(!file.entityId) file.entityId = fileEntityId;
                     audit.entityId = fileEntityId
+
                 } catch (err) {
                     if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
                     throw(err);
@@ -700,6 +718,176 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     // **************************************
     // *** END PER EMAIL PROCESSING *********
     // **************************************
+
+    return output
+}
+
+async function determineInputFileTypeId({baas, inputFileObj, contextOrganizationId, config, correlationId}) {
+    // refactor the complex logic here to determine the file type
+    // we will likely have to inspect content, email body, or other facts
+
+    /// ******************************
+    /// ** DETERMINE THE FILE TYPE **    <----
+    /// ******************************
+
+    let output = {}
+    let fileSelect = {}
+
+    output.fileName = path.basename( inputFileObj.inputFile )
+
+    let FILE_TYPE_MATCH = 'UNMATCHED';
+    let extensionOverride
+
+    // Set these flags in the future by evaluating the file content
+    debugger;
+    
+    output.isACH = await baas.ach.isACH( inputFileObj.inputFile )
+    output.isAchReturn = false // ACH_RETURN https://moov-io.github.io/ach/returns/
+    output.isAchInbound = false;
+
+    if(output.isACH) {
+        let parsedACH = JSON.parse( await baas.ach.parseACH( inputFileObj.inputFile ) )
+        if (config.ach.inbound.immediateDestination.includes( parsedACH.fileHeader.immediateDestination )) {
+            output.isAchInbound = true
+            FILE_TYPE_MATCH = 'ACH_INBOUND'
+            extensionOverride = 'ach'
+        } else {
+            // there is a clerical error.
+            throw(`ERROR: INVALID ACH FILE SENT TO [${config.vendor}].[${config.environment}] the ACH Immediate Destination in the file [${output.fileName}] is: [${parsedACH.fileHeader.immediateDestination}] and is not listed in the ALLOWED LIST:[${config.ach.inbound.immediateDestination}]`)
+        }  
+    }
+
+    let checkExtention = path.extname( inputFileObj.inputFile ).substring(1, path.extname( inputFileObj.inputFile ).length)
+    if(checkExtention.toLowerCase() == 'ach' && !output.isACH) {
+        throw(`ACH PARSE ERROR! The file provided [${output.fileName}] could not be parsed and needs to be validated and resumbitted! baas.processing.determinInputFileTypeId()`)
+    }
+
+    output.isCSV = await isCSVcheck( {inputFile: inputFileObj.inputFile} )
+    output.isCsvAccountBalances = false
+    output.isCsvFileActivity = false
+
+    if(output.isCSV) {
+        // extensionOverride = 'csv'
+    }
+
+    output.isAchConfirmation = false; // ACH_ACK
+    output.isFedWire = false; // WIRE_INBOUND
+    output.isFedWireConfirmaiton = false;
+
+    output.extensionOverride = extensionOverride 
+    output.fileExtension = extensionOverride || path.extname( inputFileObj.inputFile ).substring(1, path.extname( inputFileObj.inputFile ).length)
+
+    fileSelect.fileExtension = output.fileExtension
+    fileSelect.contextOrganizationId = contextOrganizationId
+    fileSelect.fromOrganizationId = inputFileObj.fromOrganizationId
+    fileSelect.toOrganizationId = inputFileObj.toOrganizationId
+    fileSelect.fileName = output.fileName
+
+    let fileTypeId
+    try{
+        // MASTER DATA LOOKUP TO AVOID REDUNDANT CALLS TO THE DATABASE
+        // - fileTypeId
+        let fileTypeSQL = await baas.sql.fileType.find( fileSelect )
+        fileTypeId = await baas.sql.executeTSQL( fileTypeSQL )
+        fileTypeId = fileTypeId[0].recordsets[0]
+
+        if(output.isCSV) {
+            // Check for valid headers
+            let csvHeaders = await isCSVcheck( { inputFile: inputFileObj.inputFile, returnHeaders: true } )
+            console.log(csvHeaders)
+
+            for(let fileType of fileTypeId){
+                // loop through the FileTypes and match the columnNames array
+                let columnNamesArray = fileType.columnNames.toLowerCase().split(',')
+                let csvHeadersArray = csvHeaders.map(element => element.toLowerCase())
+                
+                // check that all columns in the DB list match. Return the first full intersection
+                const intersection = columnNamesArray.filter(element => csvHeadersArray.includes( element.toLowerCase() ));
+
+                if(intersection.length == columnNamesArray.length) {
+                    // this is a good enough match -- all the required columns were matched.
+                    if(fileType.fileTypeMatch == 'CSV_BALANCES') output.isCsvAccountBalances = true
+                    if(fileType.fileTypeMatch == 'CSV_FILEACTIVITY') output.isCsvFileActivity = true
+
+                    FILE_TYPE_MATCH = fileType.fileTypeMatch
+                }         
+            }
+        }
+
+        // Return the fileTypeId that maps to fileTypeMatch == FILE_TYPE_MATCH
+        const matchedFileType = fileTypeId.find(obj => obj.fileTypeMatch === FILE_TYPE_MATCH);
+        output.fileTypeId = matchedFileType.entityId.trim()
+
+        if(output.fileTypeId) {
+            output.fileNameFormat = matchedFileType.fileNameFormat
+
+            let newName = matchedFileType.fileNameFormat
+            let fileDate = new Date( inputFileObj.effectiveDate ) || new Date().toUTCString()
+
+            function pad2(n) {  // always returns a string
+                return (n < 10 ? '0' : '') + n;
+            }
+
+            newName = newName.replace('YYYY', fileDate.getFullYear() )
+            newName = newName.replace('MM', pad2(fileDate.getMonth()) )
+            newName = newName.replace('DD', pad2(fileDate.getDay()) )
+            newName = newName.replace('HH', pad2(fileDate.getHours()) )
+            newName = newName.replace('MM', pad2(fileDate.getMinutes()) )
+            newName = newName.replace('SS', pad2(fileDate.getSeconds()) )
+            newName = newName.replace('{index}', '0')
+            newName += '.' + output.fileExtension
+
+            output.fileNameOutbound = newName
+
+            return output
+        }
+
+    } catch (fileTypeLoopError) {
+        console.log('fileTypeLookupError:', JSON.stringify(fileTypeLoopError) )
+        output.fileTypeId = fileTypeId || '99999999999999999999'
+    }
+   
+    // fileTypeId = await getFileTypeId( fileTypeId[0].data, fileSelect )
+
+    if (typeof fileTypeId === 'object') {
+        // there were multiple things returned
+        if (!fileTypeId) {
+            console.error('ERROR: the fileType does not exist, we set it to an unknown type and loaded it in the DB. We will fix it in post.')
+        }
+        output.fileTypeId = fileTypeId;
+        output.fileTypeReturnedData = fileTypeId
+    } else {
+        output.fileTypeId = fileTypeId || '99999999999999999999'
+    }
+
+    return output
+}
+
+async function isCSVcheck( {inputFile, returnHeaders }){
+    let output = false
+    try{
+        let myFileString = fs.readFileSync( inputFile ).toString()
+        let config = {
+            delimiter: "",
+            newline: "",	// auto-detect
+            quoteChar: '"',
+            escapeChar: '"',
+            header: true,
+            skipEmptyLines: true,
+        }
+        let myParsedCSV = papa.parse( myFileString, config )
+        
+        if(returnHeaders) {
+            // return an array of the headers
+            return Object.keys( myParsedCSV.data[0] )
+        } else {
+            if (myParsedCSV.data.length > 0) return true
+        }
+        
+    } catch (err){
+        return false
+    }
+        
 
     return output
 }
