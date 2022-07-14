@@ -139,7 +139,7 @@ async function main(args) {
         }
       
         if (stderr) {
-          console.error(`error: ${stderr}`);
+          console.error(`error: ${stderr}${stdout}`);
           throw stderr
         }
     
@@ -149,7 +149,7 @@ async function main(args) {
 
         return Output
     } catch (err) {
-        console.debug('ACHCLI Error:', err.stdout)
+        console.debug('ACHCLI Error:', err)
         throw(err)
     }
 }
@@ -372,9 +372,9 @@ module.exports = (args) => {
 
 module.exports.parseACH = (filename, unmasked) => {
     if (unmasked) {
-        return main([`-reformat json`, `${filename}`])
+        return main([`-reformat json`, `"${filename}"`])
     } else {
-        return main([`-reformat json`, `-mask`, `${filename}`])
+        return main([`-reformat json`, `-mask`, `"${filename}"`])
     }
     
 }
@@ -388,7 +388,7 @@ module.exports.formatMoney = (amount, decimalCount) => {
 }
 
 module.exports.isACH = (filename) => {
-    return isACH([`-reformat json`, `-mask`, `${filename}`])
+    return isACH([`-reformat json`, `-mask`, `"${filename}"`])
 }
 
 module.exports.parse = parseAchFile
