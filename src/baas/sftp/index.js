@@ -166,6 +166,36 @@ async function getRemoteFileList( config = null ){
 
     return output
 }
+
+async function putRemoteFileList( config = null ){
+    if ( !config ) {
+        config = await getConfig()
+    }
+    let sftp = await connect(config.server)
+    let logger = await getLogger()
+
+    let output = {}
+    output.remoteFiles = []
+
+    for (const mapping of config.folderMappings) {
+        if (mapping.type == 'put') {
+            let remoteFiles = await sftp.list(mapping.destination)
+
+            let remoteFilesArr = []
+            for (const obj of remoteFiles) {
+                if(obj.type != 'd'){ // only get the file not the folders
+                    remoteFilesArr.push(obj.name)
+                    output.remoteFiles.push( {filename: obj.name, type: obj.type, sourcePath: mapping.source, destinationPath: mapping.destination, encryptedPGP: mapping.usePGP } )
+                } 
+            }
+        }
+    }
+
+    await disconnect(sftp)
+
+    return output
+}
+
 async function getFile(fileDetails, workingDirectory, config = null) {
     if ( !config ) {
         config = await getConfig()
@@ -285,95 +315,22 @@ async function putFiles(baas, config = null) {
     }
 }
 
-async function put({ baas, config, encryptedFileStream, remoteDestinationPath }) {
-    debugger;
+async function put({ baas, config, encryptedFileStream, remoteDestinationPath, correlationId }) {
     if ( !config ) {
         config = await getConfig()
     }
     let sftp = await connect(config.server)
     let logger = await getLogger()
 
-    let output = {}
-    output.remoteFiles = []
-    output.receivedFiles = []
-    output.achFiles = []
-    output.wireFiles = []
-
-    for (const mapping of folderMappings) {
-        if (mapping.type == 'put') {
-
-            if (mapping.usePGP) {
-                baas.audit.log({ baas, logger: baas.logger,  level: 'verbose', message: `Using *GPG Keys* for File Encryption on PUT to the remote [${REMOTE_HOST}].` })
-            }
-
-            let filenames = await getLocalFileList(mapping.source)
-
-            console.log(`${mapping.source} FILES:`, filenames)
-            // for each filename
-            for (const filename of filenames) {
-                // put the file
-  
-                let remote = mapping.destination + '/' + filename;
-
-                let message = `${VENDOR_NAME}: SFTP >>> PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] to [${REMOTE_HOST} ${mapping.destination}]`
-
-                
-                if (mapping.usePGP) {
-                    //let hasSuffixGPG = ( filename.split('.').pop().toLowerCase() == 'gpg' )
-                    baas.audit.log({ baas, logger,  level: 'info', message: message + ' encrypting with *GPG/PGP* and adding .gpg extension...' })
-                    let file = fs.readFileSync(mapping.source + '/' + filename, {encoding:'utf8', flag:'r'})
-                    let encryptedFile = await encryptFile(logger, file, publicKey, privateKey)
-                    fs.writeFileSync(mapping.source + '/' + filename + '.gpg', encryptedFile, {encoding:'utf8', flag:'w'})
-                    
-                    baas.audit.log({ baas, logger,  level: 'info', message: message + ' encrypted *GPG/PGP* written to disk.' })
-                    await wait(1000) // wait a second...
-                    let encryptedFileStream = fs.createReadStream(mapping.source + '/' + filename + '.gpg')
-                    
-                    baas.audit.log({ baas, logger,  level: 'info', message: message + ' sending *GPG/PGP* encrypted file...' })
-                    await sftp.put(encryptedFileStream, remote + '.gpg');
-                } else {
-                    let file = fs.createReadStream(mapping.source + '/' + filename)
-                    baas.audit.log({ baas, logger,  level: 'info', message: message + ' sending file...' })
-                    await sftp.put(file, remote);
-                }
-
-                baas.audit.log({ baas, logger,  level: 'info', message: message + ' Sent.' })
-
-                let fileExistsOnRemote
-                if (usePGP) {
-                    fileExistsOnRemote = await validateFileExistsOnRemote(mapping.destination, filename + '.gpg')
-                } else {
-                    fileExistsOnRemote = await validateFileExistsOnRemote(mapping.destination, filename)
-                }
-                
-                baas.audit.log({ baas, logger,  level: 'info', message: message + ' File Exists on Remote Check - Status:' + fileExistsOnRemote })
-
-                await wait(5000) // wait a second... 
-                let fileMovedToProcessed
-
-                if(fileExistsOnRemote) {
-                    if(usePGP){
-                        await moveLocalFile(filename + '.gpg', mapping.source, mapping.processed, PROCESSING_DATE)
-                        baas.audit.log({ baas, logger, level: 'info', message: message + ' .gpg Encrypted File moved to the processing folder - Status:' + fileMovedToProcessed })
-                    }
-
-                    fileMovedToProcessed = await moveLocalFile(filename, mapping.source, mapping.processed, PROCESSING_DATE)
-                     
-                    baas.audit.log({ baas, logger, level: 'info', message: message + ' File moved to the processing folder - Status:' + fileMovedToProcessed })
-                }
-
-                if (fileExistsOnRemote && fileMovedToProcessed) {
-                    await sendWebhook(message + ' processed successfully.', false)
-                } else {
-                    let errMessage = `${VENDOR_NAME}: PUT [${filename}] from [LFNSRVFKNBANK01 ${mapping.source}] failed to validate send to [${REMOTE_HOST} ${mapping.destination}]! Transfer may have failed! {fileExistsOnRemote:${fileExistsOnRemote}, fileMovedToProcessed:${fileMovedToProcessed}}`
-                    logger.error({ message: errMessage })
-                    await sendWebhook(logger, errMessage, true)
-                }
-            }
-
-            await disconnect(sftp)
-        }
+    try{
+        await sftp.put(encryptedFileStream, remoteDestinationPath);
+        await baas.audit.log({baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.sftp.put - file to remote SFTP Path: [${remoteDestinationPath}] for environment [${CONFIG.environment}].`, correlationId })
+        await disconnect(sftp)
+    } catch {
+        return false
     }
+
+    return true
 }
 
 async function getLocalFileList(directory) {
@@ -493,3 +450,5 @@ module.exports.getFile = (fileDetails, workingDirectory, config) => {
 }
 
 module.exports.put = put;
+
+module.exports.putRemoteFileList = putRemoteFileList;

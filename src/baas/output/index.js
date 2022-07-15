@@ -251,6 +251,7 @@ async function downloadFilesToOrganization( { baas, CONFIG, correlationId } ) {
     // well, we may email them now.
     let output = {}
 
+    let ENABLE_SFTP_PUT = false
     let DELETE_DECRYPTED_FILES = false
     try {
         // get a list of files
@@ -340,15 +341,20 @@ async function downloadFilesToOrganization( { baas, CONFIG, correlationId } ) {
             }
             await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
 
-            // SFTP TO ORGANIZATION
-            let outencrypted = await baas.pgp.encryptedFile(CONFIG.vendor, CONFIG.environment, fullFilePath, fullFilePath + '.gpg',)
-            let encryptedFileStream = fs.createReadStream( fullFilePath + '.gpg' )
-            let remoteDestinationPath = '/tosynapse/' + path.basename( fullFilePath ) + '.gpg'
-            await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream, remoteDestinationPath });
-
+            if(ENABLE_SFTP_PUT){
+                // SFTP TO ORGANIZATION
+                let outencrypted = await baas.pgp.encryptFile(CONFIG.vendor, CONFIG.environment, fullFilePath, fullFilePath + '.gpg',)
+                let encryptedFileStream = fs.createReadStream( fullFilePath + '.gpg' )
+                let remoteDestinationPath = '/tosynapse/' + path.basename( fullFilePath ) + '.gpg'
+                await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream, remoteDestinationPath, correlationId });
+                await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
+            }
             // let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename + '.gpg')
-
         }
+
+        let remoteFiles = await baas.sftp.putRemoteFileList(CONFIG)
+        console.log(remoteFiles);
+
     } catch (err) {
         console.error(err)
         throw(err)
