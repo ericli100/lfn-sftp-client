@@ -57,11 +57,11 @@ This is the RSA key used to authenticate with the Synapse UAT environment
 
 Username: **lfn**
 
-```sftp -i synapese_lfn_uat_rsa_pem.key lfn@s-00cf6a49dae04eba8.server.transfer.us-west-2.amazonaws.com```
+```sftp -i synapse_lfn_uat_rsa_pem.key lfn@s-00cf6a49dae04eba8.server.transfer.us-west-2.amazonaws.com```
 
 
 ### **synapse_lfn_prod_rsa_pem.key**
-This is the RSA key used to authenticate with the Synapse UAT environment
+This is the RSA key used to authenticate with the Synapse PRD environment
 
 Username: **lfn**
 
