@@ -196,6 +196,10 @@ async function isFedWireCheck( { inputFile, listDetails } ) {
     let output
     if (listDetails) {
         output = {}
+        output.isFedWire = false
+        output.isInbound = false
+        output.isOutbound = false
+        output.parsedWire = {}
     } else {
         output = false;
     }
