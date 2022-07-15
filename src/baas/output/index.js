@@ -339,6 +339,15 @@ async function downloadFilesToOrganization( { baas, CONFIG, correlationId } ) {
                 throw('ERROR: baas.output.downloadFilesToOrganization() SHA256 CHECK FAILED!')
             }
             await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
+
+            // SFTP TO ORGANIZATION
+            let outencrypted = await baas.pgp.encryptedFile(CONFIG.vendor, CONFIG.environment, fullFilePath, fullFilePath + '.gpg',)
+            let encryptedFileStream = fs.createReadStream( fullFilePath + '.gpg' )
+            let remoteDestinationPath = '/tosynapse/' + path.basename( fullFilePath ) + '.gpg'
+            await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream, remoteDestinationPath });
+
+            // let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename + '.gpg')
+
         }
     } catch (err) {
         console.error(err)
