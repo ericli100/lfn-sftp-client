@@ -144,6 +144,210 @@ async function fileVault({baas, VENDOR, sql, entityId, contextOrganizationId, fi
     return true
 }
 
+async function downloadFilesFromOrganization( { baas, CONFIG, correlationId } ) {
+    // This is a spike to export the files to Gloria... these will be emailed in the future.
+    // well, we may email them now.
+    let output = {}
+
+    let DELETE_DECRYPTED_FILES = false
+
+    try {
+        let sqlStatement_from_organization = `
+        SELECT f.[entityId]
+            ,f.[contextOrganizationId]
+            ,f.[fromOrganizationId]
+            ,f.[toOrganizationId]
+            ,f.[fileTypeId]
+            ,f.[fileName]
+            ,f.[fileNameOutbound]
+            ,f.[fileURI]
+            ,f.[sizeInBytes]
+            ,f.[sha256]
+            ,f.[source]
+            ,f.[destination]
+            ,f.[isProcessed]
+            ,f.[hasProcessingErrors]
+            ,f.[isReceiptProcessed]
+            ,f.[isFedAcknowledged]
+            ,f.[isSentViaSFTP]
+            ,f.[fedAckFileEntityId]
+            ,f.[fileVaultId]
+            ,f.[isVaultValidated]
+            ,f.[quickBalanceJSON]
+            ,t.[isOutboundToFed]
+            ,t.[isInboundFromFed]
+            ,t.[fileExtension]
+            ,t.[isACH]
+            ,t.[isFedWire]
+            ,t.[fileNameFormat]
+        FROM [baas].[files] f
+        INNER JOIN [baas].[fileTypes] t
+            ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
+        WHERE f.[tenantId] = '3E2E6220-EDF2-439A-91E4-CEF6DE2E8B7B'
+        AND f.[contextOrganizationId] = '6022d4e2b0800000'
+        AND t.[fromOrganizationId] = '606ae4f54e800000'
+        AND t.[toOrganizationId] = '6022d4e2b0800000'
+        AND f.[isSentViaSFTP] = 0
+        AND f.[isProcessed] = 1
+        AND f.[hasProcessingErrors] = 0;`
+        
+        param = {}
+        param.params = []
+        param.tsql = sqlStatement_from_organization
+        output.sentFromOrganization =  await baas.sql.execute( param );
+        output.sentFromOrganization = output.sentFromOrganization[0].recordsets[0]
+    
+        // set a working directories
+        let workingDirectory_from_organization = await baas.processing.createWorkingDirectory(baas, CONFIG.vendor, CONFIG.environment, baas.logger, !DELETE_DECRYPTED_FILES, `_SENT_FROM_${ CONFIG.vendor.toUpperCase() }` )
+    
+        // download all the files ( 1 at a time )
+        for(let file of output.sentFromOrganization) {
+            console.log(file)
+
+            let outFileName = file.fileNameOutbound || file.fileName
+            let fullFilePath = path.resolve(workingDirectory_from_organization, outFileName)
+
+            let audit = {}
+            audit.vendor = CONFIG.vendor
+            audit.filename = outFileName
+            audit.environment = CONFIG.environment
+            audit.entityId = file.entityId
+            audit.correlationId = correlationId 
+
+            // download the file to validate it ( check the SHA256 Hash )
+            let fileVaultObj = {
+                baas: baas,
+                VENDOR: CONFIG.vendor,
+                contextOrganizationId: CONFIG.contextOrganizationId,
+                sql: baas.sql, 
+                entityId: '', 
+                fileEntityId: file.entityId, 
+                destinationPath: fullFilePath + '.gpg'
+            }
+            
+            await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down
+            // decrypt the files
+            await baas.pgp.decryptFile({ baas, audit, VENDOR: CONFIG.vendor, ENVIRONMENT: CONFIG.environment, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath })
+            await baas.audit.log({baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganization() - file [${outFileName}] was downloaded from the File Vault and Decrypted for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+    
+            let sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath )
+            if(sha256_VALIDATION != file.sha256) {
+                await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganization() - file [${outFileName}] SHA256 Check Failed! Stopping processing. [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                throw('ERROR: baas.output.downloadFilesFromOrganization() SHA256 CHECK FAILED!')
+            }
+            await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
+        }
+    
+        return true
+    } catch (err) {
+        console.error(err)
+        throw(err)
+    }
+
+}
+
+async function downloadFilesToOrganization( { baas, CONFIG, correlationId } ) {
+    // This is a spike to export the files to Gloria... these will be emailed in the future.
+    // well, we may email them now.
+    let output = {}
+
+    let DELETE_DECRYPTED_FILES = false
+    try {
+        // get a list of files
+        let sqlStatement_to_organization = `
+            SELECT f.[entityId]
+                ,f.[contextOrganizationId]
+                ,f.[fromOrganizationId]
+                ,f.[toOrganizationId]
+                ,f.[fileTypeId]
+                ,f.[fileName]
+                ,f.[fileNameOutbound]
+                ,f.[fileURI]
+                ,f.[sizeInBytes]
+                ,f.[sha256]
+                ,f.[source]
+                ,f.[destination]
+                ,f.[isProcessed]
+                ,f.[hasProcessingErrors]
+                ,f.[isReceiptProcessed]
+                ,f.[isFedAcknowledged]
+                ,f.[isSentViaSFTP]
+                ,f.[fedAckFileEntityId]
+                ,f.[fileVaultId]
+                ,f.[isVaultValidated]
+                ,f.[quickBalanceJSON]
+                ,t.[isOutboundToFed]
+                ,t.[isInboundFromFed]
+                ,t.[fileExtension]
+                ,t.[isACH]
+                ,t.[isFedWire]
+                ,t.[fileNameFormat]
+            FROM [baas].[files] f
+            INNER JOIN [baas].[fileTypes] t
+                ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
+            WHERE f.[tenantId] = '3E2E6220-EDF2-439A-91E4-CEF6DE2E8B7B'
+            AND f.[contextOrganizationId] = '6022d4e2b0800000'
+            AND t.[fromOrganizationId] = '6022d4e2b0800000'
+            AND t.[toOrganizationId] = '606ae4f54e800000'
+            AND f.[isSentViaSFTP] = 0
+            AND f.[isProcessed] = 1
+            AND f.[hasProcessingErrors] = 0;
+            `
+
+        let param = {}
+        param.params = []
+        param.tsql = sqlStatement_to_organization
+        output.sendToOrganization = await baas.sql.execute( param );
+        output.sendToOrganization = output.sendToOrganization[0].recordsets[0]
+
+        // set a working directories
+        let workingDirectory_to_organization = await baas.processing.createWorkingDirectory(baas, CONFIG.vendor, CONFIG.environment, baas.logger, !DELETE_DECRYPTED_FILES, `_SEND_TO_${ CONFIG.vendor.toUpperCase() }` )
+
+        // download all the files ( 1 at a time )
+        for(let file of output.sendToOrganization) {
+            console.log(file)
+
+            let outFileName = file.fileNameOutbound || file.fileName
+            let fullFilePath = path.resolve(workingDirectory_to_organization, outFileName)
+
+            let audit = {}
+            audit.vendor = CONFIG.vendor
+            audit.filename = outFileName
+            audit.environment = CONFIG.environment
+            audit.entityId = file.entityId
+            audit.correlationId = correlationId 
+
+            // download the file to validate it ( check the SHA256 Hash )
+            let fileVaultObj = {
+                baas: baas,
+                VENDOR: CONFIG.vendor,
+                contextOrganizationId: CONFIG.contextOrganizationId,
+                sql: baas.sql, 
+                entityId: '', 
+                fileEntityId: file.entityId, 
+                destinationPath: fullFilePath + '.gpg'
+            }
+            
+            await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down
+            // decrypt the files
+            await baas.pgp.decryptFile({ baas, audit, VENDOR: CONFIG.vendor, ENVIRONMENT: CONFIG.environment, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath })
+            await baas.audit.log({baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesToOrganization() - file [${outFileName}] was downloaded from the File Vault and Decrypted for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+    
+            let sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath )
+            if(sha256_VALIDATION != file.sha256) {
+                await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesToOrganization() - file [${outFileName}] SHA256 Check Failed! Stopping processing. [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                throw('ERROR: baas.output.downloadFilesToOrganization() SHA256 CHECK FAILED!')
+            }
+            await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
+        }
+    } catch (err) {
+        console.error(err)
+        throw(err)
+    }
+
+    return true
+}
+
 module.exports.fileActivity = (VENDOR, ENVIRONMENT, SQL, date, accountNumber) => {
     return fileActivity(VENDOR, ENVIRONMENT, SQL, date, accountNumber)
 }
@@ -159,3 +363,7 @@ module.exports.writeCSV = (filePath, fileName, csv) => {
 module.exports.fileVault = ({baas, VENDOR, sql, entityId, contextOrganizationId, fileEntityId, destinationPath}) => {
     return fileVault({baas, VENDOR, sql, entityId, contextOrganizationId, fileEntityId, destinationPath})
 }
+
+module.exports.downloadFilesFromOrganization = downloadFilesFromOrganization;
+
+module.exports.downloadFilesToOrganization = downloadFilesToOrganization;

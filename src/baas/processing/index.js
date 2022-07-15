@@ -94,6 +94,13 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     if(ENABLE_OUTBOUND_EMAIL_PROCESSING){
         let outboundEmailsStatus = await getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID } )
     }
+
+    if(CONFIG.processing.ENABLE_MANUAL_DB_DOWNLOAD) {
+        await baas.audit.log({baas, logger, level: 'info', message: `MANUAL FILE DOWNLOAD STARTED [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+        await baas.output.downloadFilesFromOrganization({ baas, CONFIG, correlationId: CORRELATION_ID })
+        await baas.output.downloadFilesToOrganization({ baas, CONFIG, correlationId: CORRELATION_ID })
+        await baas.audit.log({baas, logger, level: 'info', message: `MANUAL FILE DOWNLOAD ENDED [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+    }
 }
 
 async function test(baas) {
@@ -1101,7 +1108,7 @@ async function createWorkingDirectory(baas, VENDOR_NAME, ENVIRONMENT, logger, is
     let workingFolderId = await baas.id.generate()
     let workingFolder 
     if(isManual) {
-        suffix = '_MANUAL'
+        suffix = suffix || '_MANUAL'
         workingFolder = path.resolve( process.cwd() + `/buffer/${VENDOR_NAME}/${ENVIRONMENT}/${workingFolderId}${suffix}`)
         await baas.audit.log({baas, logger, level: 'info', message: `Working folder [${workingFolder}] for environment [${ENVIRONMENT}] *** MANUAL FLAG WAS SET ***` });
     } else {
@@ -1171,3 +1178,7 @@ module.exports.ENVIRONMENT = getEnvironment
 module.exports.getEnvironment = getEnvironment
 
 module.exports.setEnvironment = setEnvironment
+
+module.exports.createWorkingDirectory = createWorkingDirectory
+
+module.exports.deleteBufferFile = deleteBufferFile
