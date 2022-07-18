@@ -265,7 +265,67 @@ function Handler(mssql) {
         WHERE f.tenantId = '${tenantId}'
         AND f.contextOrganizationId = '${contextOrganizationId}'
         AND (t.[fromOrganizationId] = '${fromOrganizationId}' OR t.[toOrganizationId] = '${fromOrganizationId}')
-        AND f.isProcessed = 0
+        AND f.[isProcessed] = 1
+        AND f.isRejected = 0
+        AND f.isSentViaSFTP = 0;`
+    
+        let param = {}
+        param.params = []
+        param.tsql = sqlStatement
+        
+        try {
+            let results = await mssql.sqlQuery(param);
+            output = results.data
+        } catch (err) {
+            console.error(err)
+            throw err
+        }
+
+        return output
+    }
+
+    Handler.getUnprocessedOutboundSftpFiles = async function getUnprocessedOutboundSftpFiles({contextOrganizationId, vendorOrganizationId}){
+        let output = {}
+
+        let tenantId = process.env.PRIMAY_TENANT_ID
+    
+        let sqlStatement = `
+        SELECT f.[entityId]
+            ,t.[fromOrganizationId]
+            ,t.[toOrganizationId]
+            ,f.[fileTypeId]
+            ,f.[fileName]
+            ,f.[fileURI]
+            ,f.[sizeInBytes]
+            ,f.[sha256]
+            ,f.[source]
+            ,f.[destination]
+            ,f.[isProcessed]
+            ,f.[hasProcessingErrors]
+            ,f.[isReceiptProcessed]
+            ,t.[isOutboundToFed]
+            ,t.[isInboundFromFed]
+            ,t.[fileExtension]
+            ,t.[fileTypeName]
+            ,t.[fileNameFormat]
+            ,t.[columnNames]
+            ,t.[accountId]
+            ,t.[accountNumber_TEMP] AS [accountNumber]
+            ,t.[accountDescription_TEMP] AS [accountDescription]
+            ,t.isACH
+            ,t.isFedWire
+            ,t.[emailAdviceTo]
+            ,t.[emailProcessingTo]
+            ,t.[emailReplyTo]
+            ,f.[fileVaultId]
+            ,f.[quickBalanceJSON]
+        FROM [baas].[files] f
+        INNER JOIN [baas].[fileTypes] t
+        ON f.[fileTypeId] = t.entityId AND f.[tenantId] = t.[tenantId] AND f.contextOrganizationId = t.contextOrganizationId
+        WHERE f.tenantId = '${tenantId}'
+        AND f.contextOrganizationId = '${contextOrganizationId}'
+        AND (t.[fromOrganizationId] = '${vendorOrganizationId}' OR t.[toOrganizationId] = '${vendorOrganizationId}')
+        AND f.[isProcessed] = 1
         AND f.[hasProcessingErrors] = 0
         AND f.isRejected = 0
         AND f.isSentViaSFTP = 0;`
