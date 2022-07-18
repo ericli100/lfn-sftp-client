@@ -323,6 +323,7 @@ function Handler(mssql) {
         let mutatedBy = 'SYSTEM'
 
         if (!entityId) throw ('entityId required')
+        if (!rejectedReason) rejectedReason = ''
         let tenantId = process.env.PRIMAY_TENANT_ID
         if (!contextOrganizationId) throw ('contextOrganizationId required')
 
