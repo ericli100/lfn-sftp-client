@@ -251,7 +251,7 @@ async function downloadFilesToOrganization( { baas, CONFIG, correlationId } ) {
     // well, we may email them now.
     let output = {}
 
-    let ENABLE_SFTP_PUT = false
+    let ENABLE_SFTP_PUT = true
     let DELETE_DECRYPTED_FILES = false
     try {
         // get a list of files
