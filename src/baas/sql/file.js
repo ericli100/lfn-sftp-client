@@ -264,7 +264,8 @@ function Handler(mssql) {
         AND (t.[fromOrganizationId] = '${fromOrganizationId}' OR t.[toOrganizationId] = '${fromOrganizationId}')
         AND f.isProcessed = 0
         AND f.[hasProcessingErrors] = 0
-        AND f.isRejected = 0;`
+        AND f.isRejected = 0
+        AND f.isSentViaSFTP = 0;`
     
         let param = {}
         param.params = []
