@@ -95,6 +95,9 @@ function Handler(mssql) {
             ,[accountId]
             ,[accountNumber_TEMP] AS [accountNumber]
             ,[accountDescription_TEMP] AS [accountDescription]
+            ,[emailAdviceTo]
+            ,[emailProcessingTo]
+            ,[emailReplyTo]
             ,[fileTypeMatch]
             ,[correlationId]
             ,[versionNumber]
@@ -127,6 +130,9 @@ function Handler(mssql) {
             ,[accountId]
             ,[accountNumber_TEMP] AS [accountNumber]
             ,[accountDescription_TEMP] AS [accountDescription]
+            ,[emailAdviceTo]
+            ,[emailProcessingTo]
+            ,[emailReplyTo]
             ,[fileTypeMatch]
             ,[correlationId]
             ,[versionNumber]
@@ -141,6 +147,42 @@ function Handler(mssql) {
             `
         
         return sqlStatement
+    }
+
+    Handler.setEmailProcessing = async function setFileProcessed( {entityId, contextOrganizationId, emailAdviceTo, emailProcessingTo, emailReplyTo, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+
+        let sqlStatement = `
+            UPDATE [baas].[fileTypes]
+            SET [emailAdviceTo] = '${emailAdviceTo}'
+                ,[emailProcessingTo] = '${emailProcessingTo}'
+                ,[emailReplyTo] = '${emailReplyTo}'
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
     }
 
     return Handler

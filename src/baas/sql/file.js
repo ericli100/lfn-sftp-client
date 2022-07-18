@@ -167,7 +167,7 @@ function Handler(mssql) {
         ON t.[entityId] = f.[fileTypeId] AND t.[contextOrganizationId] = f.[contextOrganizationId] AND t.[tenantId] = f.[tenantId]
         WHERE [entityId] = '${entityId}'
          AND [tenantId] = '${tenantId}'
-         AND [contextOrganizationId] = ''${contextOrganizationId}`
+         AND [contextOrganizationId] = ''${contextOrganizationId}';`
 
         return sqlStatement
     }
@@ -254,6 +254,9 @@ function Handler(mssql) {
             ,t.[accountDescription_TEMP] AS [accountDescription]
             ,t.isACH
             ,t.isFedWire
+            ,t.[emailAdviceTo]
+            ,t.[emailProcessingTo]
+            ,t.[emailReplyTo]
             ,f.[fileVaultId]
             ,f.[quickBalanceJSON]
         FROM [baas].[files] f
