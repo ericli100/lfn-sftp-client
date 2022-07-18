@@ -152,6 +152,8 @@ function Handler(mssql) {
             ,[isOutbound]
             ,[source]
             ,[destination]
+            ,[isRejected]
+            ,[rejectedReason]
             ,[isProcessed]
             ,[hasProcessingErrors]
             ,[isReceiptProcessed]
@@ -261,7 +263,8 @@ function Handler(mssql) {
         AND f.contextOrganizationId = '${contextOrganizationId}'
         AND (f.[fromOrganizationId] = '${fromOrganizationId}' OR f.[toOrganizationId] = '${fromOrganizationId}')
         AND f.isProcessed = 0
-        AND f.[hasProcessingErrors] = 0;`
+        AND f.[hasProcessingErrors] = 0
+        AND f.isRejected = 0;`
     
         let param = {}
         param.params = []
@@ -291,6 +294,41 @@ function Handler(mssql) {
             UPDATE [baas].[files]
             SET [isProcessed] = 1
                 ,[hasProcessingErrors] = 0
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
+    Handler.setFileRejected = async function setFileRejected( {entityId, contextOrganizationId, rejectedReason, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [isRejected] = 1,
+                [rejectedReason] = '${rejectedReason}'
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
