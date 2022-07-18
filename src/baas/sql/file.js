@@ -137,34 +137,34 @@ function Handler(mssql) {
         if (!contextOrganizationId) throw ('contextOrganizationId required')
 
         let sqlStatement = `
-        SELECT [entityId]
-            ,[tenantId]
-            ,[contextOrganizationId]
-            ,[fromOrganizationId]
-            ,[toOrganizationId]
-            ,[fileTypeId]
-            ,[fileName]
-            ,[fileURI]
-            ,[fileBinary]
-            ,[sizeInBytes]
-            ,[sha256]
-            ,[isGzip]
-            ,[isOutbound]
-            ,[source]
-            ,[destination]
-            ,[isRejected]
-            ,[rejectedReason]
-            ,[isProcessed]
-            ,[hasProcessingErrors]
-            ,[isReceiptProcessed]
-            ,[fileVaultId]
-            ,[dataJSON]
-            ,[quickBalanceJSON]
-            ,[correlationId]
-            ,[versionNumber]
-            ,[mutatedBy]
-            ,[mutatedDate]
-        FROM [baas].[files]
+        SELECT f.[entityId]
+            ,f.[contextOrganizationId]
+            ,t.[fromOrganizationId]
+            ,t.[toOrganizationId]
+            ,f.[fileTypeId]
+            ,f.[fileName]
+            ,f.[fileNameOutbound]
+            ,f.[fileURI]
+            ,f.[sizeInBytes]
+            ,f.[sha256]
+            ,f.[isGzip]
+            ,f.[source]
+            ,f.[destination]
+            ,f.[isRejected]
+            ,f.[rejectedReason]
+            ,f.[isProcessed]
+            ,f.[hasProcessingErrors]
+            ,f.[isReceiptProcessed]
+            ,f.[fileVaultId]
+            ,f.[dataJSON]
+            ,f.[quickBalanceJSON]
+            ,f.[correlationId]
+            ,f.[versionNumber]
+            ,f.[mutatedBy]
+            ,f.[mutatedDate]
+        FROM [baas].[files] f
+        INNER JOIN [baas].[fileTypes] t
+        ON t.[entityId] = f.[fileTypeId] AND t.[contextOrganizationId] = f.[contextOrganizationId] AND t.[tenantId] = f.[tenantId]
         WHERE [entityId] = '${entityId}'
          AND [tenantId] = '${tenantId}'
          AND [contextOrganizationId] = ''${contextOrganizationId}`
@@ -231,8 +231,8 @@ function Handler(mssql) {
     
         let sqlStatement = `
         SELECT f.[entityId]
-            ,f.[fromOrganizationId]
-            ,f.[toOrganizationId]
+            ,t.[fromOrganizationId]
+            ,t.[toOrganizationId]
             ,f.[fileTypeId]
             ,f.[fileName]
             ,f.[fileURI]
@@ -261,7 +261,7 @@ function Handler(mssql) {
         ON f.[fileTypeId] = t.entityId AND f.[tenantId] = t.[tenantId] AND f.contextOrganizationId = t.contextOrganizationId
         WHERE f.tenantId = '${tenantId}'
         AND f.contextOrganizationId = '${contextOrganizationId}'
-        AND (f.[fromOrganizationId] = '${fromOrganizationId}' OR f.[toOrganizationId] = '${fromOrganizationId}')
+        AND (t.[fromOrganizationId] = '${fromOrganizationId}' OR t.[toOrganizationId] = '${fromOrganizationId}')
         AND f.isProcessed = 0
         AND f.[hasProcessingErrors] = 0
         AND f.isRejected = 0;`
