@@ -99,7 +99,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
         await baas.audit.log({baas, logger, level: 'info', message: `MANUAL FILE DOWNLOAD STARTED [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
         await baas.output.downloadFilesFromOrganization({ baas, CONFIG, correlationId: CORRELATION_ID })
 
-        
+
         // **********************************************
         // ** Download Files from DB and SFTP Outbound **
         // **********************************************
@@ -860,8 +860,8 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
             }
 
             newName = newName.replace('YYYY', fileDate.getFullYear() )
-            newName = newName.replace('MM', pad2(fileDate.getMonth()) )
-            newName = newName.replace('DD', pad2(fileDate.getDay()) )
+            newName = newName.replace('MM', pad2(fileDate.getMonth() + 1 ) )
+            newName = newName.replace('DD', pad2(fileDate.getDate()) )
             newName = newName.replace('HH', pad2(fileDate.getHours()) )
             newName = newName.replace('MM', pad2(fileDate.getMinutes()) )
             newName = newName.replace('SS', pad2(fileDate.getSeconds()) )
