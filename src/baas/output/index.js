@@ -263,6 +263,9 @@ async function downloadFilesfromDBandSFTPToOrganization( { baas, CONFIG, correla
     // The Type will let us know where to send the emails.
 
     // Refactor this later to process in a better location, there is a time crunch and we are shipping this!
+    debugger;
+    let currentFilesOnRemoteSFTP = await baas.sftp.validateFileExistsOnRemote(CONFIG, '/tosynapse', '', true)
+    await baas.audit.log({baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: SFTP REMOTE FILES: baas.output.downloadFilesfromDBandSFTPToOrganization() - ** currentFilesOnRemoteSFTP: [${currentFilesOnRemoteSFTP}] ** for environment [${CONFIG.environment}].`, correlationId })
 
     let output = {}
 
@@ -310,12 +313,12 @@ async function downloadFilesfromDBandSFTPToOrganization( { baas, CONFIG, correla
             await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down
             // decrypt the files
             await baas.pgp.decryptFile({ baas, audit, VENDOR: CONFIG.vendor, ENVIRONMENT: CONFIG.environment, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath })
-            await baas.audit.log({baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesToOrganization() - file [${outFileName}] was downloaded from the File Vault and Decrypted for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+            await baas.audit.log({baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was downloaded from the File Vault and Decrypted for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
     
             let sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath )
             if(sha256_VALIDATION != file.sha256) {
-                await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesToOrganization() - file [${outFileName}] SHA256 Check Failed! Stopping processing. [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
-                throw('ERROR: baas.output.downloadFilesToOrganization() SHA256 CHECK FAILED!')
+                await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] SHA256 Check Failed! Stopping processing. [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                throw('ERROR: baas.output.downloadFilesfromDBandSFTPToOrganization() SHA256 CHECK FAILED!')
             }
             await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
 
@@ -336,10 +339,10 @@ async function downloadFilesfromDBandSFTPToOrganization( { baas, CONFIG, correla
                 let fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote( CONFIG, remoteDestination, path.basename( fullFilePath ) + '.gpg' )
                 
                 if(fileIsOnRemote) {
-                    await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesToOrganization() - file [${outFileName}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                    await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
                     await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
                     await baas.sql.file.setSentViaSFTP({entityId: file.entityId, contextOrganizationId, correlationId})
-                    await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesToOrganization() - file [${outFileName}] was set as isSentViaSFTP using baas.sql.file.setSentViaSFTP() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                    await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was set as isSentViaSFTP using baas.sql.file.setSentViaSFTP() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
                     
                     // process the Advice for Wires or ACH
 

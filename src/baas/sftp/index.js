@@ -355,7 +355,7 @@ async function validateFileExistsOnLocal(localLocation, filename, usePGP) {
     }
 }
 
-async function validateFileExistsOnRemote(config, remoteLocation, filename) {
+async function validateFileExistsOnRemote(config, remoteLocation, filename, returnRemoteFileArray) {
     if ( !config ) {
         config = await getConfig()
     }
@@ -367,6 +367,10 @@ async function validateFileExistsOnRemote(config, remoteLocation, filename) {
         let remoteFilesArr = []
         for (const obj of remoteFiles) {
             remoteFilesArr.push(obj.name)
+        }
+
+        if(returnRemoteFileArray){
+            return remoteFilesArr 
         }
 
         if (remoteFilesArr.includes(filename)) {
