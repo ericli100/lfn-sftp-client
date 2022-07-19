@@ -329,13 +329,12 @@ async function downloadFilesfromDBandSFTPToOrganization( { baas, CONFIG, correla
                 if(!remoteDestination) throw ( `ERROR: we called baas.sftp.putRemoteDestinationFromConfig and it did not match a config value for file.destination:[${file.destination}]` )
 
                 // let's write these bits on the remote SFTP server
-                let remoteDestinationPath = remoteDestination + path.basename( fullFilePath ) + '.gpg'
+                let remoteDestinationPath = remoteDestination + '/' + path.basename( fullFilePath ) + '.gpg'
                 await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream, remoteDestinationPath, correlationId });
 
                 // does the file exist remotely after the push?
                 let fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote( CONFIG, remoteDestination, path.basename( fullFilePath ) + '.gpg' )
                 
-                debugger;
                 if(fileIsOnRemote) {
                     await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesToOrganization() - file [${outFileName}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
                     await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
