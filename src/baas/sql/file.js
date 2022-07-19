@@ -265,7 +265,8 @@ function Handler(mssql) {
         WHERE f.tenantId = '${tenantId}'
         AND f.contextOrganizationId = '${contextOrganizationId}'
         AND (t.[fromOrganizationId] = '${fromOrganizationId}' OR t.[toOrganizationId] = '${fromOrganizationId}')
-        AND f.[isProcessed] = 1
+        AND f.[isProcessed] = 0
+        AND f.[hasProcessingErrors] = 0
         AND f.isRejected = 0
         AND f.isSentViaSFTP = 0;`
     
