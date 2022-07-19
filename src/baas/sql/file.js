@@ -285,51 +285,58 @@ function Handler(mssql) {
         return output
     }
 
-    Handler.getUnprocessedOutboundSftpFiles = async function getUnprocessedOutboundSftpFiles({contextOrganizationId, vendorOrganizationId}){
+    Handler.getUnprocessedOutboundSftpFiles = async function getUnprocessedOutboundSftpFiles({contextOrganizationId, fromOrganizationId, toOrganizationId}){
         let output = {}
 
+        if(!contextOrganizationId) throw('baas.sql.file.getUnprocessedOutboundSftpFiles() needs a contextOrganizationId')
+        if(!fromOrganizationId) throw('baas.sql.file.getUnprocessedOutboundSftpFiles() needs a fromOrganizationId')
+        if(!toOrganizationId) throw('baas.sql.file.getUnprocessedOutboundSftpFiles() needs a toOrganizationId')
+
         let tenantId = process.env.PRIMAY_TENANT_ID
+
+        // AND t.[fromOrganizationId] = '6022d4e2b0800000'
+        //     AND t.[toOrganizationId] = '606ae4f54e800000'
     
         let sqlStatement = `
-        SELECT f.[entityId]
-            ,t.[fromOrganizationId]
-            ,t.[toOrganizationId]
-            ,f.[fileTypeId]
-            ,f.[fileName]
-            ,f.[fileURI]
-            ,f.[sizeInBytes]
-            ,f.[sha256]
-            ,f.[source]
-            ,f.[destination]
-            ,f.[isProcessed]
-            ,f.[hasProcessingErrors]
-            ,f.[isReceiptProcessed]
-            ,t.[isOutboundToFed]
-            ,t.[isInboundFromFed]
-            ,t.[fileExtension]
-            ,t.[fileTypeName]
-            ,t.[fileNameFormat]
-            ,t.[columnNames]
-            ,t.[accountId]
-            ,t.[accountNumber_TEMP] AS [accountNumber]
-            ,t.[accountDescription_TEMP] AS [accountDescription]
-            ,t.isACH
-            ,t.isFedWire
-            ,t.[emailAdviceTo]
-            ,t.[emailProcessingTo]
-            ,t.[emailReplyTo]
-            ,f.[fileVaultId]
-            ,f.[quickBalanceJSON]
-        FROM [baas].[files] f
-        INNER JOIN [baas].[fileTypes] t
-        ON f.[fileTypeId] = t.entityId AND f.[tenantId] = t.[tenantId] AND f.contextOrganizationId = t.contextOrganizationId
-        WHERE f.tenantId = '${tenantId}'
-        AND f.contextOrganizationId = '${contextOrganizationId}'
-        AND (t.[fromOrganizationId] = '${vendorOrganizationId}' OR t.[toOrganizationId] = '${vendorOrganizationId}')
-        AND f.[isProcessed] = 1
-        AND f.[hasProcessingErrors] = 0
-        AND f.isRejected = 0
-        AND f.isSentViaSFTP = 0;`
+            SELECT f.[entityId]
+                ,f.[contextOrganizationId]
+                ,f.[fromOrganizationId]
+                ,f.[toOrganizationId]
+                ,f.[fileTypeId]
+                ,f.[fileName]
+                ,f.[fileNameOutbound]
+                ,f.[fileURI]
+                ,f.[sizeInBytes]
+                ,f.[sha256]
+                ,f.[source]
+                ,f.[destination]
+                ,f.[isProcessed]
+                ,f.[hasProcessingErrors]
+                ,f.[isReceiptProcessed]
+                ,f.[isFedAcknowledged]
+                ,f.[isSentViaSFTP]
+                ,f.[fedAckFileEntityId]
+                ,f.[fileVaultId]
+                ,f.[isVaultValidated]
+                ,f.[quickBalanceJSON]
+                ,t.[isOutboundToFed]
+                ,t.[isInboundFromFed]
+                ,t.[fileExtension]
+                ,t.[isACH]
+                ,t.[isFedWire]
+                ,t.[fileNameFormat]
+            FROM [baas].[files] f
+            INNER JOIN [baas].[fileTypes] t
+                ON f.fileTypeId = t.entityId 
+                AND f.tenantId = t.tenantId 
+                AND f.contextOrganizationId = t.contextOrganizationId
+            WHERE f.[tenantId] = '${tenantId}'
+            AND f.[contextOrganizationId] = '${contextOrganizationId}'
+            AND t.[fromOrganizationId] = '${fromOrganizationId}'
+            AND t.[toOrganizationId] = '${toOrganizationId}'
+            AND f.[isSentViaSFTP] = 0
+            AND f.[isProcessed] = 1
+            AND f.[hasProcessingErrors] = 0;`
     
         let param = {}
         param.params = []
@@ -497,7 +504,7 @@ function Handler(mssql) {
 
         let sqlStatement = `
             UPDATE [baas].[files]
-            SET [sentViaSFTP] = 1,
+            SET [isSentViaSFTP] = 1,
                 [sentViaSFTPDate] = (SELECT getutcdate())
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
