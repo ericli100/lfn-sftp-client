@@ -366,13 +366,38 @@ async function validateFileExistsOnRemote(config, remoteLocation, filename) {
         }
 
         if (remoteFilesArr.includes(filename)) {
-            logger.info({ message: `The file [${filename}] has been PUT on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]` })
+            return true
         }
 
-        return remoteFilesArr.includes(filename)
+        return false
+    } catch (err) {
+        throw(err)
+    }
+}
+
+async function putRemoteDestinationFromConfig(config, dbDestination) {
+    if(!config) throw('baas.sftp.putRemoteFromConfig() requires object [config]')
+    if(!dbDestination) throw('baas.sftp.putRemoteFromConfig() requires string [dbDestination]')
+
+    if ( !config ) {
+        config = await getConfig()
+    }
+    let logger = await getLogger()
+
+    try {
+        let folders = config.folderMappings
+
+        for (const folder of folders) {
+            // only process the PUT
+            if (folder.dbDestination == dbDestination && folder.type == 'put'){
+                return folder.destination
+            }
+        }
+
+        return undefined
     } catch (err) {
         logger.error({ message: `The file [${filename}] was NOT successfully validated on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]! With Error: [${err}]` })
-        return false
+        throw (err)
     }
 }
 
@@ -452,3 +477,7 @@ module.exports.getFile = (fileDetails, workingDirectory, config) => {
 module.exports.put = put;
 
 module.exports.putRemoteFileList = putRemoteFileList;
+
+module.exports.validateFileExistsOnRemote = validateFileExistsOnRemote;
+
+module.exports.putRemoteDestinationFromConfig = putRemoteDestinationFromConfig;
