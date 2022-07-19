@@ -263,7 +263,6 @@ async function downloadFilesfromDBandSFTPToOrganization( { baas, CONFIG, correla
     // The Type will let us know where to send the emails.
 
     // Refactor this later to process in a better location, there is a time crunch and we are shipping this!
-    debugger;
     let currentFilesOnRemoteSFTP = await baas.sftp.validateFileExistsOnRemote(CONFIG, '/tosynapse', '', true)
     await baas.audit.log({baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: SFTP REMOTE FILES: baas.output.downloadFilesfromDBandSFTPToOrganization() - ** currentFilesOnRemoteSFTP: [${currentFilesOnRemoteSFTP}] ** for environment [${CONFIG.environment}].`, correlationId })
 
