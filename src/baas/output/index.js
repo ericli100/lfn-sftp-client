@@ -251,55 +251,63 @@ async function downloadFilesToOrganization( { baas, CONFIG, correlationId } ) {
     // well, we may email them now.
     let output = {}
 
+    debugger;
+
+    let contextOrganizationId = CONFIG.contextOrganizationId
+    let fromOrganizationId = CONFIG.toOrganizationId // reversed for OUTBOUND
+    let toOrganizationId = CONFIG.fromOrganizationId // reversed for OUTBOUND
+
     let ENABLE_SFTP_PUT = true
     let DELETE_DECRYPTED_FILES = false
     try {
         // get a list of files
-        let sqlStatement_to_organization = `
-            SELECT f.[entityId]
-                ,f.[contextOrganizationId]
-                ,f.[fromOrganizationId]
-                ,f.[toOrganizationId]
-                ,f.[fileTypeId]
-                ,f.[fileName]
-                ,f.[fileNameOutbound]
-                ,f.[fileURI]
-                ,f.[sizeInBytes]
-                ,f.[sha256]
-                ,f.[source]
-                ,f.[destination]
-                ,f.[isProcessed]
-                ,f.[hasProcessingErrors]
-                ,f.[isReceiptProcessed]
-                ,f.[isFedAcknowledged]
-                ,f.[isSentViaSFTP]
-                ,f.[fedAckFileEntityId]
-                ,f.[fileVaultId]
-                ,f.[isVaultValidated]
-                ,f.[quickBalanceJSON]
-                ,t.[isOutboundToFed]
-                ,t.[isInboundFromFed]
-                ,t.[fileExtension]
-                ,t.[isACH]
-                ,t.[isFedWire]
-                ,t.[fileNameFormat]
-            FROM [baas].[files] f
-            INNER JOIN [baas].[fileTypes] t
-                ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
-            WHERE f.[tenantId] = '3E2E6220-EDF2-439A-91E4-CEF6DE2E8B7B'
-            AND f.[contextOrganizationId] = '6022d4e2b0800000'
-            AND t.[fromOrganizationId] = '6022d4e2b0800000'
-            AND t.[toOrganizationId] = '606ae4f54e800000'
-            AND f.[isSentViaSFTP] = 0
-            AND f.[isProcessed] = 1
-            AND f.[hasProcessingErrors] = 0;
-            `
+        let unprocessedOutboundSftpFiles = await baas.sql.file.getUnprocessedOutboundSftpFiles({ contextOrganizationId, fromOrganizationId, toOrganizationId })
 
-        let param = {}
-        param.params = []
-        param.tsql = sqlStatement_to_organization
-        output.sendToOrganization = await baas.sql.execute( param );
-        output.sendToOrganization = output.sendToOrganization[0].recordsets[0]
+        // let sqlStatement_to_organization = `
+        //     SELECT f.[entityId]
+        //         ,f.[contextOrganizationId]
+        //         ,f.[fromOrganizationId]
+        //         ,f.[toOrganizationId]
+        //         ,f.[fileTypeId]
+        //         ,f.[fileName]
+        //         ,f.[fileNameOutbound]
+        //         ,f.[fileURI]
+        //         ,f.[sizeInBytes]
+        //         ,f.[sha256]
+        //         ,f.[source]
+        //         ,f.[destination]
+        //         ,f.[isProcessed]
+        //         ,f.[hasProcessingErrors]
+        //         ,f.[isReceiptProcessed]
+        //         ,f.[isFedAcknowledged]
+        //         ,f.[isSentViaSFTP]
+        //         ,f.[fedAckFileEntityId]
+        //         ,f.[fileVaultId]
+        //         ,f.[isVaultValidated]
+        //         ,f.[quickBalanceJSON]
+        //         ,t.[isOutboundToFed]
+        //         ,t.[isInboundFromFed]
+        //         ,t.[fileExtension]
+        //         ,t.[isACH]
+        //         ,t.[isFedWire]
+        //         ,t.[fileNameFormat]
+        //     FROM [baas].[files] f
+        //     INNER JOIN [baas].[fileTypes] t
+        //         ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
+        //     WHERE f.[tenantId] = '3E2E6220-EDF2-439A-91E4-CEF6DE2E8B7B'
+        //     AND f.[contextOrganizationId] = '6022d4e2b0800000'
+        //     AND t.[fromOrganizationId] = '6022d4e2b0800000'
+        //     AND t.[toOrganizationId] = '606ae4f54e800000'
+        //     AND f.[isSentViaSFTP] = 0
+        //     AND f.[isProcessed] = 1
+        //     AND f.[hasProcessingErrors] = 0;
+        //     `
+
+        // let param = {}
+        // param.params = []
+        // param.tsql = sqlStatement_to_organization
+        // output.sendToOrganization = await baas.sql.execute( param );
+        output.sendToOrganization = unprocessedOutboundSftpFiles
 
         // set a working directories
         let workingDirectory_to_organization = await baas.processing.createWorkingDirectory(baas, CONFIG.vendor, CONFIG.environment, baas.logger, !DELETE_DECRYPTED_FILES, `_SEND_TO_${ CONFIG.vendor.toUpperCase() }` )
@@ -343,18 +351,29 @@ async function downloadFilesToOrganization( { baas, CONFIG, correlationId } ) {
 
             if(ENABLE_SFTP_PUT){
                 // SFTP TO ORGANIZATION
-                let outencrypted = await baas.pgp.encryptFile(CONFIG.vendor, CONFIG.environment, fullFilePath, fullFilePath + '.gpg',)
+                let outencrypted = await baas.pgp.encryptFile( CONFIG.vendor, CONFIG.environment, fullFilePath, fullFilePath + '.gpg' )
                 let encryptedFileStream = fs.createReadStream( fullFilePath + '.gpg' )
-                let remoteDestinationPath = '/tosynapse/' + path.basename( fullFilePath ) + '.gpg'
+                
+                // where are we supposed to put this? Check the config.
+                let remoteDestination = await baas.sftp.putRemoteDestinationFromConfig( CONFIG, file.destination )
+                if(!remoteDestination) throw ( `ERROR: we called baas.sftp.putRemoteDestinationFromConfig and it did not match a config value for file.destination:[${file.destination}]` )
+
+                // let's write these bits on the remote SFTP server
+                let remoteDestinationPath = remoteDestination + path.basename( fullFilePath ) + '.gpg'
                 await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream, remoteDestinationPath, correlationId });
-                await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
+
+                // does the file exist remotely after the push?
+                let fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote( CONFIG, remoteDestination, path.basename( fullFilePath ) + '.gpg' )
+                
+                if(fileIsOnRemote) {
+                    await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesToOrganization() - file [${outFileName}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                    await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
+                    await baas.sql.file.setSentViaSFTP({entityId: file.entityId, contextOrganizationId, correlationId})
+                    await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesToOrganization() - file [${outFileName}] was set as isSentViaSFTP using baas.sql.file.setSentViaSFTP() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                }
             }
             // let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename + '.gpg')
         }
-
-        let remoteFiles = await baas.sftp.putRemoteFileList(CONFIG)
-        console.log(remoteFiles);
-
     } catch (err) {
         console.error(err)
         throw(err)
