@@ -316,21 +316,25 @@ async function putFiles(baas, config = null) {
 }
 
 async function put({ baas, config, encryptedFileStream, remoteDestinationPath, correlationId }) {
+    if(!baas) throw('baas.sftp.put() requires object [baas]')
+    if(!encryptedFileStream) throw('baas.sftp.put() requires object [encryptedFileStream]')
+    if(!remoteDestinationPath) throw('baas.sftp.put() requires string [remoteDestinationPath]')
+   
     if ( !config ) {
         config = await getConfig()
     }
-    let sftp = await connect(config.server)
-    let logger = await getLogger()
 
     try{
+        let sftp = await connect(config.server)
+
         await sftp.put(encryptedFileStream, remoteDestinationPath);
         await baas.audit.log({baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.sftp.put - file to remote SFTP Path: [${remoteDestinationPath}] for environment [${CONFIG.environment}].`, correlationId })
         await disconnect(sftp)
-    } catch {
-        return false
-    }
 
-    return true
+        return true
+    } catch (error) {
+        throw( error )
+    }
 }
 
 async function getLocalFileList(directory) {
