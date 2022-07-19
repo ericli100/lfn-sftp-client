@@ -144,9 +144,10 @@ async function fileVault({baas, VENDOR, sql, entityId, contextOrganizationId, fi
     return true
 }
 
-async function downloadFilesFromOrganization( { baas, CONFIG, correlationId } ) {
-    // This is a spike to export the files to Gloria... these will be emailed in the future.
-    // well, we may email them now.
+async function downloadFilesFromOrganizationSendToDepositOps( { baas, CONFIG, correlationId } ) {
+    if(!baas) throw ('baas.output.downloadFilesFromOrganizationSendToDepositOps() requires the baas module')
+    if(!CONFIG) throw ('baas.output.downloadFilesFromOrganizationSendToDepositOps() requires the CONFIG module')
+
     let output = {}
 
     let DELETE_DECRYPTED_FILES = false
@@ -236,6 +237,14 @@ async function downloadFilesFromOrganization( { baas, CONFIG, correlationId } ) 
                 throw('ERROR: baas.output.downloadFilesFromOrganization() SHA256 CHECK FAILED!')
             }
             await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
+
+
+            // process the Advice for Wires or ACH
+
+            // Send the Advice Emails
+
+            // Send the Deposit Operations Outbound Processing Emails
+
         }
     
         return true
@@ -246,67 +255,28 @@ async function downloadFilesFromOrganization( { baas, CONFIG, correlationId } ) 
 
 }
 
-async function downloadFilesToOrganization( { baas, CONFIG, correlationId } ) {
-    // This is a spike to export the files to Gloria... these will be emailed in the future.
-    // well, we may email them now.
-    let output = {}
+async function downloadFilesfromDBandSFTPToOrganization( { baas, CONFIG, correlationId } ) {
+    if(!baas) throw ('baas.output.downloadFilesfromDBandSFTPToOrganization() requires the baas module')
+    if(!CONFIG) throw ('baas.output.downloadFilesfromDBandSFTPToOrganization() requires the CONFIG module')
 
-    debugger;
+    // These are the files that came in to go outbound to the Fed.
+    // The Type will let us know where to send the emails.
+
+    // Refactor this later to process in a better location, there is a time crunch and we are shipping this!
+
+    let output = {}
 
     let contextOrganizationId = CONFIG.contextOrganizationId
     let fromOrganizationId = CONFIG.toOrganizationId // reversed for OUTBOUND
     let toOrganizationId = CONFIG.fromOrganizationId // reversed for OUTBOUND
 
+    // dev flags
     let ENABLE_SFTP_PUT = true
-    let DELETE_DECRYPTED_FILES = false
+    let DELETE_DECRYPTED_FILES = true
+    
     try {
         // get a list of files
         let unprocessedOutboundSftpFiles = await baas.sql.file.getUnprocessedOutboundSftpFiles({ contextOrganizationId, fromOrganizationId, toOrganizationId })
-
-        // let sqlStatement_to_organization = `
-        //     SELECT f.[entityId]
-        //         ,f.[contextOrganizationId]
-        //         ,f.[fromOrganizationId]
-        //         ,f.[toOrganizationId]
-        //         ,f.[fileTypeId]
-        //         ,f.[fileName]
-        //         ,f.[fileNameOutbound]
-        //         ,f.[fileURI]
-        //         ,f.[sizeInBytes]
-        //         ,f.[sha256]
-        //         ,f.[source]
-        //         ,f.[destination]
-        //         ,f.[isProcessed]
-        //         ,f.[hasProcessingErrors]
-        //         ,f.[isReceiptProcessed]
-        //         ,f.[isFedAcknowledged]
-        //         ,f.[isSentViaSFTP]
-        //         ,f.[fedAckFileEntityId]
-        //         ,f.[fileVaultId]
-        //         ,f.[isVaultValidated]
-        //         ,f.[quickBalanceJSON]
-        //         ,t.[isOutboundToFed]
-        //         ,t.[isInboundFromFed]
-        //         ,t.[fileExtension]
-        //         ,t.[isACH]
-        //         ,t.[isFedWire]
-        //         ,t.[fileNameFormat]
-        //     FROM [baas].[files] f
-        //     INNER JOIN [baas].[fileTypes] t
-        //         ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
-        //     WHERE f.[tenantId] = '3E2E6220-EDF2-439A-91E4-CEF6DE2E8B7B'
-        //     AND f.[contextOrganizationId] = '6022d4e2b0800000'
-        //     AND t.[fromOrganizationId] = '6022d4e2b0800000'
-        //     AND t.[toOrganizationId] = '606ae4f54e800000'
-        //     AND f.[isSentViaSFTP] = 0
-        //     AND f.[isProcessed] = 1
-        //     AND f.[hasProcessingErrors] = 0;
-        //     `
-
-        // let param = {}
-        // param.params = []
-        // param.tsql = sqlStatement_to_organization
-        // output.sendToOrganization = await baas.sql.execute( param );
         output.sendToOrganization = unprocessedOutboundSftpFiles
 
         // set a working directories
@@ -365,14 +335,23 @@ async function downloadFilesToOrganization( { baas, CONFIG, correlationId } ) {
                 // does the file exist remotely after the push?
                 let fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote( CONFIG, remoteDestination, path.basename( fullFilePath ) + '.gpg' )
                 
+                debugger;
                 if(fileIsOnRemote) {
                     await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesToOrganization() - file [${outFileName}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
                     await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
                     await baas.sql.file.setSentViaSFTP({entityId: file.entityId, contextOrganizationId, correlationId})
                     await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesToOrganization() - file [${outFileName}] was set as isSentViaSFTP using baas.sql.file.setSentViaSFTP() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                    
+                    // process the Advice for Wires or ACH
+
+                    // Send the Advice Emails
+                    
                 }
             }
             // let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename + '.gpg')
+        
+            
+        
         }
     } catch (err) {
         console.error(err)
@@ -398,6 +377,6 @@ module.exports.fileVault = ({baas, VENDOR, sql, entityId, contextOrganizationId,
     return fileVault({baas, VENDOR, sql, entityId, contextOrganizationId, fileEntityId, destinationPath})
 }
 
-module.exports.downloadFilesFromOrganization = downloadFilesFromOrganization;
+module.exports.downloadFilesFromOrganizationSendToDepositOps = downloadFilesFromOrganizationSendToDepositOps;
 
-module.exports.downloadFilesToOrganization = downloadFilesToOrganization;
+module.exports.downloadFilesfromDBandSFTPToOrganization = downloadFilesfromDBandSFTPToOrganization;
