@@ -424,6 +424,20 @@ function Handler() {
         return config.email.inbound.wireApprovedSenders.includes(sender)
     }
 
+    Handler.parseEmails = async function parseEmails ( emails ){
+        debugger;
+        // expects a CSV of emails and return an MS.Graph Email Array
+        let output = []
+
+        let splitEmail = emails.split(',')
+
+        for(let email of splitEmail) {
+            output.push({ emailAddress: { address: email.trim() } })
+        }
+
+        return output
+    }
+
     Handler.approvedWireRecipientCheck = async function approvedWireRecipientCheck (recipients, config){
         // return the first approved recipient or undefined if no match
         for(let recipient of recipients) {
