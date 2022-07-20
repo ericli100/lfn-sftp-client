@@ -128,18 +128,6 @@ async function parseWireFile( inputfile ) {
         // ********************************
         // ** PARSE THE LINE **************
         // ********************************
-
-        currentWireJSON.number = i
-
-        if (i == 0) {
-            console.log('first one in the array.')
-        }
-
-        if (i == output.parsedFileArray.length - 1) {
-            console.log('last one in the array.')
-            debugger;
-        }
-
         let line = output.parsedFileArray[i]
         
         if(line.includes('YFT811')) {
@@ -217,7 +205,7 @@ async function parseWireFile( inputfile ) {
                 // running total
                 output.totalAmount = output.totalAmount + currentWireJSON.totalAmount;
 
-                if(pi == parsedWire.length - 1){
+                if(pi == parsedWire.length - 1 && line.lastIndexOf('}') >= 20){
                     // supposed to be for a multifile ONLY
                     output.wires.push(currentWireJSON)
                     currentWireJSON = {}
