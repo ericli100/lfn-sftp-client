@@ -97,8 +97,6 @@ async function parseWireFile( inputfile ) {
   
       await events.once(rl, 'close');
 
-      debugger;
-
       currentParsedWire.hasYFT811 = false
       currentParsedWire.YFT811count = 0
 
@@ -107,7 +105,7 @@ async function parseWireFile( inputfile ) {
 
       // check if the wires are on a single line or multiples
       // -- parse to multiline
-      currentParsedWire.isMultiline = false
+      output.isMultiline = false
       currentParsedWire.linesCount = 0
 
       // contains an array of wires
@@ -125,38 +123,20 @@ async function parseWireFile( inputfile ) {
       // let's work with the array that was just processed:
       // process each line of the file
       for(const i in output.parsedFileArray){
-        
-        // only reset these if this has multiple wires
-        if(output.hasMultipleWires) {
-            // check if YFT811 or {1500}
-            // -- parse off the prefix
-            currentParsedWire.hasYFT811 = false
-            currentParsedWire.YFT811count = 0
-
-            currentParsedWire.hasXFT811 = false
-            currentParsedWire.XFT811count = 0
-
-            // check if the wires are on a single line or multiples
-            // -- parse to multiline
-            currentParsedWire.isMultiline = false
-            currentParsedWire.linesCount = 0
-
-            // contains an array of wires
-            currentParsedWire.wiresJSON = []
-            
-            // dollar total for all wires
-            currentParsedWire.totalAmount = 0
-            currentParsedWire.currency = 'USD'
-
-            // strip out the YFT811
-            // new lines after each line identifier {???}
-            currentParsedWire.reformatedFile = ''
-        }
-
     
         // ********************************
         // ** PARSE THE LINE **************
         // ********************************
+
+        currentWireJSON.number = i
+
+        if (i == 0) {
+            console.log('first one in the array.')
+        }
+
+        if (i == output.parsedFileArray.length - 1) {
+            console.log('last one in the array.')
+        }
 
         let line = output.parsedFileArray[i]
         
@@ -172,7 +152,7 @@ async function parseWireFile( inputfile ) {
             currentWireJSON.XFT811 = 'XFT811'
         }
 
-        if(line.includes('{1500}') || line.includes('{1100}}') ) {
+        if(line.includes('{1500}') || line.includes('{1100}') ) {
             output.wiresCount = output.wiresCount + 1;
             if(output.wiresCount > 1) output.hasMultipleWires = true
 
@@ -213,20 +193,22 @@ async function parseWireFile( inputfile ) {
             }
 
             // multiple wires - pull total
-            if((pi == parsedWire.length - 1 && output.hasMultipleWires)) {
+            if((pi == parsedWire.length - 1 && (output.hasMultipleWires || i == 0))) {
                 // this is the end of the current wire being parsed
                 currentWireJSON.totalAmount = parseInt(currentWireJSON["'{2000}'"]) || 0
                 currentWireJSON.currency = 'USD'
 
                 // running total
-                output.totalAmount = output.totalAmount + currentWireJSON.totalCredits;
+                // skip the first one, it has already been added
+                if(i != 0 ) output.totalAmount = output.totalAmount + currentWireJSON.totalAmount;
 
                 output.wires.push(currentWireJSON)
                 currentWireJSON = {}
+                currentWireJSON.totalAmount == 0
             }
 
-            // single wire in file - pull amount
-            if(output.hasMultipleWires == false && currentWireJSON.hasOwnProperty("'{2000}'") && currentWireJSON.totalAmount == 0) {
+            // first multiwire or single wire in file - pull amount
+            if(output.hasMultipleWires == false && currentWireJSON.hasOwnProperty("'{2000}'") && (currentWireJSON.totalAmount == 0 || !currentWireJSON.totalAmount) ) {
                 // this is the end of the current wire being parsed
                 currentWireJSON.totalAmount = parseInt(currentWireJSON["'{2000}'"]) || 0
                 currentWireJSON.currency = 'USD'
@@ -239,6 +221,7 @@ async function parseWireFile( inputfile ) {
             if( output.hasMultipleWires == false && i == output.parsedFileArray.length - 1 && pi == parsedWire.length - 1 && Object.keys(currentWireJSON).length > 5){
                 output.wires.push(currentWireJSON)
                 currentWireJSON = {}
+                currentWireJSON.totalAmount == 0
             }
         }
       }
