@@ -195,7 +195,7 @@ async function parseWireFile( inputfile ) {
             }
 
             // multiple wires - pull total
-            if((pi == parsedWire.length - 1 && (output.hasMultipleWires))) {
+            if((pi == parsedWire.length - 1 && output.hasMultipleWires)) {
                 // this is the end of the current wire being parsed
                 currentWireJSON.totalAmount = parseInt(currentWireJSON["'{2000}'"]) || 0
                 currentWireJSON.currency = 'USD'
@@ -209,13 +209,20 @@ async function parseWireFile( inputfile ) {
             }
 
             // first multiwire or single wire in file - pull amount
-            if(output.hasMultipleWires == false && currentWireJSON.hasOwnProperty("'{2000}'") && (currentWireJSON.totalAmount == 0 || !currentWireJSON.totalAmount) ) {
+            if(pi == parsedWire.length - 1 && output.hasMultipleWires == false && currentWireJSON.hasOwnProperty("'{2000}'") && (currentWireJSON.totalAmount == 0 || !currentWireJSON.totalAmount) ) {
                 // this is the end of the current wire being parsed
                 currentWireJSON.totalAmount = parseInt(currentWireJSON["'{2000}'"]) || 0
                 currentWireJSON.currency = 'USD'
 
                 // running total
                 output.totalAmount = output.totalAmount + currentWireJSON.totalAmount;
+
+                if(pi == parsedWire.length - 1){
+                    // supposed to be for a multifile ONLY
+                    output.wires.push(currentWireJSON)
+                    currentWireJSON = {}
+                    currentWireJSON.totalAmount == 0
+                }
             }
 
             // single wire in file - last line
