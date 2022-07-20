@@ -124,6 +124,7 @@ async function parseWireFile( inputfile ) {
       // process each line of the file
       for(const i in output.parsedFileArray){
     
+        
         // ********************************
         // ** PARSE THE LINE **************
         // ********************************
@@ -136,6 +137,7 @@ async function parseWireFile( inputfile ) {
 
         if (i == output.parsedFileArray.length - 1) {
             console.log('last one in the array.')
+            debugger;
         }
 
         let line = output.parsedFileArray[i]
@@ -193,14 +195,13 @@ async function parseWireFile( inputfile ) {
             }
 
             // multiple wires - pull total
-            if((pi == parsedWire.length - 1 && (output.hasMultipleWires || i == 0))) {
+            if((pi == parsedWire.length - 1 && (output.hasMultipleWires))) {
                 // this is the end of the current wire being parsed
                 currentWireJSON.totalAmount = parseInt(currentWireJSON["'{2000}'"]) || 0
                 currentWireJSON.currency = 'USD'
 
                 // running total
-                // skip the first one, it has already been added
-                if(i != 0 ) output.totalAmount = output.totalAmount + currentWireJSON.totalAmount;
+                output.totalAmount = output.totalAmount + currentWireJSON.totalAmount;
 
                 output.wires.push(currentWireJSON)
                 currentWireJSON = {}
