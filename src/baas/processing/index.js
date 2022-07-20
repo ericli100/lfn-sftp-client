@@ -110,6 +110,10 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
 
         await baas.audit.log({baas, logger, level: 'info', message: `MANUAL FILE DOWNLOAD ENDED [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
     }
+
+    // close this thing down
+    console.log('Ending the process...')
+    process.exit()
 }
 
 async function test(baas) {
@@ -938,24 +942,24 @@ async function getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         // TODO: pull the necessary notification from the DB
         // Process the files in the returned array
     
-        let content = 
-        `
-        From Node.js - This is a test message that was sent via the Microsoft Graph API endpoint.
+        // let content = 
+        // `
+        // From Node.js - This is a test message that was sent via the Microsoft Graph API endpoint.
 
-        *****************************************************************************************
-         Vendor: ${VENDOR_NAME}
-         Environment: ${ENVIRONMENT}
-        *****************************************************************************************
-        `
+        // *****************************************************************************************
+        //  Vendor: ${VENDOR_NAME}
+        //  Environment: ${ENVIRONMENT}
+        // *****************************************************************************************
+        // `
 
-        let message = { 
-            subject: 'Test Message from MS Graph - getOutboudEmailFiles()', 
-            body: { contentType: 'Text', content: content }, 
-            toRecipients: [{ emailAddress: { address: 'admins@lineagebank.com' } }],
-        }
+        // let message = { 
+        //     subject: 'Test Message from MS Graph - getOutboudEmailFiles()', 
+        //     body: { contentType: 'Text', content: content }, 
+        //     toRecipients: [{ emailAddress: { address: 'admins@lineagebank.com' } }],
+        // }
     
-        // attachments: attachment
-        await baas.email.sendEmail({ client, message })
+        // // attachments: attachment
+        // await baas.email.sendEmail({ client, message })
         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: OUTBOUND EMAILS - END PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${ JSON.stringify(config.email.inbound) } }].`, correlationId  })
     } catch (outboundEmailProcessingError) {
         await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: OUTBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(outboundEmailProcessingError) }]!`, correlationId  })
