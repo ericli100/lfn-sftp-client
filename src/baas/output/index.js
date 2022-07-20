@@ -168,8 +168,10 @@ async function downloadFilesFromOrganizationSendToDepositOps( { baas, CONFIG, co
             ,f.[destination]
             ,f.[isProcessed]
             ,f.[hasProcessingErrors]
+	    ,f.[isForceOverrideProcessingErrors]
             ,f.[isReceiptProcessed]
             ,f.[isFedAcknowledged]
+	        ,f.[isSentToDepositOperations]
             ,f.[isSentViaSFTP]
             ,f.[fedAckFileEntityId]
             ,f.[fileVaultId]
@@ -185,12 +187,12 @@ async function downloadFilesFromOrganizationSendToDepositOps( { baas, CONFIG, co
         INNER JOIN [baas].[fileTypes] t
             ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
         WHERE f.[tenantId] = '3E2E6220-EDF2-439A-91E4-CEF6DE2E8B7B'
+        AND f.[isRejected] = 0
         AND f.[contextOrganizationId] = '6022d4e2b0800000'
         AND t.[fromOrganizationId] = '606ae4f54e800000'
         AND t.[toOrganizationId] = '6022d4e2b0800000'
         AND f.[isSentViaSFTP] = 0
-        AND f.[isProcessed] = 1
-        AND f.[hasProcessingErrors] = 0;`
+        AND ( (f.[isProcessed] = 1 AND f.[hasProcessingErrors] = 0) OR f.[isForceOverrideProcessingErrors] = 1);`
         
         param = {}
         param.params = []
@@ -238,12 +240,77 @@ async function downloadFilesFromOrganizationSendToDepositOps( { baas, CONFIG, co
             }
             await baas.processing.deleteBufferFile( fullFilePath + '.gpg' ) // remove the local file now it is uploaded
 
+            debugger;
+            if(CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING) {
+                let wireAdvice
+                // process the Advice for Wires or ACH
+                if (file.isFedWire) {
+                    wireAdvice = await baas.wire.wireAdvice({ vendor: CONFIG.vendor, environment: CONFIG.environment, inputFile: fullFilePath, isOutbound: true })
 
-            // process the Advice for Wires or ACH
+                    const client = await baas.email.getClient();
+                    // let inputFile = path.resolve(__dirname + "/data/test_file_attachment.txt");
+                    let attachment = await baas.email.createMsGraphAttachments( fullFilePath )
+                    let footer = `\n\n\n`
+                    footer += `*************************************************************************************************************************\n`
+                    footer += `  file SHA256: [${file.sha256}]      \n`
 
-            // Send the Advice Emails
+
+                    MSGraphMail.ReplyTo.Name	String	The name in the 'replyTo' field of the email.
+                    MSGraphMail.ReplyTo.Address	String	The email address in the 'replyTo' field of the email.
+
+                    let message = { 
+                        subject: 'TEST WIRE ADVICE', 
+                        body: { contentType: 'Text', content: wireAdvice + footer }, 
+                        replyTO
+                        toRecipients: [{ emailAddress: { address: 'brandon.hedge@lineagebank.com' } }],
+                        //attachments: attachment
+                    }
+
+                    let sendACHAdvice = await baas.email.sendEmail({ client, message })
+                }
+
+                let achAdvice
+                if (file.isACH) {
+                    try{
+                        achAdvice = await baas.ach.achAdvice({ vendor: CONFIG.vendor, environment: CONFIG.environment, filename: fullFilePath, isOutbound: true })
+                    } catch (achAdviceError) {
+                        if (!file.isForceOverrideProcessingErrors) {
+                            throw(achAdviceError)
+                        }
+                    }
+
+                    if(!achAdvice) {
+                        // establish a new advice for this manual override file
+                        achAdvice = await baas.ach.achAdviceOverride({ vendor: CONFIG.vendor, environment: CONFIG.environment, filename: fullFilePath, isOutbound: true })
+                    }
+                   
+                    // Send the Advice Emails
+                    let emailMessage = {}
+
+                    const client = await baas.email.getClient();
+                    // let inputFile = path.resolve(__dirname + "/data/test_file_attachment.txt");
+                    let attachment = await baas.email.createMsGraphAttachments( fullFilePath )
+                    let footer = `\n\n\n`
+                    footer += `*************************************************************************************************************************\n`
+                    footer += `  file SHA256: [${file.sha256}]      \n`
+
+                    let message = { 
+                        subject: 'TEST ACH ADVICE', 
+                        body: { contentType: 'Text', content: achAdvice + footer }, 
+                        replyTO
+                        toRecipients: [{ emailAddress: { address: 'brandon.hedge@lineagebank.com' } }],
+                        //attachments: attachment
+                    }
+
+                    let sendACHAdvice = await baas.email.sendEmail({ client, message })
+                    
+                    // Set Status In DB
+                }
+            } 
 
             // Send the Deposit Operations Outbound Processing Emails
+
+            // Set Status In DB
 
         }
     

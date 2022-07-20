@@ -193,7 +193,7 @@ async function isValidJSON( data ) {
     }
 }
 
-async function achAdvice(filename, isOutbound){
+async function achAdvice({ vendor, environment, filename, isOutbound }){
     let ach_data = await main( [`-reformat json`, `-mask`, `"${filename}"`] )
 
     let isJSON = await isValidJSON( ach_data )
@@ -212,11 +212,14 @@ async function achAdvice(filename, isOutbound){
 
     if (isOutbound) {direction = "OUTBOUND"}
 
-    let messageBody = `*********************************************\n`
-    messageBody += `BaaS: ${direction} ACH Advice - Notification\n`
-    messageBody += `*********************************************\n`
+    let messageBody = `******************************************************************************\n`
+    messageBody += `  ${vendor.toUpperCase()}:${environment.toUpperCase()} - BaaS: ${direction} FedACH Advice - Notification\n`
+    messageBody += `******************************************************************************\n`
+
     messageBody += `\n\n`
-    messageBody += `Filename: ` + filename
+    messageBody += `Vendor: ${vendor}\n`
+    messageBody += `Environment: ${environment}\n`
+    messageBody += `Filename: ` + path.basename( filename ) + '\n';
     messageBody += `\n\n`
 
     if (isJSON) {
@@ -237,6 +240,48 @@ async function achAdvice(filename, isOutbound){
 
     messageBody += `ACH FILE DETAILS:\n`
     messageBody += ach_data
+    messageBody += `\n\n`
+
+    return messageBody
+}
+
+async function achAdviceOverride({ vendor, environment, filename, isOutbound }){
+    debugger;
+    let achJSON = await parseAchFile( filename )
+    let direction = "INBOUND"
+
+    if (isOutbound) {direction = "OUTBOUND"}
+
+    let messageBody = `******************************************************************************\n`
+    messageBody += `  ${vendor.toUpperCase()}:${environment.toUpperCase()} - BaaS: ${direction} FedACH Advice - Notification\n`
+    messageBody += ` ** WARNING - PROCESSED WITH THE MANUAL OVERRIDE FLAG!!! \n`
+    messageBody += ` ** FALLING BACK TO THE QUICK PARSER !!                    \n`
+    messageBody += ` ** FILE DID NOT PASS THE NACHA SPEC VALIDATION - FILE MAY HAVE ERRORS ON [FEDACH] !! \n`
+    messageBody += `******************************************************************************\n`
+
+    messageBody += `\n\n`
+    messageBody += `Vendor: ${vendor}\n`
+    messageBody += `Environment: ${environment}\n`
+    messageBody += `Filename: ` + path.basename( filename ) + '\n';
+    messageBody += `Manual Override: TRUE\n`;
+    messageBody += `Failed Moov.ACH Parsing: TRUE\n`;
+    messageBody += `\n\n`
+
+ 
+    let spacing = "   "
+    messageBody += `******** ACH Quick Parse Details ********\n`
+    messageBody += `\n`
+    messageBody += spacing + `Total Debits: ${formatMoney( achJSON.totalDebits, 2)} \n`// achJSON.fileControl
+    messageBody += spacing + `Total Credits: ${formatMoney("-" + achJSON.totalCredits, 2) } \n`
+    messageBody += '\n\n'
+
+
+    messageBody += `******** ACH Quick Parse End ****\n`
+    messageBody += `\n\n`
+    
+
+    messageBody += `ACH [QUICK PARSE] FILE DETAILS:\n`
+    messageBody += JSON.stringify(achJSON, null, ' ')
     messageBody += `\n\n`
 
     return messageBody
@@ -379,9 +424,9 @@ module.exports.parseACH = (filename, unmasked) => {
     
 }
 
-module.exports.achAdvice = (filename, isOutbound) => {
-    return achAdvice( filename, isOutbound )
-}
+module.exports.achAdvice = achAdvice
+
+module.exports.achAdviceOverride = achAdviceOverride 
 
 module.exports.formatMoney = (amount, decimalCount) => {
     return formatMoney(amount, decimalCount)

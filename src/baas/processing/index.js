@@ -110,6 +110,10 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
 
         await baas.audit.log({baas, logger, level: 'info', message: `MANUAL FILE DOWNLOAD ENDED [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
     }
+
+    // close this thing down
+    console.log('Ending the process...')
+    process.exit()
 }
 
 async function test(baas) {
