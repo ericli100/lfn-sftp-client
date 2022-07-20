@@ -425,7 +425,6 @@ function Handler() {
     }
 
     Handler.parseEmails = async function parseEmails ( emails ){
-        debugger;
         // expects a CSV of emails and return an MS.Graph Email Array
         let output = []
 
