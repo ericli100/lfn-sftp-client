@@ -2,7 +2,7 @@
 const entityId = require('./index');
 const iterations = 10;
 
-test('Check for illegal characters in id generation.', async () => {
+test('Checks for illegal characters in id generation.', async () => {
     for(let i = 0; i < iterations; ++i) {
         expect(entityId.generate()).toMatch(/[0-9a-f]+/);
     }
