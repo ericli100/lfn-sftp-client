@@ -148,6 +148,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         `${config.vendor}.${config.environment}.ach@lineagebank.com`,
         `${config.vendor}.ach@lineagebank.com`,
         `synapse.prd.ach@lineagebank.com`, // TEMPORARY
+        `${config.vendor}.${config.environment}.ach@lineagefn.com`
     ]
     // TEMPORARY        `synapse.prd.ach@lineagebank.com`,
 
@@ -162,6 +163,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.email.inbound.wireApprovedRecipients = [
         `${config.vendor}.${config.environment}.wire@lineagebank.com`,
         `${config.vendor}.wire@lineagebank.com`,
+        `${config.vendor}.${config.environment}.wire@lineagefn.com`
     ]
     
     config.email.inbound.approvedRecipients = [
