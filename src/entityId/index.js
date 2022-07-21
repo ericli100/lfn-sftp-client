@@ -1,4 +1,4 @@
-'user strict';
+'use strict';
 
 const intformat = require('biguint-format');
 const FlakeId = require('flake-idgen');
