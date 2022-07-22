@@ -1148,7 +1148,7 @@ async function deleteWorkingDirectory(workingFolder) {
     
         await baas.audit.log({baas, logger, level: 'verbose', message: `Working folder [${last}] was deleted.`} );
     } catch (err) {
-        console.error(`Error: while deleting Working folder [${workingFolder}!`);
+        console.warn(`Warning: while deleting Working folder [${workingFolder}!`);
         return false
     }
 
