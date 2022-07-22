@@ -50,6 +50,10 @@ async function main(){
     console.log('sql: disconnecting...')
     baas.sql.disconnect()
     console.log('sql: disconnected.')
+
+    // close this thing down
+    console.log('Ending the process...')
+    process.exit()
 }
 
 async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
