@@ -79,10 +79,20 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
 
     if(ENABLE_INBOUND_PROCESSING_FROM_DB){
         await processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, PROCESSING_DATE, CORRELATION_ID)
+
+        // ****************************************************
+        // ** Download Files from DB and Send to Deposit Ops **
+        // ****************************************************
+        await baas.output.downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, correlationId: CORRELATION_ID })
     }
 
     if(ENABLE_OUTBOUND_PROCESSING_FROM_DB){
         await processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, PROCESSING_DATE, CORRELATION_ID)
+
+        // **********************************************
+        // ** Download Files from DB and SFTP Outbound **
+        // **********************************************
+        await baas.output.downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlationId: CORRELATION_ID })
     }
     
     // -- receiptSent (used for FileActivityFile)
@@ -98,15 +108,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     if(CONFIG.processing.ENABLE_MANUAL_DB_DOWNLOAD) {
         await baas.audit.log({baas, logger, level: 'info', message: `MANUAL FILE DOWNLOAD STARTED [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
         
-        // ****************************************************
-        // ** Download Files from DB and Send to Deposit Ops **
-        // ****************************************************
-        await baas.output.downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, correlationId: CORRELATION_ID })
-        
-        // **********************************************
-        // ** Download Files from DB and SFTP Outbound **
-        // **********************************************
-        await baas.output.downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlationId: CORRELATION_ID })
+        console.warn('TODO: implement the manual download code. Allow passing in a flag to downloadFilesFromOrganizationSendToDepositOps() and downloadFilesfromDBandSFTPToOrganization()')
 
         await baas.audit.log({baas, logger, level: 'info', message: `MANUAL FILE DOWNLOAD ENDED [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
     }
@@ -1054,8 +1056,8 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                         let parsedWire = await baas.wire.parse( fullFilePath )
                         
                         let quickBalanceJSON = {
-                            totalCredits: parsedWire.totalCredits,
-                            totalDebits: parsedWire.totalDebits,
+                            totalCredits: parsedWire.totalAmount,
+                            totalDebits: 0,
                         }
                         await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed wire quickBalanceJSON: ${JSON.stringify(quickBalanceJSON)}`, correlationId} )
 
@@ -1104,9 +1106,11 @@ async function processOutboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMEN
 
     // TODO: implement DB code
 
-    let output = baas.output
-    let fileActivityFileCSV = await output.fileActivity(VENDOR_NAME, ENVIRONMENT, baas.sql, 'date', '30-2010-20404000');
-    output.writeCSV(`${process.cwd()}/src/manualImport/`, fileActivityFileCSV.fileName, fileActivityFileCSV.csv)
+    // let output = baas.output
+    // let fileActivityFileCSV = await output.fileActivity(VENDOR_NAME, ENVIRONMENT, baas.sql, 'date', '30-2010-20404000');
+    // output.writeCSV(`${process.cwd()}/src/manualImport/`, fileActivityFileCSV.fileName, fileActivityFileCSV.csv)
+
+
 
     await baas.audit.log({baas, logger, level: 'info', message: `Outbound Processing ended from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId})
 

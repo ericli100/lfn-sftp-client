@@ -53,6 +53,7 @@ async function main(){
 
     // close this thing down
     console.log('Ending the process...')
+    console.log('process.exit()')
     process.exit()
 }
 
