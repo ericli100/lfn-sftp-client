@@ -1,7 +1,7 @@
 'use strict';
 
 let VENDOR_NAME = 'synapse'
-let ENVIRONMENT = 'uat'
+let ENVIRONMENT = 'prd'
 
 require('dotenv').config({ path: __dirname + '/.env' })
 var path = require('path');
@@ -66,12 +66,10 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
 
     /*
         6022d1b33f000000 == Lineage Bank
-        606ae4f54e800000 == Synapse UAT
         606ae47a5b000000 == Synapse PRD
 
                             	organizationNumber	name
          606ae47a5b000000    	900150	Synapse (prd)
-         606ae4f54e800000    	900175	Synapse (uat)
     */
 
     if (ENVIRONMENT == 'prd') {
@@ -81,13 +79,6 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     //    SSH_PASSPHRASE = fs.readFileSync(`./certs/${VENDOR_NAME}/prd_passphrase.key`)
         SSH_PRIVATEKEY = fs.readFileSync(`./certs/${VENDOR_NAME}/${ENVIRONMENT}/synapse_lfn_${ENVIRONMENT}_rsa_pem.key`)
         FROM_ORGANIZATION_ID = '606ae47a5b000000'
-    } else if (ENVIRONMENT == 'uat') {
-        REMOTE_HOST = 's-00cf6a49dae04eba8.server.transfer.us-west-2.amazonaws.com'
-        PORT = 22
-        USERNAME = 'lfn'
-        SSH_PASSPHRASE = ''
-        SSH_PRIVATEKEY = fs.readFileSync(`./certs/${VENDOR_NAME}/${ENVIRONMENT}/synapse_lfn_${ENVIRONMENT}_rsa_pem.key`)
-        FROM_ORGANIZATION_ID = '606ae4f54e800000'
     }
 
     config.server = {
@@ -115,7 +106,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.environment = ENVIRONMENT;
     config.vendor = VENDOR_NAME;
 
-    config.contextOrganizationId = '6022d4e2b0800000'; 
+    config.contextOrganizationId = '6022d4e2b0800000';    
     config.fromOrganizationId = FROM_ORGANIZATION_ID;
     config.toOrganizationId = '6022d4e2b0800000';
 
@@ -149,7 +140,6 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         `${config.vendor}.ach@lineagebank.com`,
         `${config.vendor}.${config.environment}.ach@lineagefn.com`
     ]
-    // TEMPORARY        `synapse.prd.ach@lineagebank.com`,
 
     config.email.inbound.wireApprovedSenders = [
         "cheryl.lamberth@lineagefn.com",
@@ -190,7 +180,6 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.ach@lineagebank.com`, destination: `${config.vendor}.uat.ach` })
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.wire@lineagebank.com`, destination: `${config.vendor}.uat.wire` })
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.fis@lineagebank.com`, destination: `${config.vendor}.uat.fis` })
-     // TEMPORARY config.email.inbound.folderMappings.push({ to: `${config.vendor}.prd.ach@lineagebank.com`, destination: `${config.vendor}.uat.ach` })
 
     config.ach = {};
     config.ach.inbound = {}
