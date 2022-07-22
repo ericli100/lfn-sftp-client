@@ -1056,9 +1056,18 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                         let parsedWire = await baas.wire.parse( fullFilePath )
                         
                         let quickBalanceJSON = {
-                            totalCredits: parsedWire.totalAmount,
+                            totalCredits: 0,
                             totalDebits: 0,
                         }
+                        
+                        if(file.isOutboundToFed) {
+                            quickBalanceJSON.totalDebits = parsedWire.totalAmount
+                        }
+
+                        if(file.isInboundFromFed) {
+                            quickBalanceJSON.totalCredits = parsedWire.totalAmount
+                        }
+
                         await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed wire quickBalanceJSON: ${JSON.stringify(quickBalanceJSON)}`, correlationId} )
 
                         let updateJSONSQL = await baas.sql.file.updateJSON({ entityId: file.entityId, quickBalanceJSON: quickBalanceJSON, contextOrganizationId, correlationId })
