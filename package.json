@@ -4,6 +4,7 @@
   "description": "Lineage SFTP client for file transfer.",
   "main": "server.js",
   "scripts": {
+    "start": "node src/index.js",
     "test": "jest"
   },
   "author": "brandon.hedge@lineagebank.com",
@@ -14,6 +15,7 @@
     "@slack/webhook": "^6.0.0",
     "biguint-format": "^1.0.2",
     "bluebird": "^3.7.2",
+    "commander": "^9.4.0",
     "debug": "^4.3.4",
     "dotenv": "^10.0.0",
     "flake-idgen": "^1.4.0",
