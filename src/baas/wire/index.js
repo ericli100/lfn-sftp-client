@@ -19,11 +19,9 @@ let wasmPath = path.resolve('./src/baas/wire/wire.wasm')
 const wasmBuffer = fs.readFileSync( wasmPath );
 
 async function parse ( inputfile ) {
-    const EXECUTE_MOOV_WASM = false
+    const EXECUTE_MOOV_WASM = true
 
-    if(!inputfile) throw( 'baas.wire.parse() requires an inputFile!')
-    // if(!inputfile) inputfile = './src/baas/wire/sample_wire_southstate.txt'
-    // if(!inputfile) inputfile = './src/baas/wire/wire_fed_20220623132146_0.txt'
+    if(!inputfile) inputfile = './src/baas/wire/wire_fed_20220623132146_0.txt'
     // if(!inputfile) inputfile = './src/baas/wire/sample_wire.txt'
 
     let input = await inputFileToString( inputfile )
@@ -37,11 +35,69 @@ async function parse ( inputfile ) {
             const wasm = await WebAssembly.instantiate(wasmBuffer, importObject);
             go.run(wasm.instance)
 
-            let output = ''
-            output = await globalThis.parseContents(input)
-            parsedWire = JSON.parse(output); 
+            let output = {}
+            output.wires = []
+            input = input.split('{')
 
-            return parsedWire
+            let parsed = ''
+            for(let line of input){
+                let spaces = '                                                                                                    '
+                spaces += '                                                                                                   ';
+                
+                let newline
+                if(line.indexOf('3100}') == 0) {
+                    newline = line + spaces
+                    newline = newline.substring(0, 32)
+                }
+
+                if(line.indexOf('3400}') == 0) {
+                    newline = line + spaces
+                    newline = newline.substring(0, 32)
+                }
+
+                if(line.indexOf('3600}') == 0) {
+                    newline = line + spaces
+                    newline = newline.substring(0, 11)
+                }
+
+                if(line.indexOf('4200}') == 0) {
+                    newline = line + spaces
+                    newline = newline.substring(0, 180)
+                }
+
+                if(line.indexOf('5000}') == 0) {
+                    newline = line + spaces
+                    newline = newline.substring(0, 180)
+                }
+
+                if(line.indexOf('5100}') == 0) {
+                    newline = line + spaces
+                    newline = newline.substring(0, 180)
+                }
+
+                if(line.indexOf('6000}') == 0) {
+                    newline = line + spaces
+                    newline = newline.substring(0, 145)
+                }
+
+                if(line.indexOf('6100}') == 0) {
+                    newline = line + spaces
+                    newline = newline.substring(0, 200)
+                }
+
+                let writeLine = newline || line
+                if (line.length > 0) parsed += '{' + writeLine + '\r\n'
+            }
+            
+            let wire = await globalThis.parseContents(parsed)
+            wire = JSON.parse(wire); 
+            wire = wire.fedWireMessage;
+            
+            output.wires.push( wire )
+            output.totalAmount = parseInt(wire.amount.amount)
+
+            return output
+
         } catch (moovError) {
             console.error('wire.parse() Moov FedWire Error:', 'attempted to parse the contents and they were not JSON. This task has failed us.')
         }

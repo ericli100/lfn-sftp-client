@@ -1035,9 +1035,15 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                         let parsedACH = await baas.ach.parse( fullFilePath )
 
                         let quickBalanceJSON = {
-                            totalCredits: parsedACH.totalCredits,
-                            totalDebits: parsedACH.totalDebits,
+                            totalCredits: 0,
+                            totalDebits: 0,
+                            creditCount: 0,
+                            debitCount: 0,
                         }
+
+                        quickBalanceJSON.totalCredits = parsedACH.totalCredits
+                        quickBalanceJSON.totalDebits = parsedACH.totalDebits
+
                         await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed ACH quickBalanceJSON: ${JSON.stringify(quickBalanceJSON)}`, correlationId} )
                         await baas.sql.file.updateJSON({ entityId: file.entityId, quickBalanceJSON: quickBalanceJSON, contextOrganizationId, correlationId, returnSQL: false })
 
@@ -1058,14 +1064,18 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                         let quickBalanceJSON = {
                             totalCredits: 0,
                             totalDebits: 0,
+                            creditCount: 0,
+                            debitCount: 0,
                         }
                         
                         if(file.isOutboundToFed) {
                             quickBalanceJSON.totalDebits = parsedWire.totalAmount
+                            quickBalanceJSON.debitCount = parsedWire.wires.length
                         }
 
                         if(file.isInboundFromFed) {
                             quickBalanceJSON.totalCredits = parsedWire.totalAmount
+                            quickBalanceJSON.creditCount = parsedWire.wires.length
                         }
 
                         await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed wire quickBalanceJSON: ${JSON.stringify(quickBalanceJSON)}`, correlationId} )
