@@ -361,14 +361,19 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - Got the MSAL client for MS Graph processing for [${ENVIRONMENT}].`, correlationId })
         // use the CONFIG passed in to get the settings on what email to process
 
+
+        
         // get the mail and filter for the CONFIG items listed
         // store the files in the database
         let processFoldername = 'processed'
-        let moveToFoldername = 'reprocessed'
-    
         let mailFolders = await baas.email.readMailFolders({ client, displayName: processFoldername, includeChildren: true })
         console.log(mailFolders)
+
+        // process this folder too until fully migrated
+        processFoldername = 'rejected'
+        mailFolders = mailFolders.concat( await baas.email.readMailFolders({ client, displayName: processFoldername, includeChildren: true }) )
     
+        let moveToFoldername = 'reprocessed'
         let moveToFolder = await baas.email.readMailFolders({ client, displayName: moveToFoldername, includeChildren: true} )
         console.log(moveToFolder)
     
