@@ -11,6 +11,9 @@
 
 .DS_Store
 
+# ignore the contents of the logging folder
+logging/*
+
 #exclude the local working directory
 buffer/
 
