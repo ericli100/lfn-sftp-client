@@ -36,15 +36,114 @@ async function parse ( inputfile ) {
             go.run(wasm.instance)
 
             let output = {}
+            output.isOutbound = false
+            output.isInbound = false
+
             output.wires = []
             input = input.split('{')
 
             let parsed = ''
+            let linenumber = 0
             for(let line of input){
+                let skipLine = false
+                linenumber ++
                 let spaces = '                                                                                                    '
                 spaces += '                                                                                                   ';
-                
+
                 let newline
+
+                if(line.indexOf('YFT811') >=0 && linenumber <= 2) {
+                    skipLine = true
+                }
+
+                if(line.indexOf('XFT811') >= 0 && linenumber <= 2) {
+                    skipLine = true
+                }
+
+                if(line.indexOf('(FEDERAL RESERVE)�') >= 0 && linenumber <= 2) {
+                    skipLine = true
+                }
+
+                if(line.indexOf('(FEDERAL RESERVE)') >= 0 && linenumber <= 2) {
+                    skipLine = true
+                }
+
+                if(line.indexOf('1500}') == 0) {
+                    // OUTBOUND WIRE -- 
+                    output.isOutbound = true
+                    output.isInbound = false
+
+                    // check for UserRequestCorrelation
+                    let userRequestCorrelation = line.substring(7, 15).trim()
+                    if(userRequestCorrelation.length == 0) {
+                        // just set one for parsing
+                        line = line.replace(' T', '0T')
+                        line = line.replace(' P', '0P')
+                    }
+                }
+
+                if(line.indexOf('1100}') == 0) {
+                    // INBOUND WIRE -- 
+                    output.isOutbound = false
+                    output.isInbound = true
+
+                    output.e1100 = '{' + line
+
+                    skipLine = true
+                }
+
+                if(line.indexOf('1110}') == 0) {
+                    // INBOUND WIRE -- 
+                    output.e1110 = '{' + line
+                    skipLine = true
+                }
+
+                if(line.indexOf('1120}') == 0) {
+                    // INBOUND WIRE -- 
+                    output.e1120 = '{' + line
+                    skipLine = true
+                }
+                
+                if(line.indexOf('3320}') == 0) {
+                    // INBOUND WIRE -- 
+                    newline = line + spaces
+                    newline = newline.substring(0, 21)
+                }
+
+                if(line.indexOf('3710}') == 0) {
+                    // INBOUND WIRE -- 
+                    newline = line + spaces
+                    newline = newline.substring(0, 23)
+
+                    output.isExchangeRate = true
+                    output.e3710 = '{' + line
+
+                    skipLine = true
+                }
+
+                if(line.indexOf('3720}') == 0) {
+                    // INBOUND WIRE -- 
+                    newline = line + spaces
+                    newline = newline.substring(0, 17)
+
+                    output.isExchangeRate = true
+                    output.e3720 = '{' + line
+
+                    skipLine = true
+                }
+                
+                if(line.indexOf('4100}') == 0) {
+                    // INBOUND WIRE -- 
+                    newline = line + spaces
+                    newline = newline.substring(0, 180)
+                }
+                
+                if(line.indexOf('4320}') == 0) {
+                    // INBOUND WIRE -- 
+                    newline = line + spaces
+                    newline = newline.substring(0, 21)
+                }
+
                 if(line.indexOf('3100}') == 0) {
                     newline = line + spaces
                     newline = newline.substring(0, 32)
@@ -75,9 +174,18 @@ async function parse ( inputfile ) {
                     newline = newline.substring(0, 180)
                 }
 
-                if(line.indexOf('6000}') == 0) {
-                    newline = line + spaces
-                    newline = newline.substring(0, 145)
+                if(output.isOutbound) {
+                    if(line.indexOf('6000}') == 0) {
+                        newline = line + spaces
+                        newline = newline.substring(0, 145)
+                    }
+                }
+
+                if(output.isInbound) {
+                    if(line.indexOf('6000}') == 0) {
+                        newline = line + spaces
+                        newline = newline.substring(0, 146)
+                    }
                 }
 
                 if(line.indexOf('6100}') == 0) {
@@ -85,21 +193,35 @@ async function parse ( inputfile ) {
                     newline = newline.substring(0, 200)
                 }
 
-                let writeLine = newline || line
-                if (line.length > 0) parsed += '{' + writeLine + '\r\n'
+                if(!skipLine) {
+                    let writeLine = newline || line
+
+                    writeLine = writeLine.replace('\n', '')
+                    writeLine = writeLine.replace('\r\n', '')
+
+                    if (line.length > 0) parsed += '{' + writeLine + '\r\n'
+                }
             }
             
-            let wire = await globalThis.parseContents(parsed)
-            wire = JSON.parse(wire); 
-            wire = wire.fedWireMessage;
-            
-            output.wires.push( wire )
-            output.totalAmount = parseInt(wire.amount.amount)
+            try{
+                output.rawParsed = parsed
+                let wire = await globalThis.parseContents(parsed)
+                wire = JSON.parse(wire); 
+                wire = wire.fedWireMessage;
 
-            return output
+                output.wires.push( wire )
+                output.totalAmount = parseInt(wire.amount.amount)
+
+                return output
+
+            } catch (parseError) {
+                output.hasError = true
+                output.parseError = parseError
+            }
 
         } catch (moovError) {
             console.error('wire.parse() Moov FedWire Error:', 'attempted to parse the contents and they were not JSON. This task has failed us.')
+            // keep processing and try a quick parse below
         }
     }
 
