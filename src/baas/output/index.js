@@ -25,7 +25,7 @@ async function fileActivity(vendor, ENVIRONMENT, mssql, date, accountNumber) {
     Date,Account Number,Account Name,File Name,Incoming / Outgoing,Credit Count,Credit Amount,Debit Count,Debit Amount
     2021/12/3,404404550334,Synapse FBO Account,"nextday_ach_YYYYMMDDHHMMSS_{index}.ach",Outgoing,23,20345.56,31,10546.56`
 
-    let sqlStatement = `
+    let sqlStatementOriginal = `
     SELECT CONVERT(varchar, t.[originationDate], 111) AS [Date]
         ,('30-2010-20404000') AS [Account Number]
         ,('BAAS-ACH CLEARING-INCOMING(FED)') AS [Account Name]
@@ -46,6 +46,57 @@ async function fileActivity(vendor, ENVIRONMENT, mssql, date, accountNumber) {
         ON b.[fileId] = f.[entityId]
     WHERE f.fromOrganizationId = '${vendor}'
     GROUP BY t.[originationDate], f.fileName, f.isOutbound;`
+
+    let sqlStatement = `
+	SELECT CONVERT(varchar, f.[effectiveDate], 111) AS [Date]
+        ,t.accountNumber_TEMP [Account Number]
+        ,t.accountDescription_TEMP [Account Name]
+        ,IIF(t.[isOutboundToFed]=1, f.[fileName], f.[fileNameOutbound] ) [fileName]
+        ,[Incoming / Outgoing] =  
+            CASE t.[isOutboundToFed]  
+            WHEN 1 THEN 'Outgoing'   
+            ELSE 'Incoming'  
+        END
+        ,f.[quickBalanceJSON]
+        ,f.[entityId]
+        ,f.[contextOrganizationId]
+        ,f.[fromOrganizationId]
+        ,f.[toOrganizationId]
+        ,f.[fileTypeId]
+        ,f.[sha256]
+        ,f.[source]
+        ,f.[destination]
+        ,f.[isProcessed]
+        ,f.[isRejected]
+        ,f.[hasProcessingErrors]
+        ,f.[isForceOverrideProcessingErrors]
+        ,f.[isReceiptProcessed]
+        ,f.[isFedAcknowledged]
+        ,f.[isSentToDepositOperations]
+        ,f.[isSentViaSFTP]
+        ,f.[fileVaultId]
+        ,f.[isVaultValidated]
+        ,f.[quickBalanceJSON]
+        ,f.[dataJSON]
+        ,t.[isOutboundToFed]
+        ,t.[isInboundFromFed]
+        ,t.[fileExtension]
+        ,t.[isACH]
+        ,t.[isFedWire]
+        ,f.[mutatedDate]
+        ,f.[effectiveDate]
+    FROM [baas].[files] f
+    INNER JOIN [baas].[fileTypes] t
+        ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
+    WHERE f.[tenantId] = '3E2E6220-EDF2-439A-91E4-CEF6DE2E8B7B'
+    AND f.[isReceiptProcessed] = 0
+    AND f.[isRejected] = 0
+    AND f.[contextOrganizationId] = '6022d4e2b0800000'
+    AND ( t.[toOrganizationId] = '606ae4f54e800000' OR t.[fromOrganizationId] = '606ae4f54e800000' )
+    AND ( t.[isACH] = 1 OR t.[isFedWire] = 1 )
+    AND ( f.[isSentViaSFTP] = 1 OR f.[isSentToDepositOperations] = 1 )
+    AND ( (f.[isProcessed] = 1 AND f.[hasProcessingErrors] = 0) OR f.[isForceOverrideProcessingErrors] = 1);
+    `
 
     let param = {}
     param.params = []
