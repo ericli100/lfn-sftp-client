@@ -157,7 +157,7 @@ async function processfileReceipt({ baas, logger, CONFIG, mssql, contextOrganiza
             let currentAccountFileName = `${accountNumber}_file_activity_${fileDate}.csv`
 
             // write the file to the working buffer
-            
+            writeCSV(workingDirectory, currentAccountFileName, csv)
 
             // encrypt the file
 
