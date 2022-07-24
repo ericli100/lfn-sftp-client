@@ -192,7 +192,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.processing = {}
     config.processing.ENABLE_FTP_PULL = false
     config.processing.ENABLE_INBOUND_EMAIL_PROCESSING = true
-    config.processing.ENABLE_INBOUND_PROCESSING_FROM_DB = false
+    config.processing.ENABLE_INBOUND_PROCESSING_FROM_DB = true
     config.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB = false
     config.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING = false
     config.processing.ENABLE_REMOTE_DELETE = false
