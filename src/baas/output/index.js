@@ -150,7 +150,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
 
     let output = {}
 
-    let DELETE_DECRYPTED_FILES = false
+    let KEEP_DECRYPTED_FILES = CONFIG.processing.ENABLE_MANUAL_DB_DOWNLOAD
 
     try {
         let sqlStatement_from_organization = `
@@ -204,7 +204,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
         output.sentFromOrganization = output.sentFromOrganization[0].recordsets[0]
 
         // set a working directories
-        let workingDirectory_from_organization = await baas.processing.createWorkingDirectory(baas, CONFIG.vendor, CONFIG.environment, baas.logger, !DELETE_DECRYPTED_FILES, `_SENT_FROM_${CONFIG.vendor.toUpperCase()}`)
+        let workingDirectory_from_organization = await baas.processing.createWorkingDirectory(baas, CONFIG.vendor, CONFIG.environment, baas.logger, KEEP_DECRYPTED_FILES, `_SENT_FROM_${CONFIG.vendor.toUpperCase()}`)
 
         // download all the files ( 1 at a time )
         for (let file of output.sentFromOrganization) {
@@ -343,6 +343,8 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
             }
         }
 
+        if (!KEEP_DECRYPTED_FILES) await baas.processing.deleteWorkingDirectory(workingDirectory_from_organization)
+
         return true
     } catch (err) {
         console.error(err)
@@ -370,7 +372,7 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
 
     // dev flags
     let ENABLE_SFTP_PUT = true
-    let DELETE_DECRYPTED_FILES = true
+    let KEEP_DECRYPTED_FILES = CONFIG.processing.ENABLE_MANUAL_DB_DOWNLOAD
 
     try {
         // get a list of files
@@ -378,7 +380,7 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
         output.sendToOrganization = unprocessedOutboundSftpFiles
 
         // set a working directories
-        let workingDirectory_to_organization = await baas.processing.createWorkingDirectory(baas, CONFIG.vendor, CONFIG.environment, baas.logger, !DELETE_DECRYPTED_FILES, `_SEND_TO_${CONFIG.vendor.toUpperCase()}`)
+        let workingDirectory_to_organization = await baas.processing.createWorkingDirectory(baas, CONFIG.vendor, CONFIG.environment, baas.logger, KEEP_DECRYPTED_FILES, `_SEND_TO_${CONFIG.vendor.toUpperCase()}`)
 
         // download all the files ( 1 at a time )
         for (let file of output.sendToOrganization) {
@@ -446,10 +448,9 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
                 }
             }
             // let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename + '.gpg')
-
-
-
         }
+
+        if (!KEEP_DECRYPTED_FILES) await baas.processing.deleteWorkingDirectory(workingDirectory_to_organization)
     } catch (err) {
         console.error(err)
         throw (err)

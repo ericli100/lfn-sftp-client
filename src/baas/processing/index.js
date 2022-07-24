@@ -144,14 +144,14 @@ async function listRemoteSftpFiles( baas, logger, VENDOR_NAME, ENVIRONMENT, conf
 
 async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, remoteFileList, correlationId }){
     let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
-    let DELETE_DECRYPTED_FILES = true
+    let KEEP_DECRYPTED_FILES = config.processing.ENABLE_MANUAL_DB_DOWNLOAD
 
     if(!remoteFileList) remoteFileList = []
 
     if(baas.processing.settings) {
         // overrides for the baas.processing.settings
-        if('DELETE_DECRYPTED_FILES' in baas.processing.settings) { 
-            DELETE_DECRYPTED_FILES = baas.processing.settings.DELETE_DECRYPTED_FILES
+        if('KEEP_DECRYPTED_FILES' in baas.processing.settings) { 
+            KEEP_DECRYPTED_FILES = baas.processing.settings.KEEP_DECRYPTED_FILES
         }
     }
 
@@ -177,7 +177,7 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
 
     if (output.remoteFileList.length > 0) {
         // create the working directory
-        let workingDirectory = await createWorkingDirectory(baas, VENDOR_NAME, ENVIRONMENT, logger, !DELETE_DECRYPTED_FILES)
+        let workingDirectory = await createWorkingDirectory(baas, VENDOR_NAME, ENVIRONMENT, logger, KEEP_DECRYPTED_FILES)
 
         // get the file from SFTP (one file at a time)
         for (let file of output.remoteFileList) {
@@ -318,7 +318,7 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
             inputFileOutput = null
             audit.entityId = null
 
-            if (DELETE_WORKING_DIRECTORY && DELETE_DECRYPTED_FILES) await deleteBufferFile( fullFilePath )
+            if (DELETE_WORKING_DIRECTORY && !KEEP_DECRYPTED_FILES) await deleteBufferFile( fullFilePath )
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
             if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.VALIDATION' )
 
@@ -326,7 +326,7 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
         }
 
         // clean up the working directory
-        if (DELETE_WORKING_DIRECTORY && DELETE_DECRYPTED_FILES) await deleteWorkingDirectory(workingDirectory)
+        if (DELETE_WORKING_DIRECTORY && !KEEP_DECRYPTED_FILES) await deleteWorkingDirectory(workingDirectory)
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: The working cache directory [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server. Data is secure.`, correlationId  })
     }
 
@@ -1214,3 +1214,5 @@ module.exports.setEnvironment = setEnvironment
 module.exports.createWorkingDirectory = createWorkingDirectory
 
 module.exports.deleteBufferFile = deleteBufferFile
+
+module.exports.deleteWorkingDirectory = deleteWorkingDirectory
