@@ -2,7 +2,7 @@
   "name": "lfn-sftp-client",
   "version": "1.0.0",
   "description": "Lineage SFTP client for file transfer.",
-  "main": "server.js",
+  "main": "src/refactor-synapse-uat.js",
   "scripts": {
     "start": "node src/index.js",
     "test": "jest"
@@ -11,6 +11,7 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@azure/msal-node": "^1.11.0",
+    "@dabh/diagnostics": "^2.0.3",
     "@microsoft/microsoft-graph-client": "^3.0.2",
     "@slack/webhook": "^6.0.0",
     "biguint-format": "^1.0.2",
