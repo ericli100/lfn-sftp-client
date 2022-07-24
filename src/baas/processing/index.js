@@ -1031,14 +1031,13 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                 // ** PERFORM ACH PROCESSING ** //
                 if(file.isACH) {
                     try{
-
                         let parsedACH = await baas.ach.parse( fullFilePath )
 
                         let quickBalanceJSON = {
                             totalCredits: 0,
                             totalDebits: 0,
-                            creditCount: 0,
-                            debitCount: 0,
+                            creditCount: -1,
+                            debitCount: -1,
                         }
 
                         quickBalanceJSON.totalCredits = parsedACH.totalCredits
@@ -1047,7 +1046,16 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                         await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed ACH quickBalanceJSON: ${JSON.stringify(quickBalanceJSON)}`, correlationId} )
                         await baas.sql.file.updateJSON({ entityId: file.entityId, quickBalanceJSON: quickBalanceJSON, contextOrganizationId, correlationId, returnSQL: false })
 
-                        let achProcessing = await input.ach( { baas, VENDOR: VENDOR_NAME, sql:baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: relativePath + '/' + file.fileName, isOutbound:file.isOutboundToFed, fileEntityId:file.entityId, fileTypeId: file.fileTypeId, correlationId })
+                        let achProcessing = await input.ach( { baas, VENDOR: VENDOR_NAME, ENVIRONMENT: ENVIRONMENT, sql:baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: relativePath + '/' + file.fileName, isOutbound:file.isOutboundToFed, fileEntityId:file.entityId, fileTypeId: file.fileTypeId, correlationId })
+
+                        quickBalanceJSON.totalCredits = achProcessing.totalCredits
+                        quickBalanceJSON.totalDebits = achProcessing.totalDebits
+                        quickBalanceJSON.creditCount = achProcessing.creditCount
+                        quickBalanceJSON.debitCount = achProcessing.debitCount
+
+                        await baas.sql.file.updateJSON({ entityId: file.entityId, quickBalanceJSON: quickBalanceJSON, contextOrganizationId, correlationId, returnSQL: false })
+                        await baas.audit.log( {baas, logger: baas.logger, level: 'verbose', message: `Updated the quickBalance with the actual values from baas.input.ach processing with the updated the : ${JSON.stringify(quickBalanceJSON)}`, correlationId, effectedEntityId: file.entityId } )
+
                     } catch (achError) {
                         // await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing ACH file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${achError}]`, correlationId, effectedEntityId: file.entityId })
                         throw (achError)

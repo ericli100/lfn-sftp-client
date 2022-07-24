@@ -609,7 +609,7 @@ async function processLineByLine( {inputFile, fixFileArray} ) {
     }
 }
 
-async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, fileEntityId, fileTypeId, correlationId} ) {
+async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, fileEntityId, fileTypeId, correlationId} ) {
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
     let fileName = path.basename( inputFile )
    
@@ -649,10 +649,13 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
     if (!isACH) throw ("No valid ACH file detected during parsing, exiting the baas.input.ach function and not writing to the database.")
 
     let achJSON = await baas.ach.parseACH( inputFile, false )
-    let achAdvice = await baas.ach.achAdvice ( inputFile, true )
+
+    let achAdvice = await baas.ach.achAdvice ( {vendor: VENDOR, environment: ENVIRONMENT, filename: inputFile, isOutbound: true } )
     output.achAdvice = achAdvice
 
     achJSON = JSON.parse(achJSON)
+
+    output.achJSON = achJSON;
 
     // create the SQL statements for the transaction
     let sqlStatements = []
@@ -668,6 +671,9 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
     let updateFileJsonSQL = await createUpdateFileJsonSQL( { sql, contextOrganizationId, fileEntityId, correlationId, achJSON, returnSQL: true } )
     sqlStatements.push( updateFileJsonSQL.param )
     let jsonFileData = updateFileJsonSQL.jsonFileData;
+
+
+
 
     // loop over the batches for processing
     for (const batch of jsonBatchData.batches) {
@@ -686,6 +692,11 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
         let DebitBatchRunningTotal = 0
         let CreditBatchRunningTotal = 0
 
+        output.creditCount = 0
+        output.debitCount = 0
+        output.totalCredits = 0
+        output.totalDebits = 0
+
         // loop over the transactions for processing
         for (const transaction of batch.entryDetails) {
             let fileTransactionEntityId = baas.id.generate();
@@ -700,6 +711,16 @@ async function ach( {baas, VENDOR, sql, contextOrganizationId, fromOrganizationI
             // keep the running total for validation at the end
             CreditBatchRunningTotal += achType.transactionCredit
             DebitBatchRunningTotal += achType.transactionDebit
+
+            if(achType.isCredit) {
+                output.creditCount ++
+                output.totalCredits += achType.transactionCredit
+            }
+
+            if(achType.isDebit) {
+                output.debitCount ++
+                output.totalDebits += achType.transactionDebit
+            }
 
             // TODO: lookup the fromAccountId ( this is the RDFI end user account based on isOutbound value)
             // TODO: lookup the toAccountId ( this is the destination for the BaaS money movement based on the Immediate Origin - jsonFileData.fileHeader.immediateOrigin)
