@@ -503,72 +503,78 @@
 		}
 
 		async run(instance) {
-			if (!(instance instanceof WebAssembly.Instance)) {
-				throw new Error("Go.run: WebAssembly.Instance expected");
-			}
-			this._inst = instance;
-			this.mem = new DataView(this._inst.exports.mem.buffer);
-			this._values = [ // JS values that Go currently has references to, indexed by reference id
-				NaN,
-				0,
-				null,
-				true,
-				false,
-				global,
-				this,
-			];
-			this._goRefCounts = new Array(this._values.length).fill(Infinity); // number of references that Go has to a JS value, indexed by reference id
-			this._ids = new Map([ // mapping from JS values to reference ids
-				[0, 1],
-				[null, 2],
-				[true, 3],
-				[false, 4],
-				[global, 5],
-				[this, 6],
-			]);
-			this._idPool = [];   // unused ids that have been garbage collected
-			this.exited = false; // whether the Go program has exited
-
-			// Pass command line arguments and environment variables to WebAssembly by writing them to the linear memory.
-			let offset = 4096;
-
-			const strPtr = (str) => {
-				const ptr = offset;
-				const bytes = encoder.encode(str + "\0");
-				new Uint8Array(this.mem.buffer, offset, bytes.length).set(bytes);
-				offset += bytes.length;
-				if (offset % 8 !== 0) {
-					offset += 8 - (offset % 8);
+			try {
+				if (!(instance instanceof WebAssembly.Instance)) {
+					throw new Error("Go.run: WebAssembly.Instance expected");
 				}
-				return ptr;
-			};
+				this._inst = instance;
+				this.mem = new DataView(this._inst.exports.mem.buffer);
+				this._values = [ // JS values that Go currently has references to, indexed by reference id
+					NaN,
+					0,
+					null,
+					true,
+					false,
+					global,
+					this,
+				];
+				this._goRefCounts = new Array(this._values.length).fill(Infinity); // number of references that Go has to a JS value, indexed by reference id
+				this._ids = new Map([ // mapping from JS values to reference ids
+					[0, 1],
+					[null, 2],
+					[true, 3],
+					[false, 4],
+					[global, 5],
+					[this, 6],
+				]);
+				this._idPool = [];   // unused ids that have been garbage collected
+				this.exited = false; // whether the Go program has exited
 
-			const argc = this.argv.length;
+				// Pass command line arguments and environment variables to WebAssembly by writing them to the linear memory.
+				let offset = 4096;
 
-			const argvPtrs = [];
-			this.argv.forEach((arg) => {
-				argvPtrs.push(strPtr(arg));
-			});
-			argvPtrs.push(0);
+				const strPtr = (str) => {
+					const ptr = offset;
+					const bytes = encoder.encode(str + "\0");
+					new Uint8Array(this.mem.buffer, offset, bytes.length).set(bytes);
+					offset += bytes.length;
+					if (offset % 8 !== 0) {
+						offset += 8 - (offset % 8);
+					}
+					return ptr;
+				};
 
-			const keys = Object.keys(this.env).sort();
-			keys.forEach((key) => {
-				argvPtrs.push(strPtr(`${key}=${this.env[key]}`));
-			});
-			argvPtrs.push(0);
+				const argc = this.argv.length;
 
-			const argv = offset;
-			argvPtrs.forEach((ptr) => {
-				this.mem.setUint32(offset, ptr, true);
-				this.mem.setUint32(offset + 4, 0, true);
-				offset += 8;
-			});
+				const argvPtrs = [];
+				this.argv.forEach((arg) => {
+					argvPtrs.push(strPtr(arg));
+				});
+				argvPtrs.push(0);
 
-			this._inst.exports.run(argc, argv);
-			if (this.exited) {
-				this._resolveExitPromise();
+				const keys = Object.keys(this.env).sort();
+				keys.forEach((key) => {
+					argvPtrs.push(strPtr(`${key}=${this.env[key]}`));
+				});
+				argvPtrs.push(0);
+
+				const argv = offset;
+				argvPtrs.forEach((ptr) => {
+					this.mem.setUint32(offset, ptr, true);
+					this.mem.setUint32(offset + 4, 0, true);
+					offset += 8;
+				});
+
+				this._inst.exports.run(argc, argv);
+				if (this.exited) {
+					this._resolveExitPromise();
+				}
+				await this._exitPromise;
+
+			} catch (brokenGo) {
+				console.error (brokenGo)
+				return
 			}
-			await this._exitPromise;
 		}
 
 		_resume() {
@@ -584,10 +590,15 @@
 		_makeFuncWrapper(id) {
 			const go = this;
 			return function () {
-				const event = { id: id, this: this, args: arguments };
-				go._pendingEvent = event;
-				go._resume();
-				return event.result;
+				try{
+					const event = { id: id, this: this, args: arguments };
+					go._pendingEvent = event;
+					go._resume();
+					return event.result;
+				} catch (broken){
+					console.error(broken)
+					return
+				}
 			};
 		}
 	}
