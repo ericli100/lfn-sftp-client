@@ -14,6 +14,8 @@ async function processfileReceipt({ baas, logger, CONFIG, mssql, contextOrganiza
     let VENDOR_NAME = CONFIG.vendor
     let ENVIRONMENT = CONFIG.environment
 
+    let KEEP_DECRYPTED_FILES = CONFIG.processing.ENABLE_MANUAL_DB_DOWNLOAD
+
     await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: FILE RECEIPT - BEGIN PROCESSING for [${ENVIRONMENT}] to generate a file activity report...`, correlationId  })
 
     // call SQL and lookup file activity by date and GL account
@@ -90,6 +92,8 @@ async function processfileReceipt({ baas, logger, CONFIG, mssql, contextOrganiza
         output.accounts = [...new Set(data.map(item => item["Account Number"].trim()))];
 
         // create a working buffer...
+        // set a working directory
+        let workingDirectory = await baas.processing.createWorkingDirectory(baas, CONFIG.vendor, CONFIG.environment, baas.logger, false, `_FILE_ACTIVITY_${CONFIG.vendor.toUpperCase()}`)
     
         for(let accountNumber of output.accounts){
             // loop through the list of accounts and create a file per account
@@ -153,6 +157,7 @@ async function processfileReceipt({ baas, logger, CONFIG, mssql, contextOrganiza
             let currentAccountFileName = `${accountNumber}_file_activity_${fileDate}.csv`
 
             // write the file to the working buffer
+            
 
             // encrypt the file
 
@@ -165,11 +170,16 @@ async function processfileReceipt({ baas, logger, CONFIG, mssql, contextOrganiza
             // Send EMAIL of the file - baas.notifications@lineagebank.com
 
             // update the Database - isReceiptSent to True
+            for(let accountNumber of output.accounts){
+                // generate the TSQL and execute as one batch to set the files as processed in the File Receipt
+
+            }
 
         }
 
         // delete the working buffer
-        
+        if (!KEEP_DECRYPTED_FILES) await baas.processing.deleteWorkingDirectory(workingDirectory_from_organization)
+
         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: FILE RECEIPT - END PROCESSING for [${ENVIRONMENT}] generated the file activity report(s).`, correlationId  })
         
         return output
