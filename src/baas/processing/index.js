@@ -770,9 +770,16 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     let extensionOverride
 
     // Set these flags in the future by evaluating the file content
-    output.isACH = await baas.ach.isACH( inputFileObj.inputFile )
-    output.isAchReturn = false // ACH_RETURN https://moov-io.github.io/ach/returns/
-    output.isAchInbound = false;
+    try{
+        output.isACH = await baas.ach.isACH( inputFileObj.inputFile )
+        output.isAchReturn = false // ACH_RETURN https://moov-io.github.io/ach/returns/
+        output.isAchInbound = false;
+    } catch (achParseError){
+        await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: INBOUND EMAILS - determineInputFileTypeId() [${output.fileName}] issue running baas.ach.isACH check: [${achParseError}]`, correlationId })
+        output.isACH = false
+        output.isAchReturn = false
+        output.isAchInbound = false;
+    }
 
     if(output.isACH) {
         let parsedACH = JSON.parse( await baas.ach.parseACH( inputFileObj.inputFile ) )
@@ -799,17 +806,32 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     }
 
     output.isCSV = false 
-    if(!output.isACH) output.isCSV = await isCSVcheck( {inputFile: inputFileObj.inputFile} )
-    output.isCsvAccountBalances = false
-    output.isCsvFileActivity = false
+
+    try{
+        if(!output.isACH) output.isCSV = await isCSVcheck( {inputFile: inputFileObj.inputFile} )
+        output.isCsvAccountBalances = false
+        output.isCsvFileActivity = false
+    } catch (isCSVcheckError){
+        await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: INBOUND EMAILS - determineInputFileTypeId() [${output.fileName}] issue running isCSVcheck() check: [${isCSVcheckError}]`, correlationId })
+        output.isCSV = false
+        output.isCsvAccountBalances = false
+        output.isCsvFileActivity = false
+    }
 
     if(output.isCSV) {
         // extensionOverride = 'csv'
     }
 
     output.isAchConfirmation = false; // ACH_ACK
-    output.isFedWire = await baas.wire.isFedWireCheck( { inputFile: inputFileObj.inputFile }) // false; // WIRE_INBOUND
-    output.isFedWireConfirmaiton = false;
+
+    try{
+        output.isFedWire = await baas.wire.isFedWireCheck( { inputFile: inputFileObj.inputFile }) // false; // WIRE_INBOUND
+        output.isFedWireConfirmaiton = false;
+    } catch (isFedWireCheckError) {
+        await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: INBOUND EMAILS - determineInputFileTypeId() [${output.fileName}] issue running isFedWireCheck() check: [${isFedWireCheckError}]`, correlationId })
+        output.isFedWire = false
+        output.isFedWireConfirmaiton = false;
+    }
 
     if(output.isFedWire) {
         FILE_TYPE_MATCH = 'WIRE_INBOUND'
@@ -858,11 +880,28 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
 
         // Return the fileTypeId that maps to fileTypeMatch == FILE_TYPE_MATCH
         const matchedFileType = fileTypeId.find(obj => obj.fileTypeMatch === FILE_TYPE_MATCH);
-        output.fileTypeId = matchedFileType.entityId.trim()
+        
+        if (FILE_TYPE_MATCH == 'UNMATCHED'){
+            if (fileTypeId.length == 1) {
+                // okay... we did not match the CSV definitions above BUT... we only have1 option. Let's set it and go on.
+                output.fileTypeId = fileTypeId[0].entityId.trim()
 
+                return output
+            }
+        }
+
+        output.fileTypeId = matchedFileType.entityId.trim()
+        
         if(output.fileTypeId) {
             output.fileNameFormat = matchedFileType.fileNameFormat
 
+            if(matchedFileType.fileNameFormat == '%'){
+                // splat match provided, just pass the name outbound
+                output.fileNameOutbound = output.fileName
+                return output
+            }
+            
+            output.fileNameFormat = matchedFileType.fileNameFormat
             let newName = matchedFileType.fileNameFormat
             let fileDate = new Date( inputFileObj.effectiveDate ) || new Date().toUTCString()
 
@@ -910,7 +949,7 @@ async function isCSVcheck( {inputFile, returnHeaders }){
     try{
         let myFileString = fs.readFileSync( inputFile ).toString()
         let config = {
-            delimiter: "",
+            delimiter: ",",
             newline: "",	// auto-detect
             quoteChar: '"',
             escapeChar: '"',
@@ -921,16 +960,28 @@ async function isCSVcheck( {inputFile, returnHeaders }){
         
         if(returnHeaders) {
             // return an array of the headers
-            return Object.keys( myParsedCSV.data[0] )
+            if(myParsedCSV.data[0]) {
+                return Object.keys( myParsedCSV.data[0] )
+            }
+
+            if(myParsedCSV.meta.fields.length > 0) {
+                // empty file but had column headers
+                // return Object.keys( myParsedCSV.meta.fields.reduce((a, v) => ({ ...a, [v]: v}), {}) )
+                return myParsedCSV.meta.fields
+            }
         } else {
             if (myParsedCSV.data.length > 0) return true
+
+            if(myParsedCSV.meta.fields.length > 0) {
+                // empty file but had column headers
+                return true
+            }
         }
         
     } catch (err){
         return false
     }
         
-
     return output
 }
 
