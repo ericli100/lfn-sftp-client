@@ -8,11 +8,13 @@ const path = require('node:path');
 const papa = require('papaparse');
 const parseCSV = papa.unparse
 
-async function fileActivity(vendor, ENVIRONMENT, mssql, date, accountNumber) {
+async function processfileReceipt({ baas, logger, CONFIG, mssql, contextOrganizationId, toOrganizationId, fromOrganizationId, correlationId }) {
     let output = {};
 
-    // todo: generate the FileActivity file by ENVIRONMENT
-    // todo: remove hard coded values in the SQL statement
+    let VENDOR_NAME = CONFIG.vendor
+    let ENVIRONMENT = CONFIG.environment
+
+    await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: FILE RECEIPT - BEGIN PROCESSING for [${ENVIRONMENT}] to generate a file activity report...`, correlationId  })
 
     // call SQL and lookup file activity by date and GL account
 
@@ -25,28 +27,9 @@ async function fileActivity(vendor, ENVIRONMENT, mssql, date, accountNumber) {
     Date,Account Number,Account Name,File Name,Incoming / Outgoing,Credit Count,Credit Amount,Debit Count,Debit Amount
     2021/12/3,404404550334,Synapse FBO Account,"nextday_ach_YYYYMMDDHHMMSS_{index}.ach",Outgoing,23,20345.56,31,10546.56`
 
-    let sqlStatementOriginal = `
-    SELECT CONVERT(varchar, t.[originationDate], 111) AS [Date]
-        ,('30-2010-20404000') AS [Account Number]
-        ,('BAAS-ACH CLEARING-INCOMING(FED)') AS [Account Name]
-        ,f.fileName AS [File Name]
-        ,[Incoming / Outgoing] =  
-            CASE f.isOutbound  
-            WHEN 1 THEN 'Outgoing'   
-            ELSE 'Incoming'  
-            END
-        ,SUM(CASE WHEN t.transactionCredit > 0 THEN 1 ELSE 0 END) AS [Credit Count]
-        ,SUM(b.batchCredits) AS [Credit Amount]
-        ,SUM(CASE WHEN t.transactionDebit > 0 THEN 1 ELSE 0 END) AS [Debit Count]
-        ,SUM(b.batchDebits) AS [Debit Amount]
-    FROM [baas].[fileTransactions] t
-    INNER JOIN [baas].[fileBatches] b
-        ON t.[batchId] = b.[entityId]
-    INNER JOIN [baas].[files] f
-        ON b.[fileId] = f.[entityId]
-    WHERE f.fromOrganizationId = '${vendor}'
-    GROUP BY t.[originationDate], f.fileName, f.isOutbound;`
+    let tenantId = process.env.PRIMAY_TENANT_ID
 
+    // we are pretty sensative to column name changes on this, keeping the TSQL here for now
     let sqlStatement = `
 	SELECT CONVERT(varchar, f.[effectiveDate], 111) AS [Date]
         ,t.accountNumber_TEMP [Account Number]
@@ -76,8 +59,6 @@ async function fileActivity(vendor, ENVIRONMENT, mssql, date, accountNumber) {
         ,f.[isSentViaSFTP]
         ,f.[fileVaultId]
         ,f.[isVaultValidated]
-        ,f.[quickBalanceJSON]
-        ,f.[dataJSON]
         ,t.[isOutboundToFed]
         ,t.[isInboundFromFed]
         ,t.[fileExtension]
@@ -88,50 +69,112 @@ async function fileActivity(vendor, ENVIRONMENT, mssql, date, accountNumber) {
     FROM [baas].[files] f
     INNER JOIN [baas].[fileTypes] t
         ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
-    WHERE f.[tenantId] = '3E2E6220-EDF2-439A-91E4-CEF6DE2E8B7B'
+    WHERE f.[tenantId] = '${tenantId}'
     AND f.[isReceiptProcessed] = 0
     AND f.[isRejected] = 0
-    AND f.[contextOrganizationId] = '6022d4e2b0800000'
-    AND ( t.[toOrganizationId] = '606ae4f54e800000' OR t.[fromOrganizationId] = '606ae4f54e800000' )
+    AND f.[contextOrganizationId] = '${contextOrganizationId}'
+    AND ( t.[toOrganizationId] = '${toOrganizationId}' OR t.[fromOrganizationId] = '${fromOrganizationId}' )
     AND ( t.[isACH] = 1 OR t.[isFedWire] = 1 )
     AND ( f.[isSentViaSFTP] = 1 OR f.[isSentToDepositOperations] = 1 )
     AND ( (f.[isProcessed] = 1 AND f.[hasProcessingErrors] = 0) OR f.[isForceOverrideProcessingErrors] = 1);
     `
 
-    let param = {}
-    param.params = []
-    param.tsql = sqlStatement
-
     try {
-        let results = await mssql.executeTSQL(sqlStatement);
+        let param = {}
+        param.params = []
+        param.tsql = sqlStatement
+        let results = await baas.sql.execute(param);
         let data = results[0].data
 
-        // add decimal
-        let i = -1
-        for (const row of data) {
-            i++
-            let credit = row['Credit Amount']
-            credit = credit.toString()
-            if (credit.length > 2) {
-                data[i]['Credit Amount'] = credit.substring(0, credit.length - 2) + '.' + credit.substring(credit.length - 2, 3)
+        // generate a file per [Account Number]
+        output.accounts = [...new Set(data.map(item => item["Account Number"].trim()))];
+
+        // create a working buffer...
+    
+        for(let accountNumber of output.accounts){
+            // loop through the list of accounts and create a file per account
+            let outputData = []
+
+            for (const row of data) {
+                // brute force this for now and find a more clever filter way to do this... it has been a long day and i just need it to work.
+                let newDataRow = {}
+                if (row["Account Number"].trim() == accountNumber){
+                    // we got one!
+                    newDataRow['Date'] = row['Date'].trim()
+                    newDataRow['Account Number'] = row['Account Number'].trim()
+                    newDataRow['Account Name'] = row['Account Name'].trim()
+                    newDataRow['fileName'] = row['fileName'].trim()
+                    newDataRow['Incoming / Outgoing'] = row['Incoming / Outgoing'].trim()
+
+                    // Credit Count,Credit Amount,Debit Count,Debit Amount
+                    // {"totalCredits":15,"totalDebits":0,"creditCount":2,"debitCount":0}
+                    let quickBalance = row['quickBalanceJSON']
+                    newDataRow['Credit Count'] = quickBalance.creditCount
+                    newDataRow['Credit Amount'] = quickBalance.totalCredits.toString()
+                    newDataRow['Debit Count'] = quickBalance.debitCount
+                    newDataRow['Debit Amount'] = quickBalance.totalDebits.toString()
+
+                    // seriously... why are they having us put decimals in this??
+                    if (newDataRow['Credit Amount'].length > 2) {
+                        newDataRow['Credit Amount'] = newDataRow['Credit Amount'].substring(0, newDataRow['Credit Amount'].length - 2) + '.' + newDataRow['Credit Amount'].substring(newDataRow['Credit Amount'].length - 2, 3)
+                    }
+
+                    if (newDataRow['Credit Amount'].length == 2) {
+                        newDataRow['Credit Amount'] = '0.' + newDataRow['Credit Amount']
+                    }
+
+                    if (newDataRow['Credit Amount'].length == 1) {
+                        newDataRow['Credit Amount'] = '0.0' + newDataRow['Credit Amount']
+                    }
+
+                    if (newDataRow['Debit Amount'].length > 2) {
+                        newDataRow['Debit Amount'] = newDataRow['Debit Amount'].substring(0, newDataRow['Debit Amount'].length - 2) + '.' + newDataRow['Debit Amount'].substring(newDataRow['Debit Amount'].length - 2, 3)
+                    }
+
+                    if (newDataRow['Debit Amount'].length == 2) {
+                        newDataRow['Debit Amount'] = '0.' + newDataRow['Debit Amount']
+                    }
+
+                    if (newDataRow['Debit Amount'].length == 1) {
+                        newDataRow['Debit Amount'] = '0.0' + newDataRow['Debit Amount']
+                    }
+
+                    outputData.push(newDataRow)
+                }
             }
 
-            let debit = row['Debit Amount']
-            debit = debit.toString()
-            if (debit.length > 2) {
-                data[i]['Debit Amount'] = debit.substring(0, debit.length - 2) + '.' + debit.substring(debit.length - 2, 3)
-            }
+            // we have the data in the outputData Array
+            // process the files outbound to store in the PGP File Vault
+            console.log('IMPLEMENT THIS!!', outputData)
+
+            let csv = parseCSV(outputData)
+            let date = new Date();
+            let fileDate = date.getFullYear() + ("0" + (date.getMonth() + 1)).slice(-2) + ("0" + date.getDate()).slice(-2) + ("0" + date.getHours()).slice(-2) + ("0" + date.getMinutes()).slice(-2) + ("0" + date.getSeconds()).slice(-2)
+            let currentAccountFileName = `${accountNumber}_file_activity_${fileDate}.csv`
+
+            // write the file to the working buffer
+
+            // encrypt the file
+
+            // vault it
+
+            // delete the original file
+
+            // delete the encrypted file
+
+            // Send EMAIL of the file - baas.notifications@lineagebank.com
+
+            // update the Database - isReceiptSent to True
+
         }
 
-        let csv = parseCSV(data)
-        output.csv = csv
-
-        let date = new Date();
-        let fileDate = date.getFullYear() + ("0" + (date.getMonth() + 1)).slice(-2) + ("0" + date.getDate()).slice(-2) + ("0" + date.getHours()).slice(-2) + ("0" + date.getMinutes()).slice(-2) + ("0" + date.getSeconds()).slice(-2)
-
-        output.fileName = `${accountNumber}_file_activity_${fileDate}.csv`
+        // delete the working buffer
+        
+        await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: FILE RECEIPT - END PROCESSING for [${ENVIRONMENT}] generated the file activity report(s).`, correlationId  })
+        
         return output
     } catch (err) {
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: FILE RECEIPT - ERROR PROCESSING for [${ENVIRONMENT}] with error [${err}]`, correlationId  })
         console.error(err)
         throw err
     }
@@ -510,9 +553,7 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
     return true
 }
 
-module.exports.fileActivity = (VENDOR, ENVIRONMENT, SQL, date, accountNumber) => {
-    return fileActivity(VENDOR, ENVIRONMENT, SQL, date, accountNumber)
-}
+module.exports.processfileReceipt = processfileReceipt
 
 module.exports.accountBalance = (VENDOR, SQL, date, accountNumber) => {
     return accountBalance(VENDOR, SQL, date, accountNumber)

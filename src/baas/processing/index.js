@@ -20,6 +20,7 @@ var ENABLE_INBOUND_EMAIL_PROCESSING
 var ENABLE_INBOUND_PROCESSING_FROM_DB
 var ENABLE_OUTBOUND_PROCESSING_FROM_DB
 var ENABLE_OUTBOUND_EMAIL_PROCESSING
+var ENABLE_FILE_RECEIPT_PROCESSING
 var ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
 
 
@@ -50,6 +51,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     ENABLE_INBOUND_PROCESSING_FROM_DB = CONFIG.processing.ENABLE_INBOUND_PROCESSING_FROM_DB
     ENABLE_OUTBOUND_PROCESSING_FROM_DB = CONFIG.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB
     ENABLE_OUTBOUND_EMAIL_PROCESSING = CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING
+    ENABLE_FILE_RECEIPT_PROCESSING = CONFIG.processing.ENABLE_FILE_RECEIPT_PROCESSING
     ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
 
     baas.logger = logger;
@@ -95,14 +97,13 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
         await baas.output.downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlationId: CORRELATION_ID })
     }
     
-    // -- receiptSent (used for FileActivityFile)
-
-    // ** TODO: await baas.processing.putRemoteSftpFiles
-    
-    // TODO: generate email NOTIFICATIONS
-    // TODO: send email notifications
     if(ENABLE_OUTBOUND_EMAIL_PROCESSING){
         let outboundEmailsStatus = await getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID } )
+    }
+
+    if(ENABLE_FILE_RECEIPT_PROCESSING){
+        // a.k.a. File Activity File
+        let fileActivityFileStatus = await baas.output.processfileReceipt({ baas, logger, CONFIG, mssql: baas.sql, contextOrganizationId: CONFIG.contextOrganizationId, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId, correlationId: CORRELATION_ID })
     }
 
     if(CONFIG.processing.ENABLE_MANUAL_DB_DOWNLOAD) {
@@ -361,8 +362,6 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - Got the MSAL client for MS Graph processing for [${ENVIRONMENT}].`, correlationId })
         // use the CONFIG passed in to get the settings on what email to process
 
-
-        
         // get the mail and filter for the CONFIG items listed
         // store the files in the database
         let processFoldername = 'processed'
