@@ -1036,8 +1036,8 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                         let quickBalanceJSON = {
                             totalCredits: 0,
                             totalDebits: 0,
-                            creditCount: -1,
-                            debitCount: -1,
+                            creditCount: 0,
+                            debitCount: 0,
                         }
 
                         quickBalanceJSON.totalCredits = parsedACH.totalCredits
