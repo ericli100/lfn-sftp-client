@@ -179,7 +179,9 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.email.inbound.folderMappings = []
     
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.ach@lineagebank.com`, destination: `${config.vendor}.${config.environment}.ach` })
+    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.ach@lineagefn.com`, destination: `${config.vendor}.${config.environment}.ach` })
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.wire@lineagebank.com`, destination: `${config.vendor}.${config.environment}.wire` })
+    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.wire@lineagefn.com`, destination: `${config.vendor}.${config.environment}.wire` })
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.fis@lineagebank.com`, destination: `${config.vendor}.${config.environment}.fis` })
 
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.ach@lineagebank.com`, destination: `${config.vendor}.uat.ach` })
