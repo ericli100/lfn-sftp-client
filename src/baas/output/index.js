@@ -238,15 +238,18 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
         // Send EMAIL of the file - baas.notifications@lineagebank.com
         // send email of the final output
-        const client = await baas.email.getClient();
-        let recipientsAdviceTo = await baas.email.parseEmails( 'baas.notifications@lineagebank.com' )
 
-        let receiptAdviceMessage = {
-            subject: `ENCRYPT: BaaS: FILE ACTIVITY ADVICE - ${CONFIG.vendor}.${CONFIG.environment}`,
-            body: { contentType: 'Text', content: finalOutput },
-            toRecipients: recipientsAdviceTo,
+        if(finalOutput != '') {
+            const client = await baas.email.getClient();
+            let recipientsAdviceTo = await baas.email.parseEmails( 'baas.notifications@lineagebank.com' )
+    
+            let receiptAdviceMessage = {
+                subject: `ENCRYPT: BaaS: FILE ACTIVITY ADVICE - ${CONFIG.vendor}.${CONFIG.environment}`,
+                body: { contentType: 'Text', content: finalOutput },
+                toRecipients: recipientsAdviceTo,
+            }
+            let sendReceiptAdviceStatus = await baas.email.sendEmail({ client, message: receiptAdviceMessage })
         }
-        let sendReceiptAdviceStatus = await baas.email.sendEmail({ client, message: receiptAdviceMessage })
 
         // delete the working buffer
         if (!KEEP_DECRYPTED_FILES) await baas.processing.deleteWorkingDirectory( workingDirectory )
