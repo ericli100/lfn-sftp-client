@@ -95,10 +95,13 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
         // create a working buffer...
         // set a working directory
         let workingDirectory = await baas.processing.createWorkingDirectory(baas, CONFIG.vendor, CONFIG.environment, baas.logger, false, `_FILE_ACTIVITY_${CONFIG.vendor.toUpperCase()}`)
-    
+        
+        let finalOutput = ''
+
         for(let accountNumber of output.accounts){
             // loop through the list of accounts and create a file per account
             let outputData = []
+            let processedData = []
 
             for (const row of data) {
                 // brute force this for now and find a more clever filter way to do this... it has been a long day and i just need it to work.
@@ -144,17 +147,18 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                         newDataRow['Debit Amount'] = '0.0' + newDataRow['Debit Amount']
                     }
 
+                    processedData.push({entityId: row["entityId"], fileName: row["fileName"], SHA256: row["sha256"]})
                     outputData.push(newDataRow)
                 }
             }
 
-            // we have the data in the outputData Array
-            // process the files outbound to store in the PGP File Vault
-            console.log('IMPLEMENT THIS!!', outputData)
-
             let csv = parseCSV(outputData)
             let fileDate = date.getFullYear() + ("0" + (date.getMonth() + 1)).slice(-2) + ("0" + date.getDate()).slice(-2) + ("0" + date.getHours()).slice(-2) + ("0" + date.getMinutes()).slice(-2) + ("0" + date.getSeconds()).slice(-2)
             let currentAccountFileName = `${accountNumber}_file_activity_${fileDate}.csv`
+
+            // save this for the email output for the internal notifications
+            finalOutput += currentAccountFileName + ':\n';
+            finalOutput += csv + '\n\n';
 
             // write the file to the working buffer
             writeCSV(workingDirectory, currentAccountFileName, csv)
@@ -171,29 +175,81 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
             }
 
             let inputFile = path.resolve(workingDirectory, currentAccountFileName)
-            let inputFileStatus = await baas.input.file({ baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: inputFile, isOutbound: true, source: `lineage:/${configDestination.source}`, destination: `${configDestination.dbDestination}`, fileTypeId, correlationId })
+            let sha256 = await baas.sql.file.generateSHA256( inputFile )
 
-            let fileEntityId = inputFileStatus.fileEntityId
+            let fileEntityId
 
-            // vault it
-            let fileVaultResult = await baas.input.fileVault( baas, VENDOR_NAME, baas.sql, contextOrganizationId, fileEntityId, 'lineage', inputFile, correlationId )
+            let inputFileStatus
+            let fileVaultResult
 
-            // delete the original file
+            try{
+                // save the file SHA256 to the DB
+                inputFileStatus = await baas.input.file({ baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: inputFile, isOutbound: true, source: `lineage:/${configDestination.source}`, destination: `${configDestination.dbDestination}`, fileTypeId, correlationId })  
+                fileEntityId = inputFileStatus.fileEntityId;
 
-            // delete the encrypted file
+                // encrypt it
+                let outencrypted = await baas.pgp.encryptFile('lineage', CONFIG.environment, inputFile, inputFile + '.gpg')
 
-            // Send EMAIL of the file - baas.notifications@lineagebank.com
+                // vault it
+                fileVaultResult = await baas.input.fileVault( baas, VENDOR_NAME, baas.sql, contextOrganizationId, fileEntityId, 'lineage', inputFile + '.gpg', correlationId )
+                
+                // set the vault id
+                await baas.sql.file.updateFileVaultId({ entityId: fileEntityId, contextOrganizationId, fileVaultId: fileVaultResult.fileVaultEntityId })
 
-            // update the Database - isReceiptSent to True
-            for(let accountNumber of output.accounts){
-                // generate the TSQL and execute as one batch to set the files as processed in the File Receipt
+                // delete the current encrypted file, we have to change the key from Lineage to the Vendor encryption key
+                await baas.processing.deleteBufferFile(inputFile + '.gpg')
 
+            } catch (inputFileError) {
+                if (inputFileError.errorcode != 'E_FIIDA') throw (inputFileError)
+                fileEntityId = await baas.sql.file.exists( sha256, true )
             }
 
+            // send SFTP
+            // SFTP TO ORGANIZATION
+            let outencrypted = await baas.pgp.encryptFile(CONFIG.vendor, CONFIG.environment, inputFile, inputFile + '.gpg')
+            let encryptedFileStream = fs.createReadStream(inputFile + '.gpg')
+
+            // let's write these bits on the remote SFTP server
+            let remoteDestinationPath = configDestination.destination + '/' + path.basename(inputFile) + '.gpg'
+            await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream, remoteDestinationPath, correlationId });
+
+            // does the file exist remotely after the push?
+            let fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote(CONFIG, configDestination.destination, path.basename(inputFile) + '.gpg')
+
+            if (fileIsOnRemote) {
+                await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.processfileReceipt() - file [${path.basename(inputFile)}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: fileEntityId, correlationId })
+                
+                // delete the encrypted file
+                await baas.processing.deleteBufferFile(inputFile + '.gpg') // remove the local file now it is uploaded
+                console.warn('TODO: Switch to a 2 phase commit in case of failure.')
+                await baas.sql.file.setSentViaSFTP({ entityId: fileEntityId, contextOrganizationId, correlationId })
+                await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.processfileReceipt() - file [${path.basename(inputFile)}] was set as isSentViaSFTP using baas.sql.file.setSentViaSFTP() for environment [${CONFIG.environment}].`, effectedEntityId: fileEntityId, correlationId })
+            }
+
+            // delete the original file
+            await baas.processing.deleteBufferFile(inputFile)
+
+            // update the Database - isReceiptSent to True
+            for(let processedFile of processedData){
+                await baas.sql.file.setFileReceiptProcessed({ entityId: processedFile.entityId, contextOrganizationId, correlationId })
+                await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.processfileReceipt() - file [${path.basename(inputFile)}] was set as [isReceiptProcessed] using baas.sql.file.setFileReceiptProcessed() for environment [${CONFIG.environment}].`, effectedEntityId: fileEntityId, correlationId })
+            }
         }
 
+        // Send EMAIL of the file - baas.notifications@lineagebank.com
+        // send email of the final output
+        const client = await baas.email.getClient();
+        let recipientsAdviceTo = await baas.email.parseEmails( 'baas.notifications@lineagebank.com' )
+
+        let receiptAdviceMessage = {
+            subject: `ENCRYPT: BaaS: FILE ACTIVITY ADVICE - ${CONFIG.vendor}.${CONFIG.environment}`,
+            body: { contentType: 'Text', content: finalOutput },
+            toRecipients: recipientsAdviceTo,
+        }
+        let sendReceiptAdviceStatus = await baas.email.sendEmail({ client, message: receiptAdviceMessage })
+
         // delete the working buffer
-        if (!KEEP_DECRYPTED_FILES) await baas.processing.deleteWorkingDirectory(workingDirectory_from_organization)
+        if (!KEEP_DECRYPTED_FILES) await baas.processing.deleteWorkingDirectory( workingDirectory )
 
         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: FILE RECEIPT - END PROCESSING for [${ENVIRONMENT}] generated the file activity report(s).`, correlationId  })
         
@@ -561,9 +617,9 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was set as isSentViaSFTP using baas.sql.file.setSentViaSFTP() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
 
                     // process the Advice for Wires or ACH
-
+                    console.log('TODO: ', 'process the Advice for Wires or ACH')
                     // Send the Advice Emails
-
+                    console.log('TODO: ', 'Send the Advice Emails')
                 }
             }
             // let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename + '.gpg')
