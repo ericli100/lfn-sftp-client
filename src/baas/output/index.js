@@ -8,8 +8,9 @@ const path = require('node:path');
 const papa = require('papaparse');
 const parseCSV = papa.unparse
 
-async function processfileReceipt({ baas, logger, CONFIG, mssql, contextOrganizationId, toOrganizationId, fromOrganizationId, correlationId }) {
+async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId, toOrganizationId, fromOrganizationId, correlationId }) {
     let output = {};
+    let date = new Date();
 
     let VENDOR_NAME = CONFIG.vendor
     let ENVIRONMENT = CONFIG.environment
@@ -152,16 +153,30 @@ async function processfileReceipt({ baas, logger, CONFIG, mssql, contextOrganiza
             console.log('IMPLEMENT THIS!!', outputData)
 
             let csv = parseCSV(outputData)
-            let date = new Date();
             let fileDate = date.getFullYear() + ("0" + (date.getMonth() + 1)).slice(-2) + ("0" + date.getDate()).slice(-2) + ("0" + date.getHours()).slice(-2) + ("0" + date.getMinutes()).slice(-2) + ("0" + date.getSeconds()).slice(-2)
             let currentAccountFileName = `${accountNumber}_file_activity_${fileDate}.csv`
 
             // write the file to the working buffer
             writeCSV(workingDirectory, currentAccountFileName, csv)
 
-            // encrypt the file
+            // look up the file type
+            let fileTypeId = await baas.input.findFileTypeId({baas, contextOrganizationId, fromOrganizationId: contextOrganizationId, toOrganizationId, fileTypeMatch: 'CSV_FILEACTIVITY' }) 
+
+            // create a file entry in the DB
+            let configDestination 
+            for(let rule of CONFIG.folderMappings) {
+                if(rule.type == 'put' && rule.source == `${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`){
+                    configDestination = rule
+                }
+            }
+
+            let inputFile = path.resolve(workingDirectory, currentAccountFileName)
+            let inputFileStatus = await baas.input.file({ baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: inputFile, isOutbound: true, source: `lineage:/${configDestination.source}`, destination: `${configDestination.dbDestination}`, fileTypeId, correlationId })
+
+            let fileEntityId = inputFileStatus.fileEntityId
 
             // vault it
+            let fileVaultResult = await baas.input.fileVault( baas, VENDOR_NAME, baas.sql, contextOrganizationId, fileEntityId, 'lineage', inputFile, correlationId )
 
             // delete the original file
 
@@ -242,7 +257,7 @@ async function fileVault({ baas, VENDOR, sql, entityId, contextOrganizationId, f
         let fileVaultObj = output.results[0].recordsets[0][0];
         fs.writeFileSync(path.resolve(destinationPath), fileVaultObj.vaultedFile)
     } else {
-        throw ('Error: baas.sql.output.fileVault the requested file id was not present in the database!')
+        throw (`Error: baas.sql.output.fileVault the requested file id was not present in the database! With filVault entityId: [${entityId} ${fileEntityId}]`)
     }
 
     return true
