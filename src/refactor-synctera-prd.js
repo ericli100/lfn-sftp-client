@@ -168,7 +168,6 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     
     config.email.inbound.approvedAttachmentExtensions = [
         "csv",
-        "pdf",
         "xls",
         "xlsx",
         "ach",
