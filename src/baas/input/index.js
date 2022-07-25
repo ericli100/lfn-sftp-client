@@ -211,6 +211,31 @@ async function getFileTypeId( sqlDataRows, fileInfo ){
     return output
 }
 
+async function findFileTypeId({ baas, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeMatch }){
+    let output = {}
+
+    let tenantId = process.env.PRIMAY_TENANT_ID
+    if (!contextOrganizationId) throw ('contextOrganizationId required')
+
+    let sqlStatement = `SELECT [entityId]
+    FROM [baas].[fileTypes]
+    WHERE [tenantId] = '${tenantId}'
+     AND [contextOrganizationId] = '${contextOrganizationId}'
+     AND [fromOrganizationId] = '${fromOrganizationId}'
+     AND [toOrganizationId] = '${toOrganizationId}'
+     AND [fileTypeMatch] = '${fileTypeMatch}';`
+    
+    let param = {}
+    param.params = []
+    param.tsql = sqlStatement
+    let results = await baas.sql.execute(param);
+    let data = results[0].data[0]
+
+    output = data.entityId.trim();
+
+    return output
+}
+
 async function populateLookupCache({ sql, inputFile, contextOrganizationId, fromOrganizationId, toOrganizationId, fileSelect, achJSON = null}){
     let output = {}
     if(!fileSelect) fileSelect = {}
@@ -745,19 +770,18 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
     return output
 }
 
-async function fileVault(baas, VENDOR, sql, contextOrganizationId, fileEntityId, pgpSignature, filePath) {
+async function fileVault(baas, VENDOR, sql, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId) {
     if(!baas) throw('baas.input.fileVault: baas module is required!')
     if(!sql) throw('baas.input.fileVault: sql module is required!')
     if(!fileEntityId) throw('baas.input.fileVault: fileEntityId module is required!')
     if(!contextOrganizationId) throw('baas.input.fileVault: contextOrganizationId module is required!')
     if(!pgpSignature) throw('baas.input.fileVault: pgpSignature module is required!')
     if(!filePath) throw('baas.input.fileVault: toOrganizationId module is required!')
+    if(!correlationId) correlationId = fileVaultEntityId
 
     let output = {};
 
     let fileVaultEntityId = baas.id.generate();
-    let correlationId = fileVaultEntityId
-
     let sqlStatements = []
 
     let fileVaultEntitySQL = await createFileVaultSQL( { sql, entityId:fileEntityId, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId } )
@@ -769,7 +793,7 @@ async function fileVault(baas, VENDOR, sql, contextOrganizationId, fileEntityId,
     return output
 }
 
-async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, source, destination, effectiveDate, fileTypeId, overrideExtension, fileNameOutbound } ) {
+async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, source, destination, effectiveDate, fileTypeId, overrideExtension, fileNameOutbound, correlationId } ) {
     if(!contextOrganizationId) throw('baas.input.file: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.file: inputFile is required!')
     if(!baas) throw('baas.input.file: baas module is required!')
@@ -790,19 +814,21 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
         // create the SQL statements for the transaction
         let sqlStatements = []
         
-        const cache = await populateLookupCache( { sql, inputFile, fromOrganizationId, toOrganizationId, contextOrganizationId } )
-        
+        let {size: fileSize} = fs.statSync( inputFile );
+        let fileName = path.basename( inputFile )
+
         if(!fileTypeId) {
+            const cache = await populateLookupCache( { sql, inputFile, fromOrganizationId, toOrganizationId, contextOrganizationId } )
             console.warn('FileTypeId was not specified, falling back to naive matching in the function...')
             fileTypeId = cache.fileTypeId
+
+            fileSize = cache.fileSize
+            fileName = cache.fileName
         }
        // let entityBatchTypeId = cache.entityBatchTypeId
        // let entityTransactionTypeId = cache.entityTransactionTypeId
-        let fileSize = cache.fileSize
-        let fileName = cache.fileName
 
         let fileEntityId = baas.id.generate();
-        let correlationId = fileEntityId
 
         // create the entity record
         let fileEntitySQL = await createFileEntitySQL( { sql, fileEntityId, correlationId, contextOrganizationId, fileTypeId } )
@@ -847,6 +873,8 @@ module.exports.fis = fis
 module.exports.file = file
 
 module.exports.fileVault = fileVault
+
+module.exports.findFileTypeId = findFileTypeId
 
 /*
   DECLARE @correlationId CHAR(20)
