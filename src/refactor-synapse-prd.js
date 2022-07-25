@@ -105,6 +105,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.ach`, destination: '/tosynapse', usePGP:true, isOutbound:false })
     config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.wire`, destination: '/tosynapse', usePGP:true, isOutbound:false })
     config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.fis`, destination: '/tosynapse', usePGP:true, isOutbound:false })
+    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`, destination: '/tosynapse', usePGP:true, isOutbound:false })
 
     config.destinationFolders = ['/fromsynapse', '/tosynapse', '/manual']
 
