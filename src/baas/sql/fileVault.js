@@ -61,7 +61,14 @@ function Handler(mssql) {
             ,'${fileEntityId}'
             ,'${pgpSignature}'
             ,'${vaultedFileBuffer}'
-            ,'${correlationId}');`
+            ,'${correlationId}');
+            `
+
+        sqlStatement += `
+        UPDATE [baas].[files]
+         SET [fileVaultId] = '${entityId}'
+        WHERE [entityId] = '${fileEntityId}';
+        `
     
         return sqlStatement
     }

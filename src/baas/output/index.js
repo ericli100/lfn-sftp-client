@@ -191,7 +191,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                 let outencrypted = await baas.pgp.encryptFile('lineage', CONFIG.environment, inputFile, inputFile + '.gpg')
 
                 // vault it
-                fileVaultResult = await baas.input.fileVault( baas, VENDOR_NAME, baas.sql, contextOrganizationId, fileEntityId, 'lineage', inputFile + '.gpg', correlationId )
+                fileVaultResult = await baas.input.fileVault({ baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId, fileEntityId, pgpSignature: 'lineage', filePath: inputFile + '.gpg', fileVaultEntityId: fileEntityId, correlationId })
                 
                 // set the vault id
                 await baas.sql.file.updateFileVaultId({ entityId: fileEntityId, contextOrganizationId, fileVaultId: fileVaultResult.fileVaultEntityId })

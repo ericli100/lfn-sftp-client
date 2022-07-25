@@ -770,7 +770,7 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
     return output
 }
 
-async function fileVault(baas, VENDOR, sql, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId) {
+async function fileVault({ baas, VENDOR, sql, contextOrganizationId, fileEntityId, pgpSignature, filePath, fileVaultEntityId, correlationId }) {
     if(!baas) throw('baas.input.fileVault: baas module is required!')
     if(!sql) throw('baas.input.fileVault: sql module is required!')
     if(!fileEntityId) throw('baas.input.fileVault: fileEntityId module is required!')
@@ -778,13 +778,12 @@ async function fileVault(baas, VENDOR, sql, contextOrganizationId, fileEntityId,
     if(!pgpSignature) throw('baas.input.fileVault: pgpSignature module is required!')
     if(!filePath) throw('baas.input.fileVault: toOrganizationId module is required!')
     if(!correlationId) correlationId = fileVaultEntityId
+    if(!fileVaultEntityId) fileVaultEntityId = fileEntityId
 
     let output = {};
-
-    let fileVaultEntityId = baas.id.generate();
     let sqlStatements = []
 
-    let fileVaultEntitySQL = await createFileVaultSQL( { sql, entityId:fileEntityId, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId } )
+    let fileVaultEntitySQL = await createFileVaultSQL( { sql, entityId: fileEntityId, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId } )
     sqlStatements.push( fileVaultEntitySQL.param )
 
     output.results = await sql.execute( sqlStatements )
