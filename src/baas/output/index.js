@@ -329,6 +329,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
     let output = {}
 
     let KEEP_DECRYPTED_FILES = CONFIG.processing.ENABLE_MANUAL_DB_DOWNLOAD
+    let KEEP_PROCESSING_ON_ERROR = true
 
     try {
         let sqlStatement_from_organization = `
@@ -417,7 +418,10 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
             let sha256_VALIDATION = await baas.sql.file.generateSHA256(fullFilePath)
             if (sha256_VALIDATION != file.sha256) {
                 await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - file [${outFileName}] SHA256 Check Failed! Stopping processing. [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
-                throw ('ERROR: baas.output.downloadFilesFromOrganizationSendToDepositOps() SHA256 CHECK FAILED!')
+                
+                if(!KEEP_PROCESSING_ON_ERROR) {
+                    throw ('ERROR: baas.output.downloadFilesFromOrganizationSendToDepositOps() SHA256 CHECK FAILED!')
+                }
             }
             await baas.processing.deleteBufferFile(fullFilePath + '.gpg') // remove the local file now it is uploaded
 
