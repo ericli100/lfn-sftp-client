@@ -440,10 +440,10 @@ function Handler() {
     Handler.approvedWireRecipientCheck = async function approvedWireRecipientCheck (recipients, config){
         // return the first approved recipient or undefined if no match
         for(let recipient of recipients) {
-            let isApproved = config.email.inbound.wireApprovedRecipients.includes( recipient.address.toLowerCase() )
+            let isApproved = config.email.inbound.wireApprovedRecipients.includes( recipient.emailAddress.address.toLowerCase() )
             if (isApproved) {
-                console.log(`Approved ACH Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
-                return recipient.address.toLowerCase()
+                console.log(`Approved Wire Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
+                return recipient.emailAddress.address.toLowerCase()
             }
         }
         return undefined

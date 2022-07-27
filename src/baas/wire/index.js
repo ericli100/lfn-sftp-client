@@ -60,6 +60,11 @@ async function parse ( inputfile ) {
                     skipLine = true
                 }
 
+                if(line.indexOf('FFT811') >= 0 && linenumber <= 2) {
+                    skipLine = true
+                    output.isFedAck = true
+                }
+
                 if(line.indexOf('(FEDERAL RESERVE)�') >= 0 && linenumber <= 2) {
                     skipLine = true
                 }

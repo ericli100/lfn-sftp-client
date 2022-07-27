@@ -453,7 +453,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - The working cache directory for inbound email processing [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server. Data is secure.`, correlationId  })
     
     } catch (inboundEmailProcessingError) {
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(inboundEmailProcessingError) }]!`, correlationId  })
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: MSGRAPH::> INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(inboundEmailProcessingError) }]!`, correlationId  })
         
         // one final try to delete the folder
         await deleteWorkingDirectory(workingDirectory)
@@ -485,6 +485,8 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
 
     let isAchApprovedSender = await baas.email.approvedAchSenderCheck(from, config)
     let isAchApprovedRecipient = await baas.email.approvedAchRecipientCheck(to, config)
+    let isWireApprovedSender = await baas.email.approvedWireSenderCheck(from, config)
+    let isWireApprovedRecipient = await baas.email.approvedWireRecipientCheck(to, config)
     let isApprovedSender = await baas.email.approvedSenderCheck(from, config)
     let isApprovedRecipient = await baas.email.approvedRecipientCheck(to, config) 
     
@@ -518,10 +520,10 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     }
 
     // is the user approved to send at all
-    if (isApprovedRecipient || (isAchApprovedSender && !!isAchApprovedRecipient )) {
+    if (isApprovedRecipient || (isAchApprovedSender && !!isAchApprovedRecipient ) || ( isWireApprovedSender )) {
         console.log('Message UID:', msgUID, `Approved Recipient matched ${isApprovedRecipient} or ACH approve ${isAchApprovedRecipient}.`)
     } else {
-        console.warn('Message UID:', msgUID, 'Not an Approved Recipient. Skipping message.')
+        console.warn('*** UPDATE CONFIG *** || Message UID:', msgUID, 'Not an Approved Recipient. Skipping message.')
         //await baas.email.badRecipientError(to, config)
         // await baas.email.moveMessage(imap, msgUID, "rejected")
 
@@ -530,7 +532,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     }
 
     // capture where the attachement should be written
-    let approved = isAchApprovedRecipient || isApprovedRecipient 
+    let approved = isAchApprovedRecipient || isApprovedRecipient || isWireApprovedRecipient
     let attachmentPath = config.email.inbound.folderMappings.find(x => x.to === approved);
 
     if(!attachmentPath) {
