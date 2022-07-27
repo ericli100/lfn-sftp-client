@@ -366,7 +366,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         // store the files in the database
         let processFoldername = 'processed'
         let mailFolders = await baas.email.readMailFolders({ client, displayName: processFoldername, includeChildren: true })
-        console.log(mailFolders)
+        if(DEBUG) console.log(mailFolders)
 
         // process this folder too until fully migrated
         processFoldername = 'rejected'
@@ -374,7 +374,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
     
         let moveToFoldername = 'reprocessed'
         let moveToFolder = await baas.email.readMailFolders({ client, displayName: moveToFoldername, includeChildren: true} )
-        console.log(moveToFolder)
+        if(DEBUG) console.log(moveToFolder)
     
         let processedEmails = []
         let attachments = []
@@ -401,14 +401,14 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
 
                 // does not have a folder specified
                 if(!folderId && nextCount <= 1){
-                    console.log(`baas.email.readEmails: Fetching the first 10 emails without a folder ... execution count:${nextCount}`)
+                    if(DEBUG) console.log(`baas.email.readEmails: Fetching the first 10 emails without a folder ... execution count:${nextCount}`)
                     readMail = await baas.email.readEmails({ client })
                     mailInFolder = readMail.value
                 }
 
                 // has a folder specified
                 if(folderId && nextCount <= 1){
-                    console.log(`baas.email.readEmails: Fetching the first 10 emails with a folder ... execution count:${nextCount}`)
+                    if(DEBUG) console.log(`baas.email.readEmails: Fetching the first 10 emails with a folder ... execution count:${nextCount}`)
                     readMail = await baas.email.readEmails({ client, folderId: folderId })
                     mailInFolder = readMail.emails
                 }
@@ -416,7 +416,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
                 // call the next query in the list until completed
                 // this is an n+1... consider refactoring
                 if(nextPageLink.length > 5 && nextCount > 1) {
-                    console.log(`baas.email.readEmails: Fetching the next 10 emails... execution count:${nextCount}`)
+                    if(DEBUG) console.log(`baas.email.readEmails: Fetching the next 10 emails... execution count:${nextCount}`)
                     readMail = await baas.email.readEmails({ client, nextPageLink })
                     mailInFolder = readMail.emails
                 }
@@ -443,8 +443,8 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
             } // WHILE LOOP END
         }
         
-        console.log('processedEmails:', processedEmails)
-        console.log('attachments:', attachments)
+        if(DEBUG) console.log('processedEmails:', processedEmails)
+        if(DEBUG) console.log('attachments:', attachments)
 
         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: INBOUND EMAILS - END PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${ JSON.stringify(config.email.inbound) }].`, correlationId  })
     
@@ -495,7 +495,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     // VALID SENDER CHECKS
     if (isAchApprovedRecipient){
         if (isAchApprovedSender){
-            console.log('Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Approved ACH Sender.')
+            if(DEBUG)  console.log('Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Approved ACH Sender.')
         } else {
             console.error('Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Not an Approved ACH Sender!!!')
             await baas.email.achSenderError(from, config)
@@ -511,7 +511,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
 
     // is the user approved to send at all
     if (isApprovedSender) {
-        console.log('Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Approved Sender.')
+        if(DEBUG) console.log('Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Approved Sender.')
     } else {
         console.error('Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Not an Approved Sender!!!')
         await baas.email.badSenderError(msgUID, from, emailApprovedSenders)
@@ -521,9 +521,9 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
 
     // is the user approved to send at all
     if (isApprovedRecipient || (isAchApprovedSender && !!isAchApprovedRecipient ) || ( isWireApprovedSender )) {
-        console.log('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] Approved Recipient matched ${isApprovedRecipient} or ACH approve ${isAchApprovedRecipient}.`)
+        if(DEBUG) console.log('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] Approved Recipient matched ${isApprovedRecipient} or ACH approve ${isAchApprovedRecipient}.`)
     } else {
-        console.warn('*** BASED ON THE CONFIG *** || Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Not an Approved Recipient. Skipping message.')
+        if(DEBUG) console.warn('*** BASED ON THE CONFIG *** || Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Not an Approved Recipient. Skipping message.')
         //await baas.email.badRecipientError(to, config)
         // await baas.email.moveMessage(imap, msgUID, "rejected")
 
@@ -653,7 +653,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                 let fileVaultId = fileEntityId
     
                 if(!fileVaultExists) {
-                    console.log(`[baas.processing.perEmailInboundProcessing()]: loading NEW file to the fileVault: ${attachment.fileName}`)
+                    if(DEBUG) console.log(`[baas.processing.perEmailInboundProcessing()]: loading NEW file to the fileVault: ${attachment.fileName}`)
                     await baas.input.fileVault({baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId: config.contextOrganizationId, fileEntityId, pgpSignature: 'lineage', filePath: fullFilePath + '.gpg', fileVaultEntityId: fileEntityId, correlationId })
                     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS [baas.processing.perEmailInboundProcessing()] - file [${attachment.fileName}] was loaded into the File Vault encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId  })
     
@@ -692,11 +692,11 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                     // *************************************************************
                     
                     // moving message to the processed folder
-                    console.log('baas.processing.getInboundEmailFiles: sha256 validate move message to folder baas.email.moveMailFolder.')
+                    if(DEBUG) console.log('baas.processing.getInboundEmailFiles: sha256 validate move message to folder baas.email.moveMailFolder.')
 
                     if(processedAttachementsCount == emailAttachmentsArray.emailAttachmentsArray.length) {
                         // Only move the message when it is the last message in the attachments array
-                        console.log(`[baas.processing.perEmailInboundProcessing()]: Moving the email to Folder: [${moveToFolder[0].displayName}]`)
+                        if(DEBUG) console.log(`[baas.processing.perEmailInboundProcessing()]: Moving the email to Folder: [${moveToFolder[0].displayName}]`)
                         let moveStatus = await baas.email.moveMailFolder({ client, messageId: email.id, destinationFolderId: moveToFolder[0].id })
                     }
 
@@ -737,13 +737,13 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                 //    await send_ach_advice (fileName, "baas.ach.advice@lineagebank.com", false) 
                 // }
                 
-                console.log('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] Wrote attachment [${attachment.fileName}].`)
+                if(DEBUG) console.log('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] Wrote attachment [${attachment.fileName}].`)
             } else {
                 console.error('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] The attachment file type is not approved, skipping processing for [${attachment.fileName}]... `)
 
                 if(processedAttachementsCount == emailAttachmentsArray.emailAttachmentsArray.length) {
                     // Only move the message when it is the last message in the attachments array
-                    console.log(`[baas.processing.perEmailInboundProcessing()]: Moving the email to Folder (End of Array): [${moveToFolder[0].displayName}]`)
+                    if(DEBUG) console.log(`[baas.processing.perEmailInboundProcessing()]: Moving the email to Folder (End of Array): [${moveToFolder[0].displayName}]`)
                     let moveStatus = await baas.email.moveMailFolder({ client, messageId: email.id, destinationFolderId: moveToFolder[0].id })
                 }    
             }
@@ -866,7 +866,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         if(output.isCSV) {
             // Check for valid headers
             let csvHeaders = await isCSVcheck( { inputFile: inputFileObj.inputFile, returnHeaders: true } )
-            console.log(csvHeaders)
+            if(DEBUG) console.log(csvHeaders)
 
             for(let fileType of fileTypeId){
                 // loop through the FileTypes and match the columnNames array
@@ -932,7 +932,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         }
 
     } catch (fileTypeLoopError) {
-        console.log('fileTypeLookupError:', JSON.stringify(fileTypeLoopError) )
+        console.error('fileTypeLookupError:', JSON.stringify(fileTypeLoopError) )
         output.fileTypeId = fileTypeId || '99999999999999999999'
     }
    

@@ -3,6 +3,9 @@
 let VENDOR_NAME = 'synapse'
 let ENVIRONMENT = 'prd'
 
+global.DEBUG = false;
+if(DEBUG) console.warn('** GLOBAL DEBUG == TRUE **')
+
 require('dotenv').config({ path: __dirname + '/.env' })
 var path = require('path');
 const fs = require('fs');

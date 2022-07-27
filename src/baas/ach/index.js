@@ -80,7 +80,7 @@ function formatMoney(amount, decimalPosition = 0) {
              // that is the place we insert the comma behind.
              .reverse() // reverse back the array so that the digits are sorted in correctly display order
              .join(""); // transform the array back to the string
-         console.log('Amount:',Original,"Output:", '$' + n + a + '.' + c)
+         if(DEBUG) console.log('Amount:',Original,"Output:", '$' + n + a + '.' + c)
          return '$' + n + a + '.' + c
  
      } catch (e) {
@@ -206,7 +206,7 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
         throw ("Error Parsing the ACH JSON failed. Check the output.")
     }
 
-    console.log( ach_data )
+    if(DEBUG) console.log( ach_data )
 
     let direction = "INBOUND"
 
@@ -291,7 +291,7 @@ async function parseBatchACH(achJSON, spacing) {
     let batchArray = achJSON.batches
 
     for (const batch of batchArray) {
-        console.log(batch)
+        if(DEBUG) console.log(batch)
         output += spacing + 'Batch Number: (' + batch.batchHeader.batchNumber + `) [ ${batch.batchHeader.companyName} (${batch.batchHeader.companyEntryDescription}) ] `
         output += '- Effective Date: ' + batch.batchHeader.effectiveEntryDate + '\n' 
         output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Debit: ` + formatMoney(batch.batchControl.totalDebit, 2) + '\n' 

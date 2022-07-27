@@ -22,7 +22,7 @@ function Handler(mssql) {
         
         try {
             let results = await mssql.sqlQuery(param);
-            console.log(results)
+            if(DEBUG) console.log(results)
 
             if(returnId){
                 return results.data[0].entityId.trim()

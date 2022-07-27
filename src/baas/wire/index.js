@@ -621,11 +621,11 @@ function formatMoney(amount, decimalPosition = 0) {
              // that is the place we insert the comma behind.
              .reverse() // reverse back the array so that the digits are sorted in correctly display order
              .join(""); // transform the array back to the string
-         console.log('Amount:',Original,"Output:", '$' + n + a + '.' + c)
+             if(DEBUG) console.log('Amount:',Original,"Output:", '$' + n + a + '.' + c)
          return '$' + n + a + '.' + c
  
      } catch (e) {
-       console.log(e)
+        if(DEBUG) console.log(e)
        throw e
      }
  };

@@ -19,10 +19,10 @@ function Handler(mssql) {
         
         try {
             let results = await mssql.sqlQuery(param);
-            console.log(results)
+            if(DEBUG) console.log(results)
             return results.rowsAffected != 0
         } catch (err) {
-            console.error(err)
+            if(DEBUG) console.error(err)
             throw err
         }
     }

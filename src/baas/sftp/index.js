@@ -37,7 +37,7 @@ async function getLogger(){
 
     let logger = {}
     logger.log = (message) => {
-        console.log(message)
+        if(DEBUG) console.log(message)
     }
 
     logger.error = (message) => {
@@ -247,7 +247,7 @@ async function putFiles(baas, config = null) {
 
             let filenames = await getLocalFileList(mapping.source)
 
-            console.log(`${mapping.source} FILES:`, filenames)
+            if(DEBUG) (`${mapping.source} FILES:`, filenames)
             // for each filename
             for (const filename of filenames) {
                 // put the file

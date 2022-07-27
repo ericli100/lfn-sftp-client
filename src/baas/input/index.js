@@ -200,7 +200,7 @@ async function getFileTypeId( sqlDataRows, fileInfo ){
             if(filename.includes(fileTypes.fileNameFormat)) return fileTypes.entityId.trim() // we matched an in string match
 
             // we need to inspect the file and match based on content when inbound from email or other sources
-            console.log('getFileTypeId: looking at file content at the type is not matched yet and there are multiple options.')
+            if(DEBUG) console.log('getFileTypeId: looking at file content at the type is not matched yet and there are multiple options.')
 
             // build an array for the caller to evaluate with additional logic for matching
             output.fileTypes.push(fileTypes)
@@ -609,12 +609,12 @@ async function processLineByLine( {inputFile, fixFileArray} ) {
         currentLine++
         let matchedLine = fixFileArray.filter(function(o){ return o.linenumber==currentLine;})
         if (matchedLine.length > 0) {
-            console.log('currentLine:', currentLine, 'matcheLine:',fixFileArray.filter(function(o){ return o.linenumber==currentLine;}))
-            console.log('ORIGINAL currentLine:', currentLine, 'Line:',line)
-            console.log('matchedLine.find:', matchedLine[0].find)
-            console.log('matchedLine.replace:', matchedLine[0].replace)
+            if(DEBUG) console.log('currentLine:', currentLine, 'matcheLine:',fixFileArray.filter(function(o){ return o.linenumber==currentLine;}))
+            if(DEBUG) console.log('ORIGINAL currentLine:', currentLine, 'Line:',line)
+            if(DEBUG) console.log('matchedLine.find:', matchedLine[0].find)
+            if(DEBUG) console.log('matchedLine.replace:', matchedLine[0].replace)
             let fixedLine = line.replace(matchedLine[0].find, matchedLine[0].replace)
-            console.log('UPDATED currentLine:', currentLine, 'fixedLine:',fixedLine)
+            if(DEBUG) console.log('UPDATED currentLine:', currentLine, 'fixedLine:',fixedLine)
 
             writeStream.write(`${fixedLine}${EOL}`);
         } else {

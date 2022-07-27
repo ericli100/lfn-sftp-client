@@ -4,6 +4,10 @@ let VENDOR_NAME = 'synapse'
 let ENVIRONMENT = 'uat'
 
 require('dotenv').config({ path: __dirname + '/.env' })
+
+global.DEBUG = false;
+if(DEBUG) console.warn('** GLOBAL DEBUG == TRUE **')
+
 var path = require('path');
 const fs = require('fs');
 
@@ -47,9 +51,9 @@ async function main(){
     await baas.processing.main({vendorName: VENDOR_NAME, environment: ENVIRONMENT, PROCESSING_DATE, baas, logger, CONFIG: config, CORRELATION_ID})
     await baas.audit.log( {baas, logger, level: 'info', message: `END PROCESSING [${VENDOR_NAME}:${ENVIRONMENT}] at [${PROCESSING_DATE}]`, correlationId: CORRELATION_ID } )
 
-    console.log('sql: disconnecting...')
+    if(DEBUG) console.log('sql: disconnecting...')
     baas.sql.disconnect()
-    console.log('sql: disconnected.')
+    if(DEBUG) console.log('sql: disconnected.')
 
     // close this thing down
     console.log('Ending the process...')

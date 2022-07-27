@@ -388,7 +388,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
 
         // download all the files ( 1 at a time )
         for (let file of output.sentFromOrganization) {
-            console.log(file)
+            if(DEBUG) console.log(file)
 
             let outFileName = file.fileNameOutbound || file.fileName
             let fullFilePath = path.resolve(workingDirectory_from_organization, outFileName)
@@ -567,7 +567,7 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
 
         // download all the files ( 1 at a time )
         for (let file of output.sendToOrganization) {
-            console.log(file)
+            if(DEBUG) console.log(file)
 
             let outFileName = file.fileNameOutbound || file.fileName
             let fullFilePath = path.resolve(workingDirectory_to_organization, outFileName)

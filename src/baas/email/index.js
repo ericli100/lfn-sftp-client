@@ -42,7 +42,7 @@ function Handler() {
             try {
                 await fs.writeFile(cachePath, cacheContext.tokenCache.serialize());
             } catch (error) {
-                console.log(error);
+                if(DEBUG) console.log(error);
             }
         }
     };
@@ -63,7 +63,7 @@ function Handler() {
         system: {
             loggerOptions: {
                 loggerCallback(loglevel, message, containsPii) {
-                    console.log(message);
+                    if(DEBUG) console.log(message);
                 },
                 piiLoggingEnabled: false,
                 logLevel: msal.LogLevel.Verbose,
@@ -94,7 +94,7 @@ function Handler() {
             try {
                 let response = await pca.acquireTokenSilent(silentRequest)
                 output = response
-                console.log("\nSuccessful silent token acquisition");
+                if(DEBUG) console.log("\nSuccessful silent token acquisition");
             } catch (err) {
                 console.error(err)
             }
@@ -108,7 +108,7 @@ function Handler() {
 
             try {
                 let response = await pca.acquireTokenByUsernamePassword(usernamePasswordRequest)
-                console.log("acquired token by password grant");
+                if(DEBUG) console.log("acquired token by password grant");
                 output = response
             } catch (err) {
                 console.error(err)
@@ -152,7 +152,7 @@ function Handler() {
 
         // does not have a folder specified
         if(!folderId && !nextPageLink){
-            console.log(`baas.email.readEmails: Fetching the first 10 emails without a folder...`)
+            if(DEBUG) console.log(`baas.email.readEmails: Fetching the first 10 emails without a folder...`)
             email = await client
             .api('/me/messages')
             .orderby('receivedDateTime desc')
@@ -164,7 +164,7 @@ function Handler() {
         
         // has a folder specified
         if(folderId && !nextPageLink){
-            console.log(`baas.email.readEmails: Fetching the first 10 emails with a folder...`)
+            if(DEBUG) console.log(`baas.email.readEmails: Fetching the first 10 emails with a folder...`)
             email = await client
             .api(`/me/mailFolders/${folderId}/messages`)
             .orderby('receivedDateTime desc')
@@ -176,7 +176,7 @@ function Handler() {
 
         // call the next query that was provided
         if(nextPageLink) {
-            console.log(`baas.email.readEmails: Fetching the next 10 emails...`)
+            if(DEBUG) console.log(`baas.email.readEmails: Fetching the next 10 emails...`)
             email = await client.api( nextPageLink ).get();
             output.responses.push(email)
             output.emails = output.emails.concat(email.value)
@@ -286,7 +286,7 @@ function Handler() {
                     const removeCLRF = fss.readFileSync( path.resolve( destinationPath, fileName )).toString()
                     fss.writeFileSync( path.resolve( destinationPath, fileName ), eol.split(removeCLRF).join(eol.lf) )  
                 } else {
-                    console.log('baas.email.downloadMsGraphAttachments: Non-Text Mime Type:' + mimeType)
+                    if(DEBUG) console.log('baas.email.downloadMsGraphAttachments: Non-Text Mime Type:' + mimeType)
                 }
 
                 let attachmentInfo = {
@@ -343,10 +343,10 @@ function Handler() {
         let moveToFoldername = 'acknowledged'
     
         let mailFolders = await readMailFolders({ client, displayName: processFoldername, includeChildren: true })
-        console.log(mailFolders)
+        if(DEBUG) console.log(mailFolders)
     
         let moveToFolder = await readMailFolders({ client, displayName: moveToFoldername, includeChildren: true} )
-        console.log(moveToFolder)
+        if(DEBUG) console.log(moveToFolder)
     
         let emails = []
         let attachments = []
@@ -370,8 +370,8 @@ function Handler() {
             }
         }
         
-        console.log('emails:', emails)
-        console.log('attachments:', attachments)
+        if(DEBUG) console.log('emails:', emails)
+        if(DEBUG) console.log('attachments:', attachments)
     }
 
     Handler.approvedAttachmentCheck = async function approvedAttachment (filename, config){
@@ -398,7 +398,7 @@ function Handler() {
         for(let recipient of recipients) {
             let isApproved = config.email.inbound.approvedRecipients.includes( recipient.emailAddress.address.toLowerCase() )
             if (isApproved) {
-                console.log(`Approved Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
+                if(DEBUG) console.log(`Approved Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
                 return recipient.emailAddress.address.toLowerCase()
             }
         }
@@ -414,7 +414,7 @@ function Handler() {
         for(let recipient of recipients) {
             let isApproved = config.email.inbound.achApprovedRecipients.includes( recipient.emailAddress.address.toLowerCase() )
             if (isApproved) {
-                console.log(`Approved ACH Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
+                if(DEBUG) console.log(`Approved ACH Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
                 return recipient.emailAddress.address.toLowerCase()
             }
         }
@@ -443,7 +443,7 @@ function Handler() {
         for(let recipient of recipients) {
             let isApproved = config.email.inbound.wireApprovedRecipients.includes( recipient.emailAddress.address.toLowerCase() )
             if (isApproved) {
-                console.log(`Approved Wire Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
+                if(DEBUG) console.log(`Approved Wire Recipient Check: Found an approved recipient [${ JSON.stringify(recipient) }]. `)
                 return recipient.emailAddress.address.toLowerCase()
             }
         }
