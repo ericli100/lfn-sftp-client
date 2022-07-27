@@ -486,7 +486,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     let isAchApprovedSender = await baas.email.approvedAchSenderCheck(from, config)
     let isAchApprovedRecipient = await baas.email.approvedAchRecipientCheck(to, config)
     let isWireApprovedSender = await baas.email.approvedWireSenderCheck(from, config)
-    let isWireApprovedRecipient = await baas.email.approvedWireRecipientCheck(to, config)
+    let isWireApprovedRecipient = await baas.email.approvedWireRecipientCheck(from, config)
     let isApprovedSender = await baas.email.approvedSenderCheck(from, config)
     let isApprovedRecipient = await baas.email.approvedRecipientCheck(to, config) 
     
