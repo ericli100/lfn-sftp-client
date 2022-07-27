@@ -456,7 +456,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: MSGRAPH::> INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(inboundEmailProcessingError) }]!`, correlationId  })
         
         // one final try to delete the folder
-        await deleteWorkingDirectory(workingDirectory)
+        if(workingDirectory) await deleteWorkingDirectory(workingDirectory)
     }
 
     return output
