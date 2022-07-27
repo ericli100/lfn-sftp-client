@@ -7,6 +7,7 @@ const openpgp = require('openpgp');
 const fs = require('fs');
 const path = require('path');
 const  { detectFileMime, detectBufferMime } = require('mime-detect');
+const eol = require('eol')
 
 async function getKeys(VENDOR, ENVIRONMENT) {
     try{
@@ -35,7 +36,7 @@ async function getKeys(VENDOR, ENVIRONMENT) {
 async function encrypt(VENDOR, ENVIRONMENT, message) {
     let encrypted = false;
     let keys = await getKeys(VENDOR, ENVIRONMENT)
-
+    console.log('Binay File Check before encryption needed!')
     encrypted = await openpgp.encrypt({
         message: await openpgp.createMessage({ text: message }), // input as Message object
         encryptionKeys: keys.vendor.publicKey,
@@ -63,7 +64,7 @@ async function decrypt(VENDOR, ENVIRONMENT, encrypted) {
             decryptionKeys: keys.lineage.privateKey
         });
 
-        console.log('decrypted:', decrypted)
+       // console.log('decrypted:', decrypted)
         return decrypted.data
     } catch (error) {
         if(error.message != 'Misformed armored text') {
@@ -95,7 +96,7 @@ async function decryptBinary(VENDOR, ENVIRONMENT, sourceFilePath) {
 async function encryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath) {
     if (!destinationFilePath) destinationFilePath = sourceFilePath + '.gpg'
     let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
-    let encryptedFile = await encrypt(VENDOR, ENVIRONMENT, sourceFile)
+    let encryptedFile = await encrypt(VENDOR, ENVIRONMENT, eol.split(sourceFile).join(eol.lf))
     fs.writeFileSync(destinationFilePath, encryptedFile, {encoding:'utf8', flag:'w'})
     return true
 }
@@ -141,7 +142,7 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
             if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] mime type is [application/octet-stream] and detected the binary file mime type to be [${mimeType}] for environment [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
         }
     } catch (mimeTypeError) {
-        console.error(mimeTypeError)
+        console.warn(mimeTypeError)
         // keep going... do not fail on this.
         if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'error', message: `${audit.vendor}: file [${audit.filename}] mime type could not be detected for environment [${audit.environment}] with error:[${mimeTypeError}]`, effectedEntityId: audit.entityId, correlationId  })
     }
@@ -155,6 +156,17 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
             fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
             return true
         } else {
+            if( mimeType == 'application/csv; charset=us-ascii'  || 
+                mimeType == 'application/json; charset=us-ascii' ||
+                mimeType.indexOf('charset=us-ascii') > 0         ||
+                mimeType.indexOf('charset=iso-8859-1') > 0          ){
+                let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
+                fs.writeFileSync(destinationFilePath, eol.split(sourceFile).join(eol.lf), {encoding:'utf8', flag:'w'})
+                if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'warn', message: `${audit.vendor}: baas.pgp.decryptFile() [${audit.filename}] the mime type is [${mimeType}] but we were expecting an encrypted file, the contents were written out to disk. [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
+                
+                return true
+            }
+
             if(mimeType != 'application/pgp-encrypted; charset=us-ascii'){
                 // we received content that may not be encrypted because it
                 // was binary but is not text/plain; charset=us-ascii'
@@ -171,7 +183,7 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
                     // do not inlude the encoding in the read or write
                     let sourceFile = fs.readFileSync(sourceFilePath, {flag:'r'})
                     fs.writeFileSync(destinationFilePath, sourceFile.toString(), {flag:'w'})
-                    if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'error', message: `${audit.vendor}: file [${audit.filename}] was and unknown type and contents were written out to the buffer. error:[${quickDecryptError}] [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
+                    if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'warn', message: `${audit.vendor}: file [${audit.filename}] the mime type is [${mimeType}] but we were expecting an encrypted file, the contents were written out to the buffer. error:[${quickDecryptError.message}] [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
                     return true
                 }
             }

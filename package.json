@@ -19,6 +19,7 @@
     "commander": "^9.4.0",
     "debug": "^4.3.4",
     "dotenv": "^10.0.0",
+    "eol": "^0.9.1",
     "flake-idgen": "^1.4.0",
     "imapflow": "^1.0.78",
     "is-json": "^2.0.1",

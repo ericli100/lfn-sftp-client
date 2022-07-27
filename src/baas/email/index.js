@@ -12,6 +12,7 @@ const { Client } = require("@microsoft/microsoft-graph-client");
 require('isomorphic-fetch');
 
 const  { detectFileMime } = require('mime-detect');
+const eol = require('eol')
 
 const MSAL_CLIENT_ID = process.env.MSAL_CLIENT_ID;
 const MSAL_TENANT_ID = process.env.MSAL_TENANT_ID
@@ -259,6 +260,8 @@ function Handler() {
         textMimeTypes.push('text/ach; charset=us-ascii')
         textMimeTypes.push('text/plain; charset=us-ascii')
         textMimeTypes.push('text/plain; charset=iso-8859-1')
+        textMimeTypes.push('application/json; charset=us-ascii')
+        textMimeTypes.push('text/json; charset=us-ascii')
 
         // download all the attachments on a message to the destinationPath
         let mailAttachments = await client.api(`/me/messages/${messageId}/attachments`).get();
@@ -277,16 +280,14 @@ function Handler() {
                 let mimeType = await detectFileMime( path.resolve( destinationPath, fileName ) );
 
                 if(textMimeTypes.includes( mimeType )) {
-                // ONLY DO THIS FOR ASCII MIMETYPE!! OTHERWISE IT WILL CORRUPT THE FILES!!
-                // read the file in and remove CRLF and put LF
-                    const removeCLRF = fss.readFileSync( path.resolve( destinationPath, fileName ))
-                        .toString()
-                        .replace(/\r/g, "")
-                    fss.writeFileSync( path.resolve( destinationPath, fileName ), removeCLRF)
+                    // ONLY DO THIS FOR ASCII MIMETYPE!! OTHERWISE IT WILL CORRUPT THE FILES!!
+                    // read the file in and remove CRLF and put LF
+                    console.warn('May need to exclude this for Wire files... CRLF may be required over LF.')
+                    const removeCLRF = fss.readFileSync( path.resolve( destinationPath, fileName )).toString()
+                    fss.writeFileSync( path.resolve( destinationPath, fileName ), eol.split(removeCLRF).join(eol.lf) )  
                 } else {
                     console.log('baas.email.downloadMsGraphAttachments: Non-Text Mime Type:' + mimeType)
                 }
-
 
                 let attachmentInfo = {
                     messageId: messageId,
