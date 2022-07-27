@@ -249,6 +249,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                 toRecipients: recipientsAdviceTo,
             }
             let sendReceiptAdviceStatus = await baas.email.sendEmail({ client, message: receiptAdviceMessage })
+            await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: FILE RECEIPT - FILE ACTIVITY ADVICE [${ENVIRONMENT}] sent email notification to [${recipientsAdviceTo}].`, correlationId  })
         }
 
         // delete the working buffer
