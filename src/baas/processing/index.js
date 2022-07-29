@@ -113,6 +113,8 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
 
         await baas.audit.log({baas, logger, level: 'info', message: `MANUAL FILE DOWNLOAD ENDED [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
     }
+
+    return
 }
 
 async function test(baas) {
@@ -525,7 +527,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     }
 
     // is the user approved to send at all
-    if (isApprovedRecipient || (isAchApprovedSender && !!isAchApprovedRecipient ) || ( isWireApprovedSender )) {
+    if (isApprovedRecipient || (isAchApprovedSender && !!isAchApprovedRecipient ) || ( isWireApprovedRecipient )) {
         if(DEBUG) console.log('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] Approved Recipient matched ${isApprovedRecipient} or ACH approve ${isAchApprovedRecipient}.`)
     } else {
         if(DEBUG) console.warn('*** BASED ON THE CONFIG *** || Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Not an Approved Recipient. Skipping message.')
