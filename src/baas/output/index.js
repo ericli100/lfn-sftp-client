@@ -97,6 +97,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
         let workingDirectory = await baas.processing.createWorkingDirectory(baas, CONFIG.vendor, CONFIG.environment, baas.logger, false, `_FILE_ACTIVITY_${CONFIG.vendor.toUpperCase()}`)
         
         let finalOutput = ''
+        let sendEmailsProcessedFiles = []
 
         for(let accountNumber of output.accounts){
             // loop through the list of accounts and create a file per account
@@ -148,6 +149,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                     }
 
                     processedData.push({entityId: row["entityId"], fileName: row["fileName"], SHA256: row["sha256"]})
+                    sendEmailsProcessedFiles.push({entityId: row["entityId"], fileName: row["fileName"], SHA256: row["sha256"]})
                     outputData.push(newDataRow)
                 }
             }
@@ -158,6 +160,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
             // save this for the email output for the internal notifications
             finalOutput += currentAccountFileName + ':\n';
+            finalOutput += '**********************************************************'
             finalOutput += csv + '\n\n';
 
             // write the file to the working buffer
@@ -230,15 +233,13 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
             await baas.processing.deleteBufferFile(inputFile)
 
             // update the Database - isReceiptSent to True
-            for(let processedFile of processedData){
+            for(let processedFile of sendEmailsProcessedFiles){
                 await baas.sql.file.setFileReceiptProcessed({ entityId: processedFile.entityId, contextOrganizationId, correlationId })
                 await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.processfileReceipt() - file [${path.basename(inputFile)}] was set as [isReceiptProcessed] using baas.sql.file.setFileReceiptProcessed() for environment [${CONFIG.environment}].`, effectedEntityId: fileEntityId, correlationId })
             }
         }
 
-        // Send EMAIL of the file - baas.notifications@lineagebank.com
         // send email of the final output
-
         if(finalOutput != '') {
             const client = await baas.email.getClient();
             let recipientsAdviceTo = await baas.email.parseEmails( 'baas.notifications@lineagebank.com' )
@@ -250,6 +251,13 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
             }
             let sendReceiptAdviceStatus = await baas.email.sendEmail({ client, message: receiptAdviceMessage })
             await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: FILE RECEIPT - FILE ACTIVITY ADVICE [${ENVIRONMENT}] sent email notification to [${recipientsAdviceTo}].`, correlationId  })
+
+            // Send EMAIL of the file - baas.notifications@lineagebank.com
+            for (let eachFile of processedData) {
+                // emails have been sent... mark the database accordingly
+                await baas.sql.file.setEmailAdviceSent({ entityId: eachFile.entityId, contextOrganizationId, correlationId })
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: FILE RECEIPT - File baas.sql.file.setEmailAdviceSent() [${ENVIRONMENT}] sent email notification marked in the DB.`, correlationId, effectedEntityId: eachFile.entityId })
+            }
         }
 
         // delete the working buffer
@@ -625,9 +633,9 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was set as isSentViaSFTP using baas.sql.file.setSentViaSFTP() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
 
                     // process the Advice for Wires or ACH
-                    console.log('TODO: ', 'process the Advice for Wires or ACH')
+                    console.warn('TODO: ', 'process the Advice for Wires or ACH')
                     // Send the Advice Emails
-                    console.log('TODO: ', 'Send the Advice Emails')
+                    console.warn('TODO: ', 'Send the Advice Emails')
                 }
             }
             // let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename + '.gpg')
