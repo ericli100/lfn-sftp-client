@@ -542,7 +542,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     }
 
     // test attachment download
-    let emailAttachmentsArray = await baas.email.downloadMsGraphAttachments({ client, messageId: email.id, destinationPath: path.resolve( workingDirectory ) })
+    let emailAttachmentsArray = await baas.email.downloadMsGraphAttachments({ client, messageId: email.id, destinationPath: path.resolve( workingDirectory ), baas })
     output.attachments = output.attachments.concat(emailAttachmentsArray.emailAttachmentsArray)
 
     let processedAttachementsCount = 0
