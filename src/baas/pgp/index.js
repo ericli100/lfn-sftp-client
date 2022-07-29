@@ -6,8 +6,17 @@
 const openpgp = require('openpgp');
 const fs = require('fs');
 const path = require('path');
-const  { detectFileMime, detectBufferMime } = require('mime-detect');
 const eol = require('eol')
+
+const  { detectFileMime, detectBufferMime } = require('mime-detect');
+const os = require('node:os');
+const {readFile, writeFile} = require('fs/promises');
+
+var mimeCache = {
+    magicNumbers: [
+        {magicNumber: "unknown", mimeType: "unknown"}
+    ]
+};
 
 async function getKeys(VENDOR, ENVIRONMENT) {
     try{
@@ -131,13 +140,15 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
     let mimeType
     let isOctetStream = false
     try{
+        
         // take an initial look to see if the mimeType is text or Binary
-        mimeType = await detectFileMime( sourceFilePath )
+        mimeType = await baas.mime.getMimeTypeThisOS( sourceFilePath )
+        
         if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] mime type was initially detected as [${mimeType}] for environment [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId })
 
         if (mimeType == 'application/octet-stream') {
             // we have a buffer / stream, detect the mime type from there
-            mimeType = await detectBufferMime( sourceFilePath )
+            mimeType = await baas.mime.getMimeTypeThisOS( sourceFilePath, mimeType )
             isOctetStream = true
             if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] mime type is [application/octet-stream] and detected the binary file mime type to be [${mimeType}] for environment [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
         }
@@ -154,6 +165,10 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
             let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
             let decryptedFile = await decrypt(VENDOR, ENVIRONMENT, sourceFile)
             fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
+
+            // capture the mime type of the decrypted file
+            await baas.mime.getMimeTypeThisOS( destinationFilePath )
+
             return true
         } else {
             if( mimeType == 'application/csv; charset=us-ascii'  || 
@@ -161,7 +176,12 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
                 mimeType.indexOf('charset=us-ascii') > 0         ||
                 mimeType.indexOf('charset=iso-8859-1') > 0          ){
                 let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
+                
                 fs.writeFileSync(destinationFilePath, eol.split(sourceFile).join(eol.lf), {encoding:'utf8', flag:'w'})
+
+                // capture the mime type of the decrypted file
+                await baas.mime.getMimeTypeThisOS( destinationFilePath )
+
                 if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'warn', message: `${audit.vendor}: baas.pgp.decryptFile() [${audit.filename}] the mime type is [${mimeType}] but we were expecting an encrypted file, the contents were written out to disk. [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
                 
                 return true
@@ -178,11 +198,19 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
                     let decryptedFile = await decryptBinary(VENDOR, ENVIRONMENT, sourceFilePath)
                      // it decrypted... go ahead and write it out.
                     fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
+
+                    // capture the mime type of the decrypted file
+                    await baas.mime.getMimeTypeThisOS( destinationFilePath )
+
                     return true
                 } catch (quickDecryptError) {
                     // do not inlude the encoding in the read or write
                     let sourceFile = fs.readFileSync(sourceFilePath, {flag:'r'})
                     fs.writeFileSync(destinationFilePath, sourceFile.toString(), {flag:'w'})
+
+                    // capture the mime type of the decrypted file
+                    await baas.mime.getMimeTypeThisOS( destinationFilePath )
+
                     if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'warn', message: `${audit.vendor}: file [${audit.filename}] the mime type is [${mimeType}] but we were expecting an encrypted file, the contents were written out to the buffer. error:[${quickDecryptError.message}] [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
                     return true
                 }
@@ -191,6 +219,10 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
             /* perform a binary decrypt, the file may not be ASCII armored */
             let decryptedFile = await decryptBinary(VENDOR, ENVIRONMENT, sourceFilePath)
             fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
+
+            // capture the mime type of the decrypted file
+            await baas.mime.getMimeTypeThisOS( destinationFilePath )
+
             if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] was decrypted to the buffer successfully [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId })
             return true
         }

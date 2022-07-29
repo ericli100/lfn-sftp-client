@@ -11,7 +11,6 @@ const fss = require('fs');
 const { Client } = require("@microsoft/microsoft-graph-client");
 require('isomorphic-fetch');
 
-const  { detectFileMime } = require('mime-detect');
 const eol = require('eol')
 
 const MSAL_CLIENT_ID = process.env.MSAL_CLIENT_ID;
@@ -248,7 +247,7 @@ function Handler() {
         return output
     }
     
-    Handler.downloadMsGraphAttachments = async function downloadMsGraphAttachments ({ client, messageId, destinationPath }) {
+    Handler.downloadMsGraphAttachments = async function downloadMsGraphAttachments ({ client, messageId, destinationPath, baas }) {
         if(!client) throw ('A valid [client] object is required, please call getClient() and pass it into this function.')
 
         let textMimeTypes = []
@@ -277,7 +276,7 @@ function Handler() {
             try {
                 await fs.writeFile( path.resolve( destinationPath, fileName ), new Buffer.from( fileBase64, 'base64' ) )
 
-                let mimeType = await detectFileMime( path.resolve( destinationPath, fileName ) );
+                let mimeType = await baas.mime.getMimeTypeThisOS( path.resolve( destinationPath, fileName ) );
 
                 if(textMimeTypes.includes( mimeType )) {
                     // ONLY DO THIS FOR ASCII MIMETYPE!! OTHERWISE IT WILL CORRUPT THE FILES!!
@@ -324,7 +323,7 @@ function Handler() {
     //     return mailChildFolders.value
     // }
     
-    Handler.test_function = async function test_function() {
+    Handler.test_function = async function test_function( baas ) {
         const client = await getClient();
     
         let inputFile = path.resolve(__dirname + "/data/test_file_attachment.txt");
@@ -360,7 +359,7 @@ function Handler() {
                 let email = mailInFolder[j]
     
                 // test attachment download
-                let emailAttachmentsArray = await downloadMsGraphAttachments({ client, messageId: email.id, destinationPath: path.resolve(__dirname + "/data/downloads") })
+                let emailAttachmentsArray = await downloadMsGraphAttachments({ client, messageId: email.id, destinationPath: path.resolve(__dirname + "/data/downloads"), baas })
                 attachments = attachments.concat(emailAttachmentsArray.emailAttachmentsArray)
     
                 // test moving a message to a new folder

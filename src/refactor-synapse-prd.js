@@ -210,3 +210,5 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
 }
 
 main()
+
+module.exports.main = main
