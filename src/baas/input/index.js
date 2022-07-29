@@ -339,7 +339,7 @@ async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrg
     }
     let sql1 = await sql.file.insert( fileInsert )
 
-    param = {}
+    let param = {}
     param.params = []
     param.tsql = sql1
 
@@ -371,7 +371,7 @@ async function createUpdateFileJsonSQL( { sql, contextOrganizationId, fileEntity
     }
     let sql2 = await sql.file.updateJSON( jsonUpdate )
 
-    param = {}
+    let param = {}
     param.params = []
     param.tsql = sql2
 
@@ -394,7 +394,7 @@ async function createFileVaultSQL( { sql, entityId, contextOrganizationId, fileE
 
     let sql1 = await sql.fileVault.insert( fileVaultData )
 
-    param = {}
+    let param = {}
     param.params = []
     param.tsql = sql1
 
@@ -696,9 +696,6 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
     let updateFileJsonSQL = await createUpdateFileJsonSQL( { sql, contextOrganizationId, fileEntityId, correlationId, achJSON, returnSQL: true } )
     sqlStatements.push( updateFileJsonSQL.param )
     let jsonFileData = updateFileJsonSQL.jsonFileData;
-
-
-
 
     // loop over the batches for processing
     for (const batch of jsonBatchData.batches) {
