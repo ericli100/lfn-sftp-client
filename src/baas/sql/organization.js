@@ -1,4 +1,4 @@
-'user strict';
+"use strict";
 /*
     Organization handler module
 */

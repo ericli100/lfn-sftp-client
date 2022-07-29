@@ -1,4 +1,4 @@
-'user strict';
+"use strict";
 const sql = require('mssql');
 const isJSON = require('is-json');
 
