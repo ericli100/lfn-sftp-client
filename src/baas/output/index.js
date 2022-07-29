@@ -253,7 +253,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
             await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: FILE RECEIPT - FILE ACTIVITY ADVICE [${ENVIRONMENT}] sent email notification to [${recipientsAdviceTo}].`, correlationId  })
 
             // Send EMAIL of the file - baas.notifications@lineagebank.com
-            for (let eachFile of processedData) {
+            for (let eachFile of sendEmailsProcessedFiles) {
                 // emails have been sent... mark the database accordingly
                 await baas.sql.file.setEmailAdviceSent({ entityId: eachFile.entityId, contextOrganizationId, correlationId })
                 await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: FILE RECEIPT - File baas.sql.file.setEmailAdviceSent() [${ENVIRONMENT}] sent email notification marked in the DB.`, correlationId, effectedEntityId: eachFile.entityId })
