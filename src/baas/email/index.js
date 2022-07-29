@@ -80,7 +80,7 @@ function Handler() {
             return await msalTokenCache.getAllAccounts();
         };
 
-        accounts = await getAccounts();
+        let accounts = await getAccounts();
 
         // Acquire Token Silently if an account is present
         if (accounts.length > 0) {
@@ -199,7 +199,7 @@ function Handler() {
         // replace the current filter with MS Graph with just an array filter based on the FolderName
         let mailFolders = await client.api('/me/mailFolders').get();
     
-        for( i in mailFolders.value) {
+        for(let i in mailFolders.value) {
             if(mailFolders.value[i].childFolderCount > 0 && includeChildren){
                let childFolders = await client.api(`me/mailFolders/${mailFolders.value[i].id}/childFolders`).get();
                childFolders.parentFolderName = mailFolders.value[i].displayName;

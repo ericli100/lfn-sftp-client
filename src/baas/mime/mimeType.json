@@ -35,6 +35,18 @@
         {
             "magicNumber": "3780687045494655",
             "mimeType": "application/pdf"
+        },
+        {
+            "magicNumber": "6865846944656767",
+            "mimeType": "application/csv; charset=us-ascii"
+        },
+        {
+            "magicNumber": "8870845649493232",
+            "mimeType": "text/plain; charset=us-ascii"
+        },
+        {
+            "magicNumber": "19413780787113102610",
+            "mimeType": "image/png"
         }
     ]
 }

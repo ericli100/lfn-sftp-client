@@ -112,7 +112,7 @@ function Handler(mssql) {
     
         let sql1 = await Handler.readByIdSQL( fileVaultData )
     
-        param = {}
+        let param = {}
         param.params = []
         param.tsql = sql1
     
