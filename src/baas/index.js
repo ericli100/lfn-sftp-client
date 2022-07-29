@@ -1,4 +1,4 @@
-'user strict';
+'use strict';
 /*
     This file pulls together all of the BaaS logic and refactors it into a single module
     Pulls the common elements together in a reusable library
@@ -20,6 +20,9 @@ async function main (args) {
     } catch (err) {
         console.error(err)
     }
+
+    const mime = require('./mime')( )
+    baas.mime = mime
 
     const entityId = require('../entityId')
     baas.id = entityId
