@@ -34,6 +34,36 @@ function Handler(mssql) {
             throw err
         }
     }
+
+    Handler.fileNameOutboundExists = async function fileNameOutboundExists(fileNameOutbound, contextOrganizationId, returnId = false) {
+        if (!fileNameOutbound) throw ('fileNameOutbound required')
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+    
+        let sqlStatement = `SELECT [fileNameOutbound]
+        FROM [baas].[files]
+        WHERE [fileNameOutbound] = '${fileNameOutbound}'
+        AND [contextOrganizationId] = '${contextOrganizationId}'
+        AND [tenantId] = '${tenantId}';`
+    
+        let param = {}
+        param.params = []
+        param.tsql = sqlStatement
+        
+        try {
+            let results = await mssql.sqlQuery(param);
+            if(DEBUG) console.log(results)
+
+            if(returnId){
+                return results.data[0].entityId.trim()
+            } else {
+                return results.rowsAffected != 0
+            }
+        } catch (err) {
+            console.error(err)
+            throw err
+        }
+    }
     
     Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isReceiptProcessed, dataJSON, quickBalanceJSON, fileNameOutbound, correlationId}){
         if (!entityId) throw ('entityId required')
