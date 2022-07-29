@@ -42,7 +42,7 @@ function Handler( baas ) {
 
     Handler.writeMimeTypeJSON = async function writeMimeTypeJSON({ mimeTypeJSON }) {
         await writeFile( path.resolve(__dirname, 'mimeType.json'), JSON.stringify(mimeTypeJSON, " "), 'utf-8')
-        return await readMimeTypeJSON()
+        return await Handler.readMimeTypeJSON()
     }
 
     Handler.getMimeTypeThisOS = async function getMimeTypeThisOS( file, existingMimeType = undefined ) {
