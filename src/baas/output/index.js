@@ -335,10 +335,17 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
     if (!baas) throw ('baas.output.downloadFilesFromOrganizationSendToDepositOps() requires the baas module')
     if (!CONFIG) throw ('baas.output.downloadFilesFromOrganizationSendToDepositOps() requires the CONFIG module')
 
+
     let output = {}
 
     let KEEP_DECRYPTED_FILES = CONFIG.processing.ENABLE_MANUAL_DB_DOWNLOAD
     let KEEP_PROCESSING_ON_ERROR = true
+
+    let tenantId = process.env.PRIMAY_TENANT_ID
+
+    let contextOrganizationId = CONFIG.contextOrganizationId
+    let fromOrganizationId = CONFIG.fromOrganizationId
+    let toOrganizationId = CONFIG.toOrganizationId
 
     try {
         let sqlStatement_from_organization = `
@@ -377,11 +384,17 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
         FROM [baas].[files] f
         INNER JOIN [baas].[fileTypes] t
             ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
-        WHERE f.[tenantId] = '3E2E6220-EDF2-439A-91E4-CEF6DE2E8B7B'
+        WHERE f.[tenantId] = '${tenantId}'
         AND f.[isRejected] = 0
-        AND f.[contextOrganizationId] = '6022d4e2b0800000'
-        AND t.[fromOrganizationId] = '606ae4f54e800000'
-        AND t.[toOrganizationId] = '6022d4e2b0800000'
+        AND f.[contextOrganizationId] = '${contextOrganizationId}'
+        AND t.[fromOrganizationId] = '${fromOrganizationId}'
+        AND t.[toOrganizationId] = '${toOrganizationId}'
+        `
+        if(!KEEP_DECRYPTED_FILES) {
+            sqlStatement_from_organization += ` AND f.[isSentToDepositOperations] = 0 `
+        }
+        
+        sqlStatement_from_organization += `
         AND f.[isSentViaSFTP] = 0
         AND ( (f.[isProcessed] = 1 AND f.[hasProcessingErrors] = 0) OR f.[isForceOverrideProcessingErrors] = 1);`
 
