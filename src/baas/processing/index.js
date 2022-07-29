@@ -455,8 +455,13 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
     } catch (inboundEmailProcessingError) {
         await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: MSGRAPH::> INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(inboundEmailProcessingError) }]!`, correlationId  })
         
-        // one final try to delete the folder
-        if(workingDirectory) await deleteWorkingDirectory(workingDirectory)
+        try{
+            // one final try to delete the folder
+            if(workingDirectory) await deleteWorkingDirectory(workingDirectory)
+        } catch (ignore){
+            console.log('baas.processing.getInboundEmailFiles - We will ignore this [workingDirectory] delete on error.')
+        }
+
     }
 
     return output
@@ -535,9 +540,14 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     let approved = isAchApprovedRecipient || isApprovedRecipient || isWireApprovedRecipient
     let attachmentPath = config.email.inbound.folderMappings.find(x => x.to === approved);
 
-    if(!attachmentPath) {
-        console.error('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] There is no attachment path defined on the SFTP server for the approved recipient [${isApprovedRecipient}]! `)
+    if(!approved) {
+        console.warn('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] There is no approved recipiet for this message [${isApprovedRecipient}]! `)
         // await baas.email.badPathError(msgUID, sApprovedRecipient)
+        return 'CONTINUE:'
+    }
+    
+    if(!attachmentPath) {
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INBOUND EMAILS [baas.processing.perEmailInboundProcessing()] - file [${attachment.fileName}] for environment [${ENVIRONMENT}] - There is no attachment path defined on the SFTP server for the approved recipient [${isApprovedRecipient}]!`, effectedEntityId: undefined, correlationId })
         return 'CONTINUE:'
     }
 
@@ -749,7 +759,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
             }
         }
     } else {
-        console.error('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] No attachment on the message, moving it to the rejected folder... `)
+        console.warn('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] No attachment on the message, moving it to the rejected folder... `)
         // await moveMessage(imap, msgUID, "rejected")
         // continue;
     }
@@ -923,7 +933,32 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
             newName = newName.replace('HH', pad2(fileDate.getHours()) )
             newName = newName.replace('MM', pad2(fileDate.getMinutes()) )
             newName = newName.replace('SS', pad2(fileDate.getSeconds()) )
-            newName = newName.replace('{index}', '0')
+
+            let fileIndex = -1
+            let tempNameCheck
+            let loopCheck = -1
+            let addAdditionalIndex = false
+
+            do{
+                fileIndex++
+                loopCheck++
+
+                tempNameCheck = newName
+                if(tempNameCheck.indexOf('{index}')>0) {
+                    tempNameCheck = tempNameCheck.replace('{index}', fileIndex)
+                } else {
+                    // there is not an {index} - infinite loop is possible
+                    if(loopCheck > 0) {
+                        addAdditionalIndex = true
+                        tempNameCheck += `_${fileIndex}` 
+                    }
+                }
+                
+                tempNameCheck += '.' + output.fileExtension
+            } while (await baas.sql.file.fileNameOutboundExists( tempNameCheck, config.contextOrganizationId ));
+            
+            newName = newName.replace('{index}', fileIndex)
+            if(addAdditionalIndex) newName += `_${fileIndex}`
             newName += '.' + output.fileExtension
 
             output.fileNameOutbound = newName
