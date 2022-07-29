@@ -377,7 +377,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
         AND f.[isSentViaSFTP] = 0
         AND ( (f.[isProcessed] = 1 AND f.[hasProcessingErrors] = 0) OR f.[isForceOverrideProcessingErrors] = 1);`
 
-        param = {}
+        let param = {}
         param.params = []
         param.tsql = sqlStatement_from_organization
         output.sentFromOrganization = await baas.sql.execute(param);
