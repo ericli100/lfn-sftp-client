@@ -51,6 +51,10 @@
         {
             "magicNumber": "689711610144659999",
             "mimeType": "text/csv; charset=us-ascii"
+        },
+        {
+            "magicNumber": "123494948481255148",
+            "mimeType": "text/plain; charset=us-ascii"
         }
     ]
 }
