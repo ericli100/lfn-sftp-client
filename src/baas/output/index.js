@@ -160,7 +160,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
             // save this for the email output for the internal notifications
             finalOutput += currentAccountFileName + ':\n';
-            finalOutput += '**********************************************************'
+            finalOutput += '**********************************************************\n'
             finalOutput += csv + '\n\n';
 
             // write the file to the working buffer
