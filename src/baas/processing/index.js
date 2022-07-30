@@ -10,6 +10,9 @@ const path = require('path');
 const papa = require('papaparse');
 const parseCSV = papa.unparse
 
+const eol = require('eol')
+const os = require('node:os');
+
 var VENDOR_NAME
 var ENVIRONMENT
 
@@ -690,8 +693,18 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                 await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath + '.VALIDATION' })
     
                 await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS [baas.processing.perEmailInboundProcessing()] - file [${file.filename}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
-    
                 let sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath + '.VALIDATION' )
+
+                // check if Win32 and update the EOL because windows... /facepalm
+                if(os.platform == 'win32'){
+                    if((sha256 != sha256_VALIDATION)){
+                        const removeCLRF = fs.readFileSync( path.resolve( fullFilePath + '.VALIDATION' )).toString()
+                        fs.writeFileSync( path.resolve( fullFilePath + '.VALIDATION' ), eol.split(removeCLRF).join(eol.lf) ) 
+                        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: [baas.processing.perEmailInboundProcessing()] WIN32 Detected Remove CRLF on Validation before SHA256 check [${file.filename + '.VALIDATION'}] for environment [${ENVIRONMENT}] with SHA256 Hash [${sha256_VALIDATION}].`, effectedEntityId: file.entityId, correlationId })
+                    }
+                }
+
+                sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath + '.VALIDATION' )
     
                 if (sha256 == sha256_VALIDATION) {
                     // okay... we are 100% validated. We pulled the file, 
