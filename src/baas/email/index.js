@@ -12,6 +12,7 @@ const { Client } = require("@microsoft/microsoft-graph-client");
 require('isomorphic-fetch');
 
 const eol = require('eol')
+const os = require('node:os');
 
 const MSAL_CLIENT_ID = process.env.MSAL_CLIENT_ID;
 const MSAL_TENANT_ID = process.env.MSAL_TENANT_ID
@@ -277,6 +278,16 @@ function Handler() {
                 await fs.writeFile( path.resolve( destinationPath, fileName ), new Buffer.from( fileBase64, 'base64' ) )
 
                 let mimeType = await baas.mime.getMimeTypeThisOS( path.resolve( destinationPath, fileName ) );
+
+                if(mimeType === undefined && os.platform == 'win32'){
+                    let extension = path.extname( path.resolve( destinationPath, fileName ) ).toLowerCase();
+                    
+                    if(extension == '.txt' || extension == '.ach' || extension == '.json' || extension == '.csv'  ){
+                        const removeCLRF = fss.readFileSync( path.resolve( destinationPath, fileName )).toString()
+                        fss.writeFileSync( path.resolve( destinationPath, fileName ), eol.split(removeCLRF).join(eol.lf) )
+                        console.warn('win32 - add baas.audit entry to log this mimeType issue.')                        
+                    }
+                }
 
                 if(textMimeTypes.includes( mimeType )) {
                     // ONLY DO THIS FOR ASCII MIMETYPE!! OTHERWISE IT WILL CORRUPT THE FILES!!
