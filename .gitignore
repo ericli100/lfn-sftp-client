@@ -3,10 +3,10 @@
 .env
 
 ### VisualStudioCode ###
-.vscode/*      # Maybe .vscode/**/* instead - see comments
+.vscode/*      # Maybe  instead - see comments
+.vscode/**/*
 !.vscode/settings.json
 !.vscode/tasks.json
-!.vscode/launch.json
 !.vscode/extensions.json
 
 .DS_Store
