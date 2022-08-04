@@ -9,8 +9,8 @@ CONFIG.db = {
     server: process.env.BAAS_DB_SERVER,
     database: process.env.BAAS_DB_DATABASE,
     port: 1433,
-    connectionTimeout: 15000,
-    requestTimeout: 15000,
+    connectionTimeout: 60000,
+    requestTimeout: 120000,
     stream: false,
     parseJSON: false,
     pool: {
