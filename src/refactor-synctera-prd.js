@@ -100,6 +100,8 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.folderMappings.push({ type: 'get', source: '/encrypted/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
     config.folderMappings.push({ type: 'get', source: '/encrypted', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
     config.folderMappings.push({ type: 'get', source: '/encrypted/outbound/txns', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
+    config.folderMappings.push({ type: 'get', source: '/encrypted/sfd/transaction', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
+    config.folderMappings.push({ type: 'get', source: '/encrypted/sfd', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed' })
     config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.ach.inbound`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.ach` , destination: '/ach/inbound', usePGP:false })
     config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.fis`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.fis`, destination: '/fis', usePGP:false })
     config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`, destination: '/fis', usePGP:false, isOutbound:false })
@@ -108,6 +110,8 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.destinationFolders.push( '/encrypted' )
     config.destinationFolders.push( '/encrypted/inbound' )
     config.destinationFolders.push( '/encrypted/outbound' )
+    config.destinationFolders.push( '/encrypted/sfd' )
+    config.destinationFolders.push( '/encrypted/sfd/transaction' )
     config.destinationFolders.push( '/encrypted/outbound/txns' )
 
     config.environment = ENVIRONMENT;
@@ -195,14 +199,14 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
 
     // SET THE PROCESSING FLAGS
     config.processing = {}
-    config.processing.ENABLE_FTP_PULL = false
+    config.processing.ENABLE_FTP_PULL = true
     config.processing.ENABLE_INBOUND_EMAIL_PROCESSING = true
     config.processing.ENABLE_INBOUND_PROCESSING_FROM_DB = true
     config.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB = false
     config.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING = false
     config.processing.ENABLE_FILE_RECEIPT_PROCESSING = false
     config.processing.ENABLE_REMOTE_DELETE = false
-    config.processing.ENABLE_MANUAL_DB_DOWNLOAD = false
+    config.processing.ENABLE_MANUAL_DB_DOWNLOAD = true
    
     return config
 }
