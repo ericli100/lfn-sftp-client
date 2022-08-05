@@ -1192,13 +1192,13 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                         }
                         
                         if(file.isOutboundToFed) {
-                            quickBalanceJSON.totalDebits = parsedWire.totalAmount
-                            quickBalanceJSON.debitCount = parsedWire.wires.length
+                            quickBalanceJSON.totalCredits = parsedWire.totalAmount
+                            quickBalanceJSON.creditCount = parsedWire.wires.length
                         }
 
                         if(file.isInboundFromFed) {
-                            quickBalanceJSON.totalCredits = parsedWire.totalAmount
-                            quickBalanceJSON.creditCount = parsedWire.wires.length
+                            quickBalanceJSON.totalDebits = parsedWire.totalAmount
+                            quickBalanceJSON.debitCount = parsedWire.wires.length
                         }
 
                         await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed wire quickBalanceJSON: ${JSON.stringify(quickBalanceJSON)}`, correlationId} )
