@@ -21,6 +21,9 @@ async function main (args) {
         console.error(err)
     }
 
+    const common = require('./common')()
+    baas.common = common
+
     const mime = require('./mime')( )
     baas.mime = mime
 

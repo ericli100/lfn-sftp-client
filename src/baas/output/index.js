@@ -115,38 +115,11 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                     newDataRow['fileName'] = row['fileName'].trim()
                     newDataRow['Incoming / Outgoing'] = row['Incoming / Outgoing'].trim()
 
-                    // Credit Count,Credit Amount,Debit Count,Debit Amount
-                    // {"totalCredits":15,"totalDebits":0,"creditCount":2,"debitCount":0}
                     let quickBalance = row['quickBalanceJSON']
                     newDataRow['Credit Count'] = quickBalance.creditCount
-                    newDataRow['Credit Amount'] = quickBalance.totalCredits.toString()
+                    newDataRow['Credit Amount'] = await baas.common.formatMoney({ amount: quickBalance.totalCredits.toString(), decimalPosition: 2 })
                     newDataRow['Debit Count'] = quickBalance.debitCount
-                    newDataRow['Debit Amount'] = quickBalance.totalDebits.toString()
-
-                    // seriously... why are they having us put decimals in this??
-                    if (newDataRow['Credit Amount'].length > 2) {
-                        newDataRow['Credit Amount'] = newDataRow['Credit Amount'].substring(0, newDataRow['Credit Amount'].length - 2) + '.' + newDataRow['Credit Amount'].substring(newDataRow['Credit Amount'].length - 2, 3)
-                    }
-
-                    if (newDataRow['Credit Amount'].length == 2) {
-                        newDataRow['Credit Amount'] = '0.' + newDataRow['Credit Amount']
-                    }
-
-                    if (newDataRow['Credit Amount'].length == 1) {
-                        newDataRow['Credit Amount'] = '0.0' + newDataRow['Credit Amount']
-                    }
-
-                    if (newDataRow['Debit Amount'].length > 2) {
-                        newDataRow['Debit Amount'] = newDataRow['Debit Amount'].substring(0, newDataRow['Debit Amount'].length - 2) + '.' + newDataRow['Debit Amount'].substring(newDataRow['Debit Amount'].length - 2, 3)
-                    }
-
-                    if (newDataRow['Debit Amount'].length == 2) {
-                        newDataRow['Debit Amount'] = '0.' + newDataRow['Debit Amount']
-                    }
-
-                    if (newDataRow['Debit Amount'].length == 1) {
-                        newDataRow['Debit Amount'] = '0.0' + newDataRow['Debit Amount']
-                    }
+                    newDataRow['Debit Amount'] = await baas.common.formatMoney({ amount: quickBalance.totalDebits.toString(), decimalPosition: 2 })
 
                     processedData.push({entityId: row["entityId"], fileName: row["fileName"], SHA256: row["sha256"]})
                     sendEmailsProcessedFiles.push({entityId: row["entityId"], fileName: row["fileName"], SHA256: row["sha256"]})

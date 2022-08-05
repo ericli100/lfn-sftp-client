@@ -5,6 +5,8 @@ Promise.longStackTraces();
 const fs = require('fs');
 var path = require('path');
 
+const common = require('../common')();
+
 const ach = require('./ach')
 
 require('dotenv').config({ path: __dirname + '/.env' })
@@ -366,8 +368,8 @@ async function send_ach_advice(args, NotificationDL, isOutbound, filename){
         messageBody += `******** ACH Batch Details ********\n`
         messageBody += `\n`
         messageBody += spacing + `Total File Control: [Immediate Origin:(${achJSON.fileHeader.immediateOriginName})]: \n`
-        messageBody += spacing + spacing + `Total Debit: ${ach.formatMoney(achJSON.fileControl.totalDebit, 2)} \n`// achJSON.fileControl
-        messageBody += spacing + spacing + `Total Credit: ${ach.formatMoney("-" + achJSON.fileControl.totalCredit, 2) } \n`
+        messageBody += spacing + spacing + `Total Debit: ${ await common.formatMoney({ amount: achJSON.fileControl.totalDebit, decimalPosition: 2 }) } \n`// achJSON.fileControl
+        messageBody += spacing + spacing + `Total Credit: ${ await common.formatMoney({ amount: "-" + achJSON.fileControl.totalCredit, decimalPosition: 2 }) } \n`
         messageBody += spacing + spacing + `fileCreationDate: ${achJSON.fileHeader.fileCreationDate} `
         messageBody += '\n\n'
         let batchTotals = await parseBatchACH(achJSON, spacing)
@@ -394,8 +396,8 @@ async function parseBatchACH(achJSON, spacing) {
         console.log(batch)
         output += spacing + 'Batch Number: (' + batch.batchHeader.batchNumber + `) [ ${batch.batchHeader.companyName} (${batch.batchHeader.companyEntryDescription}) ] `
         output += '- Effective Date: ' + batch.batchHeader.effectiveEntryDate + '\n' 
-        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Debit: ` + ach.formatMoney(batch.batchControl.totalDebit, 2) + '\n' 
-        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Credit: ` + ach.formatMoney('-' + batch.batchControl.totalCredit, 2) + '\n' 
+        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Debit: ` + await common.formatMoney({ amount: batch.batchControl.totalDebit, decimalPosition: 2 }) + '\n' 
+        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Credit: ` + await common.formatMoney({ amount: '-' + batch.batchControl.totalCredit, decimalPosition: 2 }) + '\n' 
         output += '\n'
     }
 

@@ -11,6 +11,7 @@ const exec = util.promisify(require('child_process').exec);
 const { EOL } = require('os');
 const readline = require('readline');
 const events = require('events');
+const common = require('../common')();
 
 const DEBUG = false
 
@@ -23,70 +24,12 @@ if (achFiles.length >= 1) {
     main(achFiles)
 }
 
-function formatMoney(amount, decimalPosition = 0) {
-    let Original = amount
-
-    if (amount === null) return;
-    if(typeof amount !== 'string') { amount = amount.toString() }
- 
-    try {
-         let a = '';
-         let c = '';
-         let n = '';
-         if(amount.indexOf('-')==0){
-            n = '-'
-            amount = amount.substring(1, amount.length)
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-
-            if(amount == '000') { n = ''}
-         }
-
-         if(amount.indexOf('(')==0 && amount.indexOf(')')> 0){
-            n = '-'
-            amount = amount.substring(1, amount.length)
-            amount = amount.substring(0, amount.length -1)
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-         }
-
-         if(amount.indexOf('.')>0){
-             a = amount.substring(0, amount.length - 3)
-             c = amount.substring( amount.indexOf('.') + 1 , amount.length);
-         } else if (decimalPosition > 0) {
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-             a = amount.substring(0, amount.length - decimalPosition)
-             c = amount.substring(amount.length - decimalPosition, amount.length)
-         } else {
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-             a = amount
-             c = '00'
-         }
- 
-         a = a
-             .toString() // transform the number to string
-             .split("") // transform the string to array with every digit becoming an element in the array
-             .reverse() // reverse the array so that we can start process the number from the least digit
-             .map((digit, index) =>
-                 index != 0 && index % 3 === 0 ? `${digit},` : digit
-             ) // map every digit from the array.
-             // If the index is a multiple of 3 and it's not the least digit,
-             // that is the place we insert the comma behind.
-             .reverse() // reverse back the array so that the digits are sorted in correctly display order
-             .join(""); // transform the array back to the string
-         if(DEBUG) console.log('Amount:',Original,"Output:", '$' + n + a + '.' + c)
-         return '$' + n + a + '.' + c
- 
-     } catch (e) {
-       console.log(e)
-       throw e
-     }
+async function formatMoney(amount, decimalPosition = 0) {
+    try{
+        return await common.formatMoney({ amount: amount, decimalPosition: decimalPosition })
+    } catch (error) {
+        throw ( error )
+    }
  };
 
 function maskInfo (key, value) {
@@ -227,8 +170,8 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
         messageBody += `******** ACH Batch Details ********\n`
         messageBody += `\n`
         messageBody += spacing + `Total File Control: [Immediate Origin:(${achJSON.fileHeader.immediateOriginName})]: \n`
-        messageBody += spacing + spacing + `Total Debit: ${formatMoney(achJSON.fileControl.totalDebit, 2)} \n`// achJSON.fileControl
-        messageBody += spacing + spacing + `Total Credit: ${formatMoney("-" + achJSON.fileControl.totalCredit, 2) } \n`
+        messageBody += spacing + spacing + `Total Debit: ${await formatMoney(achJSON.fileControl.totalDebit, 2)} \n`// achJSON.fileControl
+        messageBody += spacing + spacing + `Total Credit: ${await formatMoney("-" + achJSON.fileControl.totalCredit, 2) } \n`
         messageBody += spacing + spacing + `fileCreationDate: ${achJSON.fileHeader.fileCreationDate} `
         messageBody += '\n\n'
         let batchTotals = await parseBatchACH(achJSON, spacing)
@@ -270,8 +213,8 @@ async function achAdviceOverride({ vendor, environment, filename, isOutbound }){
     let spacing = "   "
     messageBody += `******** ACH Quick Parse Details ********\n`
     messageBody += `\n`
-    messageBody += spacing + `Total Debits: ${formatMoney( achJSON.totalDebits, 2)} \n`// achJSON.fileControl
-    messageBody += spacing + `Total Credits: ${formatMoney("-" + achJSON.totalCredits, 2) } \n`
+    messageBody += spacing + `Total Debits: ${await formatMoney( achJSON.totalDebits, 2)} \n`// achJSON.fileControl
+    messageBody += spacing + `Total Credits: ${await formatMoney("-" + achJSON.totalCredits, 2) } \n`
     messageBody += '\n\n'
 
 
@@ -294,8 +237,8 @@ async function parseBatchACH(achJSON, spacing) {
         if(DEBUG) console.log(batch)
         output += spacing + 'Batch Number: (' + batch.batchHeader.batchNumber + `) [ ${batch.batchHeader.companyName} (${batch.batchHeader.companyEntryDescription}) ] `
         output += '- Effective Date: ' + batch.batchHeader.effectiveEntryDate + '\n' 
-        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Debit: ` + formatMoney(batch.batchControl.totalDebit, 2) + '\n' 
-        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Credit: ` + formatMoney('-' + batch.batchControl.totalCredit, 2) + '\n' 
+        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Debit: ` + await formatMoney(batch.batchControl.totalDebit, 2) + '\n' 
+        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Credit: ` + await formatMoney('-' + batch.batchControl.totalCredit, 2) + '\n' 
         output += '\n'
     }
 
