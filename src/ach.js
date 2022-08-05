@@ -18,72 +18,6 @@ if (achFiles.length >= 1) {
     main(achFiles)
 }
 
-function formatMoney(amount, decimalPosition = 0) {
-    let Original = amount
-
-    if (amount === null) return;
-    if(typeof amount !== 'string') { amount = amount.toString() }
- 
-    try {
-         let a = '';
-         let c = '';
-         let n = '';
-         if(amount.indexOf('-')==0){
-            n = '-'
-            amount = amount.substring(1, amount.length)
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-
-            if(amount == '000') { n = ''}
-         }
-
-         if(amount.indexOf('(')==0 && amount.indexOf(')')> 0){
-            n = '-'
-            amount = amount.substring(1, amount.length)
-            amount = amount.substring(0, amount.length -1)
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-         }
-
-         if(amount.indexOf('.')>0){
-             a = amount.substring(0, amount.length - 3)
-             c = amount.substring( amount.indexOf('.') + 1 , amount.length);
-         } else if (decimalPosition > 0) {
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-             a = amount.substring(0, amount.length - decimalPosition)
-             c = amount.substring(amount.length - decimalPosition, amount.length)
-         } else {
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-             a = amount
-             c = '00'
-         }
- 
-         a = a
-             .toString() // transform the number to string
-             .split("") // transform the string to array with every digit becoming an element in the array
-             .reverse() // reverse the array so that we can start process the number from the least digit
-             .map((digit, index) =>
-                 index != 0 && index % 3 === 0 ? `${digit},` : digit
-             ) // map every digit from the array.
-             // If the index is a multiple of 3 and it's not the least digit,
-             // that is the place we insert the comma behind.
-             .reverse() // reverse back the array so that the digits are sorted in correctly display order
-             .join(""); // transform the array back to the string
-         console.log('Amount:',Original,"Output:", '$' + n + a + '.' + c)
-         return '$' + n + a + '.' + c
- 
-     } catch (e) {
-       console.log(e)
-       throw e
-     }
- };
-
 function maskInfo (key, value) {
     var maskedValue = value;
     var splats = '***********************************'
@@ -152,8 +86,4 @@ module.exports = (args) => {
     }
 
     return main(newArgs)
-}
-
-module.exports.formatMoney = (amount, decimalCount) => {
-    return formatMoney(amount, decimalCount)
 }

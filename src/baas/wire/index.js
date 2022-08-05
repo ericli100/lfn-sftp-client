@@ -14,6 +14,8 @@ const { EOL } = require('os');
 const readline = require('readline');
 const events = require('events');
 
+const common = require('../common')();
+
 // fetch this file from: => https://oss.moov.io/wire/wire.wasm
 let wasmPath = path.resolve('./src/baas/wire/wire.wasm')
 const wasmBuffer = fs.readFileSync( wasmPath );
@@ -523,7 +525,7 @@ async function wireAdvice( { vendor, environment, inputFile, isOutbound, listDet
     messageBody += `Environment: ${environment}\n`
     messageBody += `Filename: ` + path.basename( inputFile ) + '\n'
     messageBody += `Total Wires in File: [${wireJSON.wiresCount}] \n`
-    messageBody += `Total Amount: ${formatMoney(wireJSON.totalAmount, 2)} \n`//
+    messageBody += `Total Amount: ${ await common.formatMoney({ amount: wireJSON.totalAmount, decimalPosition: 2}) } \n`//
     messageBody += `\n\n`
 
     let spacing = "   "
@@ -536,7 +538,7 @@ async function wireAdvice( { vendor, environment, inputFile, isOutbound, listDet
         currentWireNumber++
         messageBody += spacing + `FedWire Number [${currentWireNumber}] **************************: \n`
         messageBody += spacing + spacing + `Wire Type: ${eachWire.wire["'{3600}'"]}${eachWire.wire["'{1510}'"]} \n`
-        messageBody += spacing + spacing + `Wire Amount: ${formatMoney( parseInt( eachWire.wire["'{2000}'"] ), 2)} \n`//
+        messageBody += spacing + spacing + `Wire Amount: ${ await common.formatMoney({ amount: parseInt( eachWire.wire["'{2000}'"] ), decimalPosition: 2}) } \n`//
         if( eachWire.wire.hasOwnProperty("'{1520}'") ) messageBody += spacing + spacing + `Wire Date and Sender {1520}: ${eachWire.wire["'{1520}'"]} \n`
         if( eachWire.wire.hasOwnProperty("'{3400}'") ) messageBody += spacing + spacing + `Sender Bank {3400}: ${eachWire.wire["'{3400}'"]} \n`
         if( eachWire.wire.hasOwnProperty("'{3100}'") ) messageBody += spacing + spacing + `Receiving Bank {3100}: ${eachWire.wire["'{3100}'"]} \n`
@@ -563,72 +565,6 @@ async function wireAdvice( { vendor, environment, inputFile, isOutbound, listDet
 
     return messageBody
 }
-
-function formatMoney(amount, decimalPosition = 0) {
-    let Original = amount
-
-    if (amount === null) return;
-    if(typeof amount !== 'string') { amount = amount.toString() }
- 
-    try {
-         let a = '';
-         let c = '';
-         let n = '';
-         if(amount.indexOf('-')==0){
-            n = '-'
-            amount = amount.substring(1, amount.length)
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-
-            if(amount == '000') { n = ''}
-         }
-
-         if(amount.indexOf('(')==0 && amount.indexOf(')')> 0){
-            n = '-'
-            amount = amount.substring(1, amount.length)
-            amount = amount.substring(0, amount.length -1)
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-         }
-
-         if(amount.indexOf('.')>0){
-             a = amount.substring(0, amount.length - 3)
-             c = amount.substring( amount.indexOf('.') + 1 , amount.length);
-         } else if (decimalPosition > 0) {
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-             a = amount.substring(0, amount.length - decimalPosition)
-             c = amount.substring(amount.length - decimalPosition, amount.length)
-         } else {
-            if(amount.length <= decimalPosition) {
-                amount = '00' + amount
-            }
-             a = amount
-             c = '00'
-         }
- 
-         a = a
-             .toString() // transform the number to string
-             .split("") // transform the string to array with every digit becoming an element in the array
-             .reverse() // reverse the array so that we can start process the number from the least digit
-             .map((digit, index) =>
-                 index != 0 && index % 3 === 0 ? `${digit},` : digit
-             ) // map every digit from the array.
-             // If the index is a multiple of 3 and it's not the least digit,
-             // that is the place we insert the comma behind.
-             .reverse() // reverse back the array so that the digits are sorted in correctly display order
-             .join(""); // transform the array back to the string
-             if(DEBUG) console.log('Amount:',Original,"Output:", '$' + n + a + '.' + c)
-         return '$' + n + a + '.' + c
- 
-     } catch (e) {
-        if(DEBUG) console.log(e)
-       throw e
-     }
- };
 
 module.exports.parse = parse
 
