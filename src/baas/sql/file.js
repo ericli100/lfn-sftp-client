@@ -216,7 +216,7 @@ function Handler(mssql) {
         if(dataJSON) {
             sqlStatement = `
             UPDATE [baas].[files]
-                SET [dataJSON] = '${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
+                SET [dataJSON] = CAST('' AS varchar(MAX)) + '${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
                     [correlationId] = '${correlationId}'
             WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}' AND [contextOrganizationId] = '${contextOrganizationId}';`
         }
@@ -224,7 +224,7 @@ function Handler(mssql) {
         if(quickBalanceJSON) {
             sqlStatement += `\n
             UPDATE [baas].[files]
-                SET [quickBalanceJSON] = '${JSON.stringify(quickBalanceJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
+                SET [quickBalanceJSON] = CAST('' AS varchar(MAX)) + '${JSON.stringify(quickBalanceJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
                     [correlationId] = '${correlationId}'
             WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}' AND [contextOrganizationId] = '${contextOrganizationId}';`
         }
@@ -314,6 +314,48 @@ function Handler(mssql) {
         return output
     }
 
+    Handler.validateACHQuickBalanceJSON = async function validateACHQuickBalanceJSON({contextOrganizationId, fromOrganizationId, toOrganizationId}){
+        let output = {}
+
+        let tenantId = process.env.PRIMAY_TENANT_ID
+
+        // override this
+        toOrganizationId = fromOrganizationId;
+    
+        let sqlStatement = `
+        SELECT f.[entityId]
+            ,f.[dataJSON]
+            ,f.[quickBalanceJSON]
+            ,(SELECT COUNT([batchCredits]) FROM [baas].[fileBatches] WHERE [fileId] = f.[entityId] AND [batchCredits] > 0) AS countCredit
+            ,(SELECT COUNT([batchDebits]) FROM [baas].[fileBatches] WHERE [fileId] = f.[entityId] AND [batchDebits] > 0) AS countDebit
+            ,(SELECT SUM([batchCredits]) FROM [baas].[fileBatches] WHERE [fileId] = f.[entityId] AND [batchCredits] > 0) AS totalCredit
+            ,(SELECT SUM([batchDebits]) FROM [baas].[fileBatches] WHERE [fileId] = f.[entityId] AND [batchDebits] > 0 ) AS totalDebit
+        FROM [baas].[files] f
+        INNER JOIN [baas].[fileTypes] t
+        ON f.[fileTypeId] = t.entityId AND f.[tenantId] = t.[tenantId] AND f.contextOrganizationId = t.contextOrganizationId
+        WHERE f.tenantId = '${tenantId}'
+        AND f.contextOrganizationId = '${contextOrganizationId}'
+        AND (t.[fromOrganizationId] = '${fromOrganizationId}' OR t.[toOrganizationId] = '${toOrganizationId}')
+        AND f.[hasProcessingErrors] = 0
+        AND f.isProcessed = 1
+        AND t.isACH = 1
+        AND f.isRejected = 0;`
+    
+        let param = {}
+        param.params = []
+        param.tsql = sqlStatement
+        
+        try {
+            let results = await mssql.sqlQuery(param);
+            output = results.data
+        } catch (err) {
+            console.error(err)
+            throw err
+        }
+
+        return output
+    }
+
     Handler.getUnprocessedOutboundSftpFiles = async function getUnprocessedOutboundSftpFiles({contextOrganizationId, fromOrganizationId, toOrganizationId}){
         let output = {}
 
@@ -322,9 +364,6 @@ function Handler(mssql) {
         if(!toOrganizationId) throw('baas.sql.file.getUnprocessedOutboundSftpFiles() needs a toOrganizationId')
 
         let tenantId = process.env.PRIMAY_TENANT_ID
-
-        // AND t.[fromOrganizationId] = '6022d4e2b0800000'
-        //     AND t.[toOrganizationId] = '606ae4f54e800000'
     
         let sqlStatement = `
             SELECT f.[entityId]
