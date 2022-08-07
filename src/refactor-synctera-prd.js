@@ -52,10 +52,15 @@ async function main(){
     let CORRELATION_ID = await baas.id.generate()
 
     // ** MAIN PROCESSING FUNCTION ENTRY POINT ** //
+    try{
         await baas.audit.log( {baas, logger, level: 'info', message: `BEGIN PROCESSING [${VENDOR_NAME}:${ENVIRONMENT}] at [${PROCESSING_DATE}]`, correlationId: CORRELATION_ID } )
-    await baas.processing.main({vendorName: VENDOR_NAME, environment: ENVIRONMENT, PROCESSING_DATE, baas, logger, CONFIG: config, CORRELATION_ID})
+        await baas.processing.main({vendorName: VENDOR_NAME, environment: ENVIRONMENT, PROCESSING_DATE, baas, logger, CONFIG: config, CORRELATION_ID})
         await baas.audit.log( {baas, logger, level: 'info', message: `END PROCESSING [${VENDOR_NAME}:${ENVIRONMENT}] at [${PROCESSING_DATE}]`, correlationId: CORRELATION_ID } )
-
+    
+    } catch (unhandled) {
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: UNHANDLED ERROR [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(unhandled) }]!`, correlationId: CORRELATION_ID   })
+    }
+    
     if(DEBUG) console.log('sql: disconnecting...')
     baas.sql.disconnect()
     if(DEBUG) console.log('sql: disconnected.')
