@@ -650,10 +650,16 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
     if(!fileEntityId) throw('baas.input.ach: fileEntityId value is required!')
     if(!correlationId) correlationId = await baas.id.generate() // just set one and move on.
 
-    let output = {};
+    var output = {};
+
+    // initialize the default values
+    output.totalCredits = 0
+    output.creditCount = 0
+    output.totalDebits = 0
+    output.debitCount = 0
 
     // parse ACH file
-    let isACH = false;
+    var isACH = false;
 
     try{
         isACH = await baas.ach.isACH( inputFile )
@@ -713,12 +719,7 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
         // TRANSACTION DETAIL PROCESSING *********
         let DebitBatchRunningTotal = 0
         let CreditBatchRunningTotal = 0
-
-        output.creditCount = 0
-        output.debitCount = 0
-        output.totalCredits = 0
-        output.totalDebits = 0
-
+        
         // loop over the transactions for processing
         for (const transaction of batch.entryDetails) {
             let fileTransactionEntityId = baas.id.generate();
@@ -735,13 +736,13 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
             DebitBatchRunningTotal += achType.transactionDebit
 
             if(achType.isCredit) {
-                output.creditCount ++
-                output.totalCredits += achType.transactionCredit
+                output.creditCount = output.creditCount + 1;
+                output.totalCredits = output.totalCredits + achType.transactionCredit
             }
 
             if(achType.isDebit) {
-                output.debitCount ++
-                output.totalDebits += achType.transactionDebit
+                output.debitCount = output.debitCount + 1;
+                output.totalDebits = output.totalDebits + achType.transactionDebit
             }
 
             // TODO: lookup the fromAccountId ( this is the RDFI end user account based on isOutbound value)
