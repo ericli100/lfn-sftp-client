@@ -484,6 +484,8 @@ module.exports.getFile = (fileDetails, workingDirectory, config) => {
 
 module.exports.put = put;
 
+module.exports.deleteRemoteFile = deleteRemoteFile;
+
 module.exports.putRemoteFileList = putRemoteFileList;
 
 module.exports.validateFileExistsOnRemote = validateFileExistsOnRemote;

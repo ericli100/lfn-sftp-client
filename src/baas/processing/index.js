@@ -55,7 +55,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     ENABLE_OUTBOUND_PROCESSING_FROM_DB = CONFIG.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB
     ENABLE_OUTBOUND_EMAIL_PROCESSING = CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING
     ENABLE_FILE_RECEIPT_PROCESSING = CONFIG.processing.ENABLE_FILE_RECEIPT_PROCESSING
-    ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
+    ENABLE_REMOTE_DELETE = CONFIG.processing.ENABLE_REMOTE_DELETE
 
     baas.logger = logger;
 
@@ -77,7 +77,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
         await baas.audit.log({baas, logger, level: 'info'
         , message: `SFTP [GET] VALIDATED (${remoteValidatedFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] with details of [${JSON.stringify(remoteValidatedFiles.validatedRemoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}] and loaded them into the database.`, correlationId: CORRELATION_ID})
     
-        if(ENABLE_REMOTE_DELETE) await removeRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, remoteValidatedFiles.validatedRemoteFiles)
+        if(ENABLE_REMOTE_DELETE) await removeRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, arrayOfValidatedFiles: remoteValidatedFiles.validatedRemoteFiles, correlationId: CORRELATION_ID })
     
         await baas.audit.log({baas, logger, level: 'info', message: `SFTP Processing ended for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
     }
@@ -1124,10 +1124,22 @@ async function getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
     return output;
 }
 
-async function removeRemoteSftpFiles(baas, logger, VENDOR_NAME, environment, config, arrayOfFiles) {
+async function removeRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, arrayOfValidatedFiles, correlationId }) {
     // remove the files that have been stored and validated in the database
-    console.log("TODO: implement remote file processing code (either delete or move the file based on logic)")
-    return false
+    await baas.audit.log({baas, logger, level: 'info', message: `Remove Remote SFTP files STARTED for the files validated to be in the DB [${VENDOR_NAME}] for environment [${ENVIRONMENT}] ...`, correlationId})
+
+    if(arrayOfValidatedFiles.length > 0) {
+        await baas.audit.log({baas, logger, level: 'info', message: `Remove Remote SFTP there are [${arrayOfValidatedFiles.length}] files to be removed for [${VENDOR_NAME}.${ENVIRONMENT}]...`, correlationId})
+    }  else {
+        await baas.audit.log({baas, logger, level: 'vebose', message: `There are [${arrayOfValidatedFiles.length}] Remote SFTP files to be removed for [${VENDOR_NAME}.${ENVIRONMENT}].`, correlationId})
+    }
+    for( let remoteFile of arrayOfValidatedFiles) {
+        let isRemoved = await baas.sftp.deleteRemoteFile(config, remoteFile.sourcePath, remoteFile.filename)
+        if(isRemoved) await baas.audit.log({baas, logger, level: 'info', message: `Remote SFTP file removed [${remoteFile.sourcePath}/${remoteFile.filename}] for [${VENDOR_NAME}.${ENVIRONMENT}].`, effectedEntityId: remoteFile.entityId, correlationId})
+    }
+
+    await baas.audit.log({baas, logger, level: 'info', message: `Removed Remote SFTP files FINISHED for the files validated to be in the DB [${VENDOR_NAME}] for environment [${ENVIRONMENT}].`, correlationId})
+    return true
 }
 
 async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT, config, PROCESSING_DATE, correlationId ) {
