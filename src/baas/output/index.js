@@ -22,7 +22,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
     // call SQL and lookup file activity by date and GL account
 
     // file name
-    let f1 = `{account_number}_file_activity_YYYYMMDDHHMMSS.csv`
+    let f1 = `file_activity_YYYYMMDDHHMMSS_{index}.csv`
     let header = `Date,Account Number,Account Name,File Name,Incoming / Outgoing,Credit Count,Credit Amount,Debit Count,Debit Amount`
 
     // parse results to CSV
@@ -129,7 +129,26 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
             let csv = parseCSV(outputData)
             let fileDate = date.getFullYear() + ("0" + (date.getMonth() + 1)).slice(-2) + ("0" + date.getDate()).slice(-2) + ("0" + date.getHours()).slice(-2) + ("0" + date.getMinutes()).slice(-2) + ("0" + date.getSeconds()).slice(-2)
-            let currentAccountFileName = `${accountNumber}_file_activity_${fileDate}.csv`
+            let currentAccountFileName = `file_activity_${fileDate}_{index}.csv`
+
+            let fileIndex = -1
+            let tempNameCheck
+            let loopCheck = -1
+
+            do{
+                fileIndex++
+                loopCheck++
+
+                tempNameCheck = currentAccountFileName
+                if(tempNameCheck.indexOf('{index}')>0) {
+                    tempNameCheck = tempNameCheck.replace('{index}', fileIndex)
+                } else {
+                    // there is not an {index}
+                    break
+                }
+                
+            } while (await baas.sql.file.fileNameExists( tempNameCheck, CONFIG.contextOrganizationId ));    
+            currentAccountFileName = currentAccountFileName.replace('{index}', fileIndex)
 
             // save this for the email output for the internal notifications
             finalOutput += currentAccountFileName + ':\n';
