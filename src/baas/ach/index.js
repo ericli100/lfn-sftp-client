@@ -13,16 +13,11 @@ const readline = require('readline');
 const events = require('events');
 const common = require('../common')();
 
+const split = require('./splitReturn')
+
 const DEBUG = false
 
-const achFiles = process.argv.slice(2);
-
 let cli_interactive = false
-
-if (achFiles.length >= 1) {
-    cli_interactive = true
-    main(achFiles)
-}
 
 async function formatMoney(amount, decimalPosition = 0) {
     try{
@@ -48,7 +43,7 @@ function maskInfo (key, value) {
 
 async function main(args) {
     if (DEBUG) console.log('DEM ARGS:', args, args.length)
-    if(achFiles.length == 0 & args.length == 0) throw("Error: Please pass in the path to an ACH file as an argument.")
+    if(args.length == 0) throw("Error: Please pass in the path to an ACH file as an argument.")
 
     var achtool
     switch(process.platform){
@@ -72,13 +67,13 @@ async function main(args) {
         let mask = flatArgs.includes('mask')
         let json = flatArgs.includes('json')
     
-        let Output
+        let output
     
         if (mask && json) {
-            let maskedData = JSON.stringify( JSON.parse(stdout), maskInfo, 5 );
-            Output = maskedData
+            let maskedData = JSON.parse( JSON.stringify( JSON.parse(stdout), maskInfo, 5 ) );
+            output = maskedData
         } else {
-            Output = stdout
+            output = JSON.parse( stdout );
         }
       
         if (stderr) {
@@ -87,10 +82,10 @@ async function main(args) {
         }
     
         if (cli_interactive) {
-            console.log(Output)
+            console.log(output)
         }
 
-        return Output
+        return output
     } catch (err) {
         console.debug('ACHCLI Error:', err)
         throw(err)
@@ -379,3 +374,5 @@ module.exports.isACH = (filename) => {
 }
 
 module.exports.parse = parseAchFile
+
+module.exports.splitReturnACH = split.split_from_json
