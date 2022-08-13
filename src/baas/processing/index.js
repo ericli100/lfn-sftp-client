@@ -483,7 +483,11 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
                     try{
                         await perEmailInboundProcessing({ baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId })
                     } catch (perEmailProcessingError) {
-                        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INBOUND EMAILS - ERROR PROCESSING [Per Email] for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(perEmailProcessingError) }]!`, correlationId  })
+                        let errorMessage = {}
+                        errorMessage.message = perEmailProcessingError.toString()
+                        if(perEmailProcessingError) {
+                            await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INBOUND EMAILS - ERROR PROCESSING [Per Email] for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(errorMessage) }]!`, correlationId  })
+                        }
                         if(!KEEP_PROCESSING_ON_ERROR) throw(perEmailProcessingError)
                     }
                     
@@ -501,7 +505,10 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS - The working cache directory for inbound email processing [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server. Data is secure.`, correlationId  })
     
     } catch (inboundEmailProcessingError) {
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: MSGRAPH::> INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(inboundEmailProcessingError) }]!`, correlationId  })
+        let errorMessage = {}
+        errorMessage.message = inboundEmailProcessingError.toString()
+
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: MSGRAPH::> INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(errorMessage) }]!`, correlationId  })
         
         try{
             // one final try to delete the folder
@@ -567,7 +574,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
         if(DEBUG) console.log('Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Approved Sender.')
     } else {
         console.error('Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Not an Approved Sender!!!')
-        await baas.email.badSenderError(msgUID, from, emailApprovedSenders)
+        // await baas.email.badSenderError(msgUID, from, emailApprovedSenders)
         // await moveMessage(imap, msgUID, "rejected")
         //continue;
     }
@@ -851,7 +858,9 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         output.isAchReturn = false // ACH_RETURN https://moov-io.github.io/ach/returns/
         output.isAchInbound = false;
     } catch (achParseError){
-        await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: INBOUND EMAILS - determineInputFileTypeId() [${output.fileName}] issue running baas.ach.isACH check: [${achParseError}]`, correlationId })
+        let errorMessage = {}
+        errorMessage.message = achParseError.toString()
+        await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: INBOUND EMAILS - determineInputFileTypeId() [${output.fileName}] issue running baas.ach.isACH check: [${ JSON.stringify(errorMessage) }]`, correlationId })
         output.isACH = false
         output.isAchReturn = false
         output.isAchInbound = false;
@@ -888,7 +897,10 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         output.isCsvAccountBalances = false
         output.isCsvFileActivity = false
     } catch (isCSVcheckError){
-        await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: INBOUND EMAILS - determineInputFileTypeId() [${output.fileName}] issue running isCSVcheck() check: [${isCSVcheckError}]`, correlationId })
+        let errorMessage = {}
+        errorMessage.message = isCSVcheckError.toString()
+
+        await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: INBOUND EMAILS - determineInputFileTypeId() [${output.fileName}] issue running isCSVcheck() check: [${ JSON.stringify(errorMessage) }]`, correlationId })
         output.isCSV = false
         output.isCsvAccountBalances = false
         output.isCsvFileActivity = false
@@ -904,7 +916,10 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         output.isFedWire = await baas.wire.isFedWireCheck( { inputFile: inputFileObj.inputFile }) // false; // WIRE_INBOUND
         output.isFedWireConfirmaiton = false;
     } catch (isFedWireCheckError) {
-        await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: INBOUND EMAILS - determineInputFileTypeId() [${output.fileName}] issue running isFedWireCheck() check: [${isFedWireCheckError}]`, correlationId })
+        let errorMessage = {}
+        errorMessage.message = isFedWireCheckError.toString()
+
+        await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: INBOUND EMAILS - determineInputFileTypeId() [${output.fileName}] issue running isFedWireCheck() check: [${JSON.stringify( errorMessage )}]`, correlationId })
         output.isFedWire = false
         output.isFedWireConfirmaiton = false;
     }
@@ -1118,7 +1133,10 @@ async function getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         // await baas.email.sendEmail({ client, message })
         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: OUTBOUND EMAILS - END PROCESSING for [${ENVIRONMENT}] on the configured email mappings CONFIG:[${ JSON.stringify(config.email.inbound) } }].`, correlationId  })
     } catch (outboundEmailProcessingError) {
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: OUTBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(outboundEmailProcessingError) }]!`, correlationId  })
+        let errorMessage = {}
+        errorMessage.message = outboundEmailProcessingError.toString()
+
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: OUTBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify( errorMessage ) }]!`, correlationId  })
     }
 
     return output;
@@ -1193,7 +1211,10 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                 await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath })
                 if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
             } catch (fileVaultError) {
-                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: There was an issue pulling the file from the File Vault, file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${fileVaultError}]`, correlationId, effectedEntityId: file.entityId })
+                let errorMessage = {}
+                errorMessage.message = fileVaultError.toString()
+
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: There was an issue pulling the file from the File Vault, file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( errorMessage )}]`, correlationId, effectedEntityId: file.entityId })
                 throw (fileVaultError)
             }
 
@@ -1278,7 +1299,10 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
 
             } catch (processingError) {
                 // add outer error handler for file processing
-                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: ERROR processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${processingError}]`, correlationId, effectedEntityId: file.entityId })
+                let errorMessage = {}
+                errorMessage.message = processingError.toString()
+
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: ERROR processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( errorMessage ) }]`, correlationId, effectedEntityId: file.entityId })
                 await baas.sql.file.setFileHasErrorProcessing( {entityId: file.entityId, contextOrganizationId, correlationId} )
                 await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: Updated file [${file.fileName}] hasProcessingErrors status to [true] for environment [${ENVIRONMENT}].`, correlationId, effectedEntityId: file.entityId })
 

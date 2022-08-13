@@ -73,7 +73,7 @@ function Handler( baas ) {
     Handler.getMimeType = async function getMimeType({ magicbytes }) {
         if(mimeCache.magicNumbers.length <= 1) {
             // populate cache
-            console.log('baas.pgp.getMimeType(): we need to populate the cache...')
+            // console.log('baas.pgp.getMimeType(): we need to populate the cache...')
             
             // read the JSON file
             // update mimeCache
@@ -81,7 +81,7 @@ function Handler( baas ) {
         }
     
         // read from mimeCache
-        console.log('we need to populate the cache')
+        // console.log('we need to populate the cache')
         let found = mimeCache.magicNumbers.find(x => x.magicNumber === magicbytes)
         if(found) return found.mimeType 
         return undefined 

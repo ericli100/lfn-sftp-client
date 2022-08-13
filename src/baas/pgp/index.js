@@ -39,6 +39,7 @@ async function getKeys(VENDOR, ENVIRONMENT) {
         return keys
     } catch (err) {
         console.error('getKeys Error:', err)
+        throw ( err )
     }
 }
 
@@ -155,7 +156,9 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
     } catch (mimeTypeError) {
         console.warn(mimeTypeError)
         // keep going... do not fail on this.
-        if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'error', message: `${audit.vendor}: file [${audit.filename}] mime type could not be detected for environment [${audit.environment}] with error:[${mimeTypeError}]`, effectedEntityId: audit.entityId, correlationId  })
+        let errorMessage = {}
+        errorMessage.message = mimeTypeError.toString()
+        if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'warn', message: `${audit.vendor}: file [${audit.filename}] mime type could not be detected for environment [${audit.environment}] with error:[${ JSON.stringify( errorMessage ) }]`, effectedEntityId: audit.entityId, correlationId  })
     }
 
     try{
@@ -211,7 +214,7 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
                     // capture the mime type of the decrypted file
                     await baas.mime.getMimeTypeThisOS( destinationFilePath )
 
-                    if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'warn', message: `${audit.vendor}: file [${audit.filename}] the mime type is [${mimeType}] but we were expecting an encrypted file, the contents were written out to the buffer. error:[${quickDecryptError.message}] [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
+                    if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'warn', message: `${audit.vendor}: file [${audit.filename}] the mime type is [${mimeType}] but we were expecting an encrypted file, the contents were written out to the buffer. error:[${quickDecryptError.message.toString()}] [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
                     return true
                 }
             }
@@ -227,7 +230,9 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
             return true
         }
     } catch (error) {
-        if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'error', message: `${audit.vendor}: file [${audit.filename}] error in baas.pgp.decryptFile error:[${error}]`, effectedEntityId: audit.entityId, correlationId  })
+        let errorMessage = {}
+        errorMessage.message = error.toString()
+        if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'error', message: `${audit.vendor}: file [${audit.filename}] error in baas.pgp.decryptFile error:[${ JSON.stringify( errorMessage )}]`, effectedEntityId: audit.entityId, correlationId  })
         console.error('ERROR:', error)
         return false
     }

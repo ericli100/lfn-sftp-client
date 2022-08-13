@@ -58,7 +58,9 @@ async function main(){
         await baas.audit.log( {baas, logger, level: 'info', message: `END PROCESSING [${VENDOR_NAME}:${ENVIRONMENT}] at [${PROCESSING_DATE}]`, correlationId: CORRELATION_ID } )
     
     } catch (unhandled) {
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: UNHANDLED ERROR [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(unhandled) }]!`, correlationId: CORRELATION_ID   })
+        let errorMessage = {}
+        errorMessage.message = unhandled.toString()
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: UNHANDLED ERROR [${ENVIRONMENT}] with ERROR:[${ JSON.stringify( errorMessage ) }]!`, correlationId: CORRELATION_ID   })
     }
     
     if(DEBUG) console.log('sql: disconnecting...')

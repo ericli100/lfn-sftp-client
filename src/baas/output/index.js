@@ -259,7 +259,9 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
         
         return output
     } catch (err) {
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: FILE RECEIPT - ERROR PROCESSING for [${ENVIRONMENT}] with error [${err}]`, correlationId  })
+        let errorMessage = {}
+        errorMessage.message = err.toString()
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: FILE RECEIPT - ERROR PROCESSING for [${ENVIRONMENT}] with error [${JSON.stringify( errorMessage )}]`, correlationId  })
         console.error(err)
         throw err
     }

@@ -188,7 +188,7 @@ async function getFileTypeId( sqlDataRows, fileInfo ){
     let output = {}
     output.fileTypes = []
 
-    if(sqlDataRows.length == 0) throw('The database does not contain this FileType!')
+    if(sqlDataRows.length == 0) throw('The database does not contain this FileType! [' + JSON.stringify(fileInfo) + ']')
     if(sqlDataRows.length == 1) return sqlDataRows[0].entityId.trim()
 
     if(sqlDataRows.length > 1) {
