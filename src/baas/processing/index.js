@@ -1131,7 +1131,7 @@ async function removeRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, c
     if(arrayOfValidatedFiles.length > 0) {
         await baas.audit.log({baas, logger, level: 'info', message: `Remove Remote SFTP there are [${arrayOfValidatedFiles.length}] files to be removed for [${VENDOR_NAME}.${ENVIRONMENT}]...`, correlationId})
     }  else {
-        await baas.audit.log({baas, logger, level: 'vebose', message: `There are [${arrayOfValidatedFiles.length}] Remote SFTP files to be removed for [${VENDOR_NAME}.${ENVIRONMENT}].`, correlationId})
+        await baas.audit.log({baas, logger, level: 'verbose', message: `There are [${arrayOfValidatedFiles.length}] Remote SFTP files to be removed for [${VENDOR_NAME}.${ENVIRONMENT}].`, correlationId})
     }
     for( let remoteFile of arrayOfValidatedFiles) {
         let isRemoved = await baas.sftp.deleteRemoteFile(config, remoteFile.sourcePath, remoteFile.filename)
