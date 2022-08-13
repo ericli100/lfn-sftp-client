@@ -49,6 +49,8 @@ async function main(){
     await baas.sftp.setConfig( config )
     await baas.sftp.setLogger( logger )
 
+    baas.processing.EFFECTED_ORGANIZATION_ID = config.fromOrganizationId
+
     let CORRELATION_ID = await baas.id.generate()
 
     // ** MAIN PROCESSING FUNCTION ENTRY POINT ** //

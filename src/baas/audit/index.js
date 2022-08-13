@@ -8,7 +8,7 @@ var CORRELATIONID
 
 /* {error: 0, warn: 1, info: 2, verbose: 3, debug: 4, silly: 5} */
 
-async function log({baas, logger, effectedEntityId, contextOrganizationId, category, level, message, auditJSON, correlationId}){
+async function log({baas, logger, effectedEntityId, effectedOrganizationId, contextOrganizationId, category, level, message, auditJSON, correlationId}){
     let entityId = flakeId.generate()
     if(!baas) throw('baas module is required for baas.audit.log')
     if(!logger) throw('logger module is required for baas.audit.log')
@@ -20,6 +20,8 @@ async function log({baas, logger, effectedEntityId, contextOrganizationId, categ
     if(!CORRELATIONID) CORRELATIONID = flakeId.generate()
     if(!correlationId) correlationId = CORRELATIONID
 
+    if(!effectedOrganizationId) effectedOrganizationId = baas.processing.EFFECTED_ORGANIZATION_ID || ''
+
     // write the log locally via the winson logger prior to calling the DB
     logger.log({ level: level, message: `[${entityId}] ` + message })
 
@@ -27,7 +29,7 @@ async function log({baas, logger, effectedEntityId, contextOrganizationId, categ
     if(level == 'warn') message = ' ! ' + message
     if(level == 'error') message = '!! ' + message
 
-    let sqlStatement = await baas.sql.audit.insert({ entityId, contextOrganizationId, effectedEntityId, category, level, message, auditJSON, correlationId })
+    let sqlStatement = await baas.sql.audit.insert({ entityId, contextOrganizationId, effectedOrganizationId, effectedEntityId, category, level, message, auditJSON, correlationId })
     
     if(level == 'error' || level == 'warn' || level == 'info' || level == 'verbose') {
         try {

@@ -29,10 +29,11 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, effectedEntityId, category, level, message, auditJSON, effectiveDate, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, effectedEntityId, effectedOrganizationId, category, level, message, auditJSON, effectiveDate, correlationId}){
         if (!entityId) entityId = flakeId.generate()
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!effectedEntityId) effectedEntityId = ''
+        if (!effectedOrganizationId) effectedOrganizationId = ''
         // if (!effectiveDate) throw ('effectiveDate required')
         if (!auditJSON) auditJSON = {}
         if (!correlationId) correlationId = 'SYSTEM'
@@ -43,6 +44,7 @@ function Handler(mssql) {
            ([entityId]
            ,[tenantId]
            ,[contextOrganizationId]
+           ,[effectedOrganizationId]
            ,[effectedEntityId]
            ,[category]
            ,[level]
@@ -54,6 +56,7 @@ function Handler(mssql) {
            ('${entityId}'
            ,'${tenantId}'
            ,'${contextOrganizationId}'
+           ,'${effectedOrganizationId}'
            ,'${effectedEntityId}'
            ,'${category}'
            ,'${level}'
