@@ -51,6 +51,11 @@ async function main(){
 
     let CORRELATION_ID = await baas.id.generate()
 
+    baas.processing.EFFECTED_ORGANIZATION_ID = config.fromOrganizationId;
+    baas.processing.VENDOR_NAME = VENDOR_NAME;
+    baas.processing.VENDOR_ENVIRONMENT = ENVIRONMENT;
+    baas.processing.CONTEXT_ORGANIZATION_ID = config.contextOrganizationId;
+
     // ** MAIN PROCESSING FUNCTION ENTRY POINT ** //
     try{
         await baas.audit.log( {baas, logger, level: 'info', message: `BEGIN PROCESSING [${VENDOR_NAME}:${ENVIRONMENT}] at [${PROCESSING_DATE}]`, correlationId: CORRELATION_ID } )
@@ -58,7 +63,9 @@ async function main(){
         await baas.audit.log( {baas, logger, level: 'info', message: `END PROCESSING [${VENDOR_NAME}:${ENVIRONMENT}] at [${PROCESSING_DATE}]`, correlationId: CORRELATION_ID } )
     
     } catch (unhandled) {
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: UNHANDLED ERROR [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(unhandled) }]!`, correlationId: CORRELATION_ID   })
+        let errorMessage = {}
+        errorMessage.message = unhandled.toString()
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: UNHANDLED ERROR [${ENVIRONMENT}] with ERROR:[${ JSON.stringify( errorMessage ) }]!`, correlationId: CORRELATION_ID   })
     }
     
     console.log('sql: disconnecting...')
@@ -84,7 +91,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     let FROM_ORGANIZATION_ID
 
     /*
-        6022d1b33f000000 == Lineage Bank
+        6022d4e2b0800000 == Lineage Bank
         606ae47a5b000000 == Synapse PRD
 
                             	organizationNumber	name
@@ -125,7 +132,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
 
     config.environment = ENVIRONMENT;
     config.vendor = VENDOR_NAME;
-
+    
     config.contextOrganizationId = '6022d4e2b0800000';    
     config.fromOrganizationId = FROM_ORGANIZATION_ID;
     config.toOrganizationId = '6022d4e2b0800000';
@@ -216,6 +223,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.processing.ENABLE_FILE_RECEIPT_PROCESSING = true
     config.processing.ENABLE_REMOTE_DELETE = true
     config.processing.ENABLE_MANUAL_DB_DOWNLOAD = false
+    config.processing.ENABLE_NOTIFICATIONS = true
 
     return config
 }

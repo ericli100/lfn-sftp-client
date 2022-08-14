@@ -49,6 +49,11 @@ async function main(){
     await baas.sftp.setConfig( config )
     await baas.sftp.setLogger( logger )
 
+    baas.processing.EFFECTED_ORGANIZATION_ID = config.fromOrganizationId;
+    baas.processing.VENDOR_NAME = VENDOR_NAME;
+    baas.processing.VENDOR_ENVIRONMENT = ENVIRONMENT;
+    baas.processing.CONTEXT_ORGANIZATION_ID = config.contextOrganizationId;
+
     let CORRELATION_ID = await baas.id.generate()
 
     // ** MAIN PROCESSING FUNCTION ENTRY POINT ** //
@@ -58,7 +63,9 @@ async function main(){
         await baas.audit.log( {baas, logger, level: 'info', message: `END PROCESSING [${VENDOR_NAME}:${ENVIRONMENT}] at [${PROCESSING_DATE}]`, correlationId: CORRELATION_ID } )
     
     } catch (unhandled) {
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: UNHANDLED ERROR [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(unhandled) }]!`, correlationId: CORRELATION_ID   })
+        let errorMessage = {}
+        errorMessage.message = unhandled.toString()
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: UNHANDLED ERROR [${ENVIRONMENT}] with ERROR:[${ JSON.stringify( errorMessage ) }]!`, correlationId: CORRELATION_ID   })
     }
 
     if(DEBUG) console.log('sql: disconnecting...')
@@ -84,7 +91,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     let FROM_ORGANIZATION_ID
 
     /*
-        6022d1b33f000000 == Lineage Bank
+        6022d4e2b0800000 == Lineage Bank
         606ae4f54e800000 == Synapse UAT
         606ae47a5b000000 == Synapse PRD
 
@@ -227,6 +234,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.processing.ENABLE_FILE_RECEIPT_PROCESSING = true
     config.processing.ENABLE_REMOTE_DELETE = true
     config.processing.ENABLE_MANUAL_DB_DOWNLOAD = false
+    config.processing.ENABLE_NOTIFICATIONS = true
 
     return config
 }

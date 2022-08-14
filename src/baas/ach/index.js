@@ -169,6 +169,7 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
         messageBody += spacing + spacing + `Total Credit: ${await formatMoney("-" + achJSON.fileControl.totalCredit, 2) } \n`
         messageBody += spacing + spacing + `fileCreationDate: ${achJSON.fileHeader.fileCreationDate} `
         messageBody += '\n\n'
+        
         let batchTotals = await parseBatchACH(achJSON, spacing)
         messageBody += batchTotals
 
@@ -226,15 +227,31 @@ async function achAdviceOverride({ vendor, environment, filename, isOutbound }){
 
 async function parseBatchACH(achJSON, spacing) {
     let output = ""
-    let batchArray = achJSON.batches
+    let batchArray = achJSON.batches 
 
-    for (const batch of batchArray) {
-        if(DEBUG) console.log(batch)
-        output += spacing + 'Batch Number: (' + batch.batchHeader.batchNumber + `) [ ${batch.batchHeader.companyName} (${batch.batchHeader.companyEntryDescription}) ] `
-        output += '- Effective Date: ' + batch.batchHeader.effectiveEntryDate + '\n' 
-        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Debit: ` + await formatMoney(batch.batchControl.totalDebit, 2) + '\n' 
-        output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Credit: ` + await formatMoney('-' + batch.batchControl.totalCredit, 2) + '\n' 
-        output += '\n'
+    if (batchArray) {
+        for (const batch of batchArray) {
+            if(DEBUG) console.log(batch)
+            output += spacing + 'Batch Number: (' + batch.batchHeader.batchNumber + `) [ ${batch.batchHeader.companyName} (${batch.batchHeader.companyEntryDescription}) ] `
+            output += '- Effective Date: ' + batch.batchHeader.effectiveEntryDate + '\n' 
+            output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Debit: ` + await formatMoney(batch.batchControl.totalDebit, 2) + '\n' 
+            output += spacing + spacing + spacing + `Batch(${batch.batchHeader.batchNumber}) Credit: ` + await formatMoney('-' + batch.batchControl.totalCredit, 2) + '\n' 
+            output += '\n'
+        }
+    }
+
+    let iatBatchArray = achJSON.IATBatches
+
+    if (iatBatchArray) {
+        output += spacing + '** IAT BATCH ***************** \n\n'
+        for (const batch of iatBatchArray) {
+            if(DEBUG) console.log(batch)
+            output += spacing + 'IAT Batch Number: (' + batch.IATBatchHeader.batchNumber + `) [ ${batch.IATBatchHeader.originatorIdentification} (${batch.IATBatchHeader.companyEntryDescription}) ] `
+            output += '- Effective Date: ' + batch.IATBatchHeader.effectiveEntryDate + '\n' 
+            output += spacing + spacing + spacing + `IAT Batch(${batch.IATBatchHeader.batchNumber}) Debit: ` + await formatMoney(batch.batchControl.totalDebit, 2) + '\n' 
+            output += spacing + spacing + spacing + `IAT Batch(${batch.IATBatchHeader.batchNumber}) Credit: ` + await formatMoney('-' + batch.batchControl.totalCredit, 2) + '\n' 
+            output += '\n'
+        }
     }
 
     return output

@@ -43,6 +43,7 @@ function Handler() {
                 await fs.writeFile(cachePath, cacheContext.tokenCache.serialize());
             } catch (error) {
                 if(DEBUG) console.log(error);
+                throw ( error )
             }
         }
     };
@@ -97,6 +98,7 @@ function Handler() {
                 if(DEBUG) console.log("\nSuccessful silent token acquisition");
             } catch (err) {
                 console.error(err)
+                throw( err )
             }
         } else { // fall back to username password if there is no account
             const usernamePasswordRequest = {
@@ -112,6 +114,7 @@ function Handler() {
                 output = response
             } catch (err) {
                 console.error(err)
+                throw ( err )
             }
         }
 
@@ -394,6 +397,7 @@ function Handler() {
                 }
             } catch (error) {
                 console.error('File Name:', filename, `Error: Approved attachment check failed.`)
+                throw (error)
             }
         }
         return returnVal

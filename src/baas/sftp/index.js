@@ -127,7 +127,10 @@ async function initializeFolders(baas, config = null) {
             }
         }
     } catch (error) {
-        await baas.audit.log({ baas, logger, level: 'error', message: `Required folder check error on [${config.server.host}]! Error: ${error}` })
+        let errorMessage = {}
+        errorMessage.message = error.toString()
+
+        await baas.audit.log({ baas, logger, level: 'error', message: `Required folder check error on [${config.server.host}]! Error: ${JSON.stringify( errorMessage )}` })
         await disconnect(sftp)
         return false
     }
@@ -404,7 +407,10 @@ async function putRemoteDestinationFromConfig(config, dbDestination) {
 
         return undefined
     } catch (err) {
-        logger.error({ message: `The file [${filename}] was NOT successfully validated on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]! With Error: [${err}]` })
+        let errorMessage = {}
+        errorMessage.message = err.toString()
+
+        logger.error({ message: `The file [${filename}] was NOT successfully validated on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]! With Error: [${ JSON.stringify( errorMessage ) }]` })
         throw (err)
     }
 }

@@ -55,6 +55,7 @@ async function connect () {
         //console.log(results)
     } catch (err) {
         console.error(err)
+        throw err
     }
     
     sql.mssql = mssql
