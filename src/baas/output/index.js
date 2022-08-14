@@ -32,6 +32,9 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
     let tenantId = process.env.PRIMAY_TENANT_ID
 
+    // AND f.[isMultifileParent] = 0
+    // Do not process the Parent files of a multifile breakout
+
     // we are pretty sensative to column name changes on this, keeping the TSQL here for now
     let sqlStatement = `
 	SELECT CONVERT(varchar, f.[effectiveDate], 111) AS [Date]
@@ -75,6 +78,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
     WHERE f.[tenantId] = '${tenantId}'
     AND f.[isReceiptProcessed] = 0
     AND f.[isRejected] = 0
+    AND f.[isMultifileParent] = 0
     AND f.[contextOrganizationId] = '${contextOrganizationId}'
     AND ( t.[toOrganizationId] = '${toOrganizationId}' OR t.[fromOrganizationId] = '${fromOrganizationId}' )
     AND ( t.[isACH] = 1 OR t.[isFedWire] = 1 )

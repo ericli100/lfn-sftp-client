@@ -342,7 +342,7 @@ async function createFileEntitySQL({ sql, fileEntityId, correlationId, contextOr
     return output
 }
 
-async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, effectiveDate, isOutbound, correlationId, source, destination, fileNameOutbound } ){
+async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isMultifile, parentEntityId, effectiveDate, isOutbound, correlationId, source, destination, fileNameOutbound } ){
     let output = {}
     
     let fileInsert = {
@@ -361,6 +361,8 @@ async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrg
         destination: destination,
         effectiveDate: effectiveDate,
         fileNameOutbound: fileNameOutbound,
+        isMultifile: isMultifile, 
+        parentEntityId: parentEntityId, 
     }
     let sql1 = await sql.file.insert( fileInsert )
 
@@ -730,7 +732,9 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
     let achAdvice = await baas.ach.achAdvice ( {vendor: VENDOR, environment: ENVIRONMENT, filename: inputFile, isOutbound: true } )
     output.achAdvice = achAdvice
 
-    achJSON = JSON.parse(achJSON)
+    if(typeof ach_data == 'string') {
+        achJSON = JSON.parse(achJSON)
+    }
 
     output.achJSON = achJSON;
 
@@ -863,8 +867,20 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
             if (DebitBatchRunningTotal != batch.batchControl.totalDebit) throw('baas.input.ach batch total from the individual IAT debit transacitons does not match the batch.batchControl.totalDebit! Aborting because something is wrong.')
         } 
     }
-    
 
+    if (output.achJSON.ReturnEntries) {
+        if(output.achJSON.ReturnEntries.length > 0){
+            output.hasReturns = true
+            output.returnDebits = 0
+            output.returnCredits = 0
+
+            for( let achReturnBatch of output.achJSON.ReturnEntries) {
+                output.returnDebits += achReturnBatch.batchControl.totalDebit
+                output.returnCredits += achReturnBatch.batchControl.totalCredit
+            }
+        }
+    }
+    
     // call SQL and run the SQL transaction to import the ach file to the database
     output.results = await sql.execute( sqlStatements )
 
@@ -896,7 +912,7 @@ async function fileVault({ baas, VENDOR, sql, contextOrganizationId, fileEntityI
     return output
 }
 
-async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, source, destination, effectiveDate, fileTypeId, overrideExtension, fileNameOutbound, correlationId } ) {
+async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, source, destination, effectiveDate, fileTypeId, overrideExtension, fileNameOutbound, isMultifile, isMultifileParent, parentEntityId, correlationId, fileEntityId } ) {    
     if(!contextOrganizationId) throw('baas.input.file: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.file: inputFile is required!')
     if(!baas) throw('baas.input.file: baas module is required!')
@@ -905,6 +921,10 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
     if(!fromOrganizationId) throw('baas.input.file: fromOrganizationId module is required!')
     if(!toOrganizationId) throw('baas.input.file: toOrganizationId module is required!')
     if(isOutbound == null) throw('baas.input.file: isOutboud value is required!')
+    if(!parentEntityId) parentEntityId = ''
+
+    // allow file entityId override and specify if not provided
+    if(!fileEntityId) fileEntityId = await baas.id.generate();
 
     let output = {};
 
@@ -931,14 +951,12 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
        // let entityBatchTypeId = cache.entityBatchTypeId
        // let entityTransactionTypeId = cache.entityTransactionTypeId
 
-        let fileEntityId = baas.id.generate();
-
         // create the entity record
         let fileEntitySQL = await createFileEntitySQL( { sql, fileEntityId, correlationId, contextOrganizationId, fileTypeId } )
         sqlStatements.push( fileEntitySQL.param )
 
         // create the file record
-        let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, effectiveDate, correlationId, source, destination, fileNameOutbound } )
+        let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, effectiveDate, correlationId, source, destination, fileNameOutbound, isMultifile, isMultifileParent, parentEntityId } )
         sqlStatements.push( fileSQL.param )
 
         // call SQL and run the SQL transaction to import the ach file to the database

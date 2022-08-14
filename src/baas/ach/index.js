@@ -13,16 +13,11 @@ const readline = require('readline');
 const events = require('events');
 const common = require('../common')();
 
+const split = require('./splitReturn')
+
 const DEBUG = false
 
-const achFiles = process.argv.slice(2);
-
 let cli_interactive = false
-
-if (achFiles.length >= 1) {
-    cli_interactive = true
-    main(achFiles)
-}
 
 async function formatMoney(amount, decimalPosition = 0) {
     try{
@@ -48,7 +43,7 @@ function maskInfo (key, value) {
 
 async function main(args) {
     if (DEBUG) console.log('DEM ARGS:', args, args.length)
-    if(achFiles.length == 0 & args.length == 0) throw("Error: Please pass in the path to an ACH file as an argument.")
+    if(args.length == 0) throw("Error: Please pass in the path to an ACH file as an argument.")
 
     var achtool
     switch(process.platform){
@@ -72,13 +67,13 @@ async function main(args) {
         let mask = flatArgs.includes('mask')
         let json = flatArgs.includes('json')
     
-        let Output
+        let output
     
         if (mask && json) {
-            let maskedData = JSON.stringify( JSON.parse(stdout), maskInfo, 5 );
-            Output = maskedData
+            let maskedData = JSON.parse( JSON.stringify( JSON.parse(stdout), maskInfo, 5 ) );
+            output = maskedData
         } else {
-            Output = stdout
+            output = JSON.parse( stdout );
         }
       
         if (stderr) {
@@ -87,10 +82,10 @@ async function main(args) {
         }
     
         if (cli_interactive) {
-            console.log(Output)
+            console.log(output)
         }
 
-        return Output
+        return output
     } catch (err) {
         console.debug('ACHCLI Error:', err)
         throw(err)
@@ -128,6 +123,8 @@ async function getFooter( achJSON ) {
 async function isValidJSON( data ) {
     let checkJSON = {}
 
+    if (typeof data == 'object') return true
+
     try {
         checkJSON = JSON.parse( data) ;
         return true
@@ -143,7 +140,13 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
     let achJSON = {}
 
     if(isJSON) {
-        achJSON = JSON.parse(ach_data);
+        if(typeof ach_data == 'string') {
+            achJSON = JSON.parse(ach_data);
+        }
+
+        if(typeof ach_data == 'object') {
+            achJSON = ach_data
+        }
     } else {
         console.error("Parsing the ACH JSON failed. Check the output.");
         throw ("Error Parsing the ACH JSON failed. Check the output.")
@@ -163,6 +166,7 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
     messageBody += `Vendor: ${vendor}\n`
     messageBody += `Environment: ${environment}\n`
     messageBody += `Filename: ` + path.basename( filename ) + '\n';
+    messageBody += `BaaS Processor Version: 2.0 \n`;
     messageBody += `\n\n`
 
     if (isJSON) {
@@ -174,6 +178,22 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
         messageBody += spacing + spacing + `Total Credit: ${await formatMoney("-" + achJSON.fileControl.totalCredit, 2) } \n`
         messageBody += spacing + spacing + `fileCreationDate: ${achJSON.fileHeader.fileCreationDate} `
         messageBody += '\n\n'
+
+        if(ach_data.ReturnEntries){
+            if(ach_data.ReturnEntries.length > 0){
+                // we have returns in this file
+                messageBody += `  ******** ACH Returns ********\n`
+                messageBody += `  \n`
+
+                for( let achReturnBatch of ach_data.ReturnEntries) {
+                    messageBody += spacing + `  Return Batch[${achReturnBatch.batchHeader.companyName}(${achReturnBatch.batchHeader.batchNumber})]: \n`
+                    messageBody += spacing + spacing + `  Return Debit: ${await formatMoney(achReturnBatch.batchControl.totalDebit, 2)} \n`// achJSON.fileControl
+                    messageBody += spacing + spacing + `  Return Credit: ${await formatMoney("-" + achReturnBatch.batchControl.totalCredit, 2) } \n`
+                }
+
+                messageBody += `  ******** ACH Returns End *****\n`
+            }
+        }
         
         let batchTotals = await parseBatchACH(achJSON, spacing)
         messageBody += batchTotals
@@ -183,7 +203,15 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
     }
 
     messageBody += `ACH FILE DETAILS:\n`
-    messageBody += ach_data
+
+    if(typeof ach_data == 'string') {
+        messageBody += ach_data
+    }
+
+    if(typeof ach_data == 'object') {
+        messageBody += JSON.stringify( ach_data )
+    }
+
     messageBody += `\n\n`
 
     return messageBody
@@ -396,3 +424,5 @@ module.exports.isACH = (filename) => {
 }
 
 module.exports.parse = parseAchFile
+
+module.exports.splitReturnACH = split.split_from_json

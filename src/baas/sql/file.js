@@ -25,7 +25,12 @@ function Handler(mssql) {
             if(DEBUG) console.log(results)
 
             if(returnId){
-                return results.data[0].entityId.trim()
+                if(results.data[0]) {
+                    return results.data[0].entityId.trim()
+                } else {
+                    return undefined
+                }
+                
             } else {
                 return results.rowsAffected != 0
             }
@@ -95,7 +100,7 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isReceiptProcessed, dataJSON, quickBalanceJSON, fileNameOutbound, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isReceiptProcessed, isMultifile, parentEntityId, dataJSON, quickBalanceJSON, fileNameOutbound, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
@@ -108,6 +113,13 @@ function Handler(mssql) {
         if (!source) source = ''
         if (!destination) destination = ''
         if (!fileNameOutbound) fileNameOutbound = ''
+        if (!isMultifile) isMultifile = '0'
+        if (!parentEntityId) parentEntityId = ''
+
+        if (parentEntityId.length > 1) {
+            // there was a parentEntityId set... it is a multifile
+            isMultifile = '1'
+        }
 
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
@@ -131,6 +143,8 @@ function Handler(mssql) {
                ,[hasProcessingErrors]
                ,[isReceiptProcessed]
                ,[fileNameOutbound]
+               ,[isMultifile]
+               ,[parentEntityId]
                ,[correlationId])
          VALUES
                ('${entityId}'
@@ -152,6 +166,8 @@ function Handler(mssql) {
                ,'${hasProcessingErrors}'
                ,'${isReceiptProcessed}'
                ,'${fileNameOutbound}'
+               ,'${isMultifile}'
+               ,'${parentEntityId}'
                ,'${correlationId}'
                );`
 
@@ -319,6 +335,11 @@ function Handler(mssql) {
             ,t.[emailReplyTo]
             ,f.[fileVaultId]
             ,f.[quickBalanceJSON]
+            ,f.[effectiveDate]
+            ,f.[contextOrganizationId]
+            ,f.[isMultifile]
+            ,f.[isMultifileParent]
+            ,f.[parentEntityId]
         FROM [baas].[files] f
         INNER JOIN [baas].[fileTypes] t
         ON f.[fileTypeId] = t.entityId AND f.[tenantId] = t.[tenantId] AND f.contextOrganizationId = t.contextOrganizationId
@@ -464,6 +485,75 @@ function Handler(mssql) {
             UPDATE [baas].[files]
             SET [isProcessed] = 1
                 ,[hasProcessingErrors] = 0
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
+    Handler.setMultifile = async function setMultifile( {entityId, contextOrganizationId, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [isMultifile] = 1
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
+    Handler.setMultifileParent = async function setMultifileParent( {entityId, contextOrganizationId, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [isMultifile] = 1,
+                [isMultifileParent] = 1
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
