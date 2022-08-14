@@ -512,5 +512,5 @@ async function split_from_native_file(absolute_path, date, working_directory)
     return await split_from_json(json_content, date, working_directory);
 }
 
-module.exports.split_from_json = (json_content, date, working_directory, file_name) => {return await split_from_json(json_content, date, working_directory, file_name)}
-module.exports.split_from_native_file = (absolute_path, date, working_directory) => {return await split_from_native_file(absolute_path, date, working_directory)}
+module.exports.split_from_json = split_from_json //async (json_content, date, working_directory, file_name) => {return await split_from_json(json_content, date, working_directory, file_name)}
+// module.exports.split_from_native_file = (absolute_path, date, working_directory) => {return split_from_native_file(absolute_path, date, working_directory)}
