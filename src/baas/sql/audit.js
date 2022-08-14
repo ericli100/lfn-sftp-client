@@ -94,6 +94,71 @@ function Handler(mssql) {
         return sqlStatement
     }
 
+    Handler.getUnprocessedErrors = async function getUnprocessedErrors({ effectedOrganizationId, contextOrganizationId }){
+        let output
+        let tenantId = process.env.PRIMAY_TENANT_ID
+
+        let sqlStatement = `
+        SELECT [entityId] AS [auditId]
+            ,[effectedEntityId]
+            ,[category]
+            ,[level]
+            ,[message]
+            ,[effectiveDate]
+            ,[correlationId]
+        FROM [baas].[audit]
+        WHERE [level] = 'error'
+        AND [tenantId] = '${tenantId}'
+        AND [contextOrganizationId] = '${contextOrganizationId}'
+        AND [effectedOrganizationId] = '${effectedOrganizationId}'
+        AND [isNotificationSent] = 0;`
+
+        let param = {}
+        param.params = []
+        param.tsql = sqlStatement
+        
+        try {
+            let results = await mssql.sqlQuery(param);
+            output = results.data
+        } catch (err) {
+            console.error(err)
+            throw err
+        }
+
+        return output
+    }
+
+    Handler.setNotificationSent = async function setNotificationSent( {entityId, contextOrganizationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+
+        let sqlStatement = `
+            UPDATE [baas].[audit]
+            SET [isNotificationSent] = 1
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
     return Handler
 }
 

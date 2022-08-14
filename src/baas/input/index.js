@@ -9,6 +9,7 @@ const path = require('path');
 const { EOL } = require('os');
 const readline = require('readline');
 const events = require('events');
+const baas = require('..');
 
 function achTypeCheck( transaction ) {
     let output = {}
@@ -236,7 +237,7 @@ async function findFileTypeId({ baas, contextOrganizationId, fromOrganizationId,
     return output
 }
 
-async function populateLookupCache({ sql, inputFile, contextOrganizationId, fromOrganizationId, toOrganizationId, fileSelect, achJSON = null}){
+async function populateLookupCache({ baas, sql, inputFile, contextOrganizationId, fromOrganizationId, toOrganizationId, fileSelect, correlationId, achJSON = null}){
     let output = {}
     if(!fileSelect) fileSelect = {}
 
@@ -259,8 +260,17 @@ async function populateLookupCache({ sql, inputFile, contextOrganizationId, from
 
     console.warn('TODO: if the fileType does not exist, create it. This is just intended to be a read through Cache in the future anyway')
     let fileTypeId = await sql.executeTSQL( fileTypeSQL )//'603c2e56cf800000'
-    fileTypeId = await getFileTypeId( fileTypeId[0].data, fileSelect ) // fileTypeId[0].data[0].entityId.trim() 
 
+    try{
+        fileTypeId = await getFileTypeId( fileTypeId[0].data, fileSelect ) // fileTypeId[0].data[0].entityId.trim() 
+    } catch (err) {
+        let errorMessage = {}
+        errorMessage.message = err.toString()
+        await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${baas.processing.VENDOR_NAME}: UNHANDLED ERROR [${baas.processing.VENDOR_ENVIRONMENT}] with ERROR:[${ JSON.stringify( errorMessage ) }]!`, correlationId })
+        console.error('ERROR: the fileType does not exist, we set it to an unknown type and loaded it in the DB. We will fix it in post.')
+        output.fileTypeId = '99999999999999999999'
+    }
+    
     if (typeof fileTypeId === 'object') {
         // there were multiple things returned
         if (!fileTypeId) {
@@ -727,7 +737,7 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
     // create the SQL statements for the transaction
     let sqlStatements = []
     
-    const cache = await populateLookupCache( { sql, inputFile, contextOrganizationId, fromOrganizationId, toOrganizationId, achJSON } )
+    const cache = await populateLookupCache( { baas, sql, inputFile, contextOrganizationId, fromOrganizationId, toOrganizationId, correlationId, achJSON } )
     let entityBatchTypeId = cache.entityBatchTypeId
     let entityTransactionTypeId = cache.entityTransactionTypeId
     let jsonBatchData = cache.jsonBatchData
@@ -911,7 +921,7 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
         let fileName = path.basename( inputFile )
 
         if(!fileTypeId) {
-            const cache = await populateLookupCache( { sql, inputFile, fromOrganizationId, toOrganizationId, contextOrganizationId } )
+            const cache = await populateLookupCache( { baas, sql, inputFile, fromOrganizationId, toOrganizationId, contextOrganizationId, correlationId } )
             console.warn('FileTypeId was not specified, falling back to naive matching in the function...')
             fileTypeId = cache.fileTypeId
 

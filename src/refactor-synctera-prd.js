@@ -51,7 +51,10 @@ async function main(){
 
     let CORRELATION_ID = await baas.id.generate()
 
-    baas.processing.EFFECTED_ORGANIZATION_ID = config.fromOrganizationId
+    baas.processing.EFFECTED_ORGANIZATION_ID = config.fromOrganizationId;
+    baas.processing.VENDOR_NAME = VENDOR_NAME;
+    baas.processing.VENDOR_ENVIRONMENT = ENVIRONMENT;
+    baas.processing.CONTEXT_ORGANIZATION_ID = config.contextOrganizationId;
 
     // ** MAIN PROCESSING FUNCTION ENTRY POINT ** //
     try{
@@ -133,7 +136,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.vendor = VENDOR_NAME;
 
     /*
-        6022d1b33f000000 == Lineage Bank
+        6022d4e2b0800000 == Lineage Bank
         602bd52e1c000000 == Synctera
     */
 
@@ -221,7 +224,8 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING = false
     config.processing.ENABLE_FILE_RECEIPT_PROCESSING = false
     config.processing.ENABLE_REMOTE_DELETE = false
-    config.processing.ENABLE_MANUAL_DB_DOWNLOAD = true
+    config.processing.ENABLE_MANUAL_DB_DOWNLOAD = false
+    config.processing.ENABLE_NOTIFICATIONS = true
    
     return config
 }

@@ -13,14 +13,14 @@ async function log({baas, logger, effectedEntityId, effectedOrganizationId, cont
     if(!baas) throw('baas module is required for baas.audit.log')
     if(!logger) throw('logger module is required for baas.audit.log')
     if(!effectedEntityId) effectedEntityId = ''
-    if(!contextOrganizationId) contextOrganizationId = `6022d1b33f000000` // == Lineage Bank
+    if(!contextOrganizationId) contextOrganizationId = baas.processing.CONTEXT_ORGANIZATION_ID // == Lineage Bank
     if(!category) category = 'sftp'
     if(!auditJSON) auditJSON = {}
 
     if(!CORRELATIONID) CORRELATIONID = flakeId.generate()
     if(!correlationId) correlationId = CORRELATIONID
 
-    if(!effectedOrganizationId) effectedOrganizationId = baas.processing.EFFECTED_ORGANIZATION_ID || ''
+    if(!effectedOrganizationId) effectedOrganizationId = baas.processing.EFFECTED_ORGANIZATION_ID
 
     // write the log locally via the winson logger prior to calling the DB
     logger.log({ level: level, message: `[${entityId}] ` + message })

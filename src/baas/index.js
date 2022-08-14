@@ -57,6 +57,9 @@ async function main (args) {
     const email = require('./email')()
     baas.email = email
 
+    const notification = require('./notification')()
+    baas.notification = notification
+
     return baas
 }
 
