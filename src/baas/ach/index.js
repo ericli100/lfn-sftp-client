@@ -140,7 +140,13 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
     let achJSON = {}
 
     if(isJSON) {
-        achJSON = JSON.parse(ach_data);
+        if(typeof ach_data == 'string') {
+            achJSON = JSON.parse(ach_data);
+        }
+
+        if(typeof ach_data == 'object') {
+            achJSON = ach_data
+        }
     } else {
         console.error("Parsing the ACH JSON failed. Check the output.");
         throw ("Error Parsing the ACH JSON failed. Check the output.")
@@ -160,6 +166,7 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
     messageBody += `Vendor: ${vendor}\n`
     messageBody += `Environment: ${environment}\n`
     messageBody += `Filename: ` + path.basename( filename ) + '\n';
+    messageBody += `BaaS Processor Version: 2.0 \n`;
     messageBody += `\n\n`
 
     if (isJSON) {
@@ -171,6 +178,22 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
         messageBody += spacing + spacing + `Total Credit: ${await formatMoney("-" + achJSON.fileControl.totalCredit, 2) } \n`
         messageBody += spacing + spacing + `fileCreationDate: ${achJSON.fileHeader.fileCreationDate} `
         messageBody += '\n\n'
+
+        if(ach_data.ReturnEntries){
+            if(ach_data.ReturnEntries.length > 0){
+                // we have returns in this file
+                messageBody += `  ******** ACH Returns ********\n`
+                messageBody += `  \n`
+
+                for( let achReturnBatch of ach_data.ReturnEntries) {
+                    messageBody += spacing + `  Return Batch[${achReturnBatch.batchHeader.companyName}(${achReturnBatch.batchHeader.batchNumber})]: \n`
+                    messageBody += spacing + spacing + `  Return Debit: ${await formatMoney(achReturnBatch.batchControl.totalDebit, 2)} \n`// achJSON.fileControl
+                    messageBody += spacing + spacing + `  Return Credit: ${await formatMoney("-" + achReturnBatch.batchControl.totalCredit, 2) } \n`
+                }
+
+                messageBody += `  ******** ACH Returns End *****\n`
+            }
+        }
         
         let batchTotals = await parseBatchACH(achJSON, spacing)
         messageBody += batchTotals
@@ -180,7 +203,15 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
     }
 
     messageBody += `ACH FILE DETAILS:\n`
-    messageBody += ach_data
+
+    if(typeof ach_data == 'string') {
+        messageBody += ach_data
+    }
+
+    if(typeof ach_data == 'object') {
+        messageBody += JSON.stringify( ach_data )
+    }
+
     messageBody += `\n\n`
 
     return messageBody

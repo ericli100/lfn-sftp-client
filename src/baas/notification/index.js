@@ -62,7 +62,7 @@ function Handler() {
         // Notify Email
         try {
             const client = await baas.email.getClient();
-            let recipientsTo = await baas.email.parseEmails( 'baas.notifications@lineagebank.com,admin@lineagebank.com' )
+            let recipientsTo = await baas.email.parseEmails( 'baas.notifications@lineagebank.com' ) // can only have 1 recipient
     
             let notificationMessage = {
                 subject: `ENCRYPT: BaaS: NOTIFICATION - ${VENDOR}.${ENVIRONMENT} ` + subject,
