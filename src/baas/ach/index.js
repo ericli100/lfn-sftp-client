@@ -123,6 +123,8 @@ async function getFooter( achJSON ) {
 async function isValidJSON( data ) {
     let checkJSON = {}
 
+    if (typeof data == 'object') return true
+
     try {
         checkJSON = JSON.parse( data) ;
         return true
