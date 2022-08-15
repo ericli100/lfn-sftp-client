@@ -192,8 +192,8 @@ async function validateACHQuickBalanceJSON ({ baas, contextOrganizationId, VENDO
                 newQuickBalanceJSON.totalDebits = row.totalDebit
     
                 // write this back to the DB
-                await baas.sql.file.updateJSON({ entityId, quickBalanceJSON: newQuickBalanceJSON, contextOrganizationId, correlationId })
-                await baas.audit.log({baas, logger: baas.logger, level: 'warn', message: `Correcting entityId:[${entityId}] files.quickBalanceJSON for [${VENDOR_NAME}.${ENVIRONMENT}] from [${JSON.stringify(quickBalanceJSON)}] to [${JSON.stringify(newQuickBalanceJSON)}].`, effectedEntityId: entityId, correlationId })
+               // await baas.sql.file.updateJSON({ entityId, quickBalanceJSON: newQuickBalanceJSON, contextOrganizationId, correlationId })
+                await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `The entityId:[${entityId}] files.quickBalanceJSON for [${VENDOR_NAME}.${ENVIRONMENT}] is [${JSON.stringify(quickBalanceJSON)}] and validateACHQuickBalanceJSON returned [${JSON.stringify(newQuickBalanceJSON)}]. Not changes were made to the data, reported as an error for Validation Only.`, effectedEntityId: entityId, correlationId })
             }
         }
     } catch (error) {
