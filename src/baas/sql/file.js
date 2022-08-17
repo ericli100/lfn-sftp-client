@@ -238,12 +238,17 @@ function Handler(mssql) {
             ,f.[versionNumber]
             ,f.[mutatedBy]
             ,f.[mutatedDate]
+            ,f.[isMultifile]
+            ,f.[isMultifileParent]
+            ,f.[parentEntityId]
+            ,f.[isSentViaSFTP]
+            ,f.[sentViaSFTPDate]
         FROM [baas].[files] f
         INNER JOIN [baas].[fileTypes] t
         ON t.[entityId] = f.[fileTypeId] AND t.[contextOrganizationId] = f.[contextOrganizationId] AND t.[tenantId] = f.[tenantId]
-        WHERE [entityId] = '${entityId}'
-         AND [tenantId] = '${tenantId}'
-         AND [contextOrganizationId] = ''${contextOrganizationId}';`
+        WHERE f.[entityId] = '${entityId}'
+         AND f.[tenantId] = '${tenantId}'
+         AND f.[contextOrganizationId] = '${contextOrganizationId}';`
 
         return sqlStatement
     }

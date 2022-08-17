@@ -103,6 +103,13 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
         let finalOutput = ''
         let sendEmailsProcessedFiles = []
 
+        let totalCreditsUSD = 0
+        let totalDebitsUSD = 0
+        let totalCreditCount = 0
+        let totalDebitCount = 0
+
+        let receiptAlreadyExists = false
+
         for(let accountNumber of output.accounts){
             // loop through the list of accounts and create a file per account
             let outputData = []
@@ -124,6 +131,11 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                     newDataRow['Credit Amount'] = await baas.common.formatMoney({ amount: quickBalance.totalCredits.toString(), decimalPosition: 2 })
                     newDataRow['Debit Count'] = quickBalance.debitCount
                     newDataRow['Debit Amount'] = await baas.common.formatMoney({ amount: quickBalance.totalDebits.toString(), decimalPosition: 2 })
+
+                    totalCreditsUSD += quickBalance.totalCredits
+                    totalDebitsUSD += quickBalance.totalDebits
+                    totalCreditCount += quickBalance.creditCount
+                    totalDebitCount += quickBalance.debitCount
 
                     processedData.push({entityId: row["entityId"], fileName: row["fileName"], SHA256: row["sha256"]})
                     sendEmailsProcessedFiles.push({entityId: row["entityId"], fileName: row["fileName"], SHA256: row["sha256"]})
@@ -154,9 +166,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
             } while (await baas.sql.file.fileNameExists( tempNameCheck, CONFIG.contextOrganizationId ));    
             currentAccountFileName = currentAccountFileName.replace('{index}', fileIndex)
 
-            // save this for the email output for the internal notifications
-            finalOutput += currentAccountFileName + ':\n';
-            finalOutput += '**********************************************************\n'
+            // Place the CSV in the Output Body for the Email
             finalOutput += csv + '\n\n';
 
             // write the file to the working buffer
@@ -181,6 +191,8 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
             let inputFileStatus
             let fileVaultResult
 
+       
+
             try{
                 // save the file SHA256 to the DB
                 inputFileStatus = await baas.input.file({ baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: inputFile, isOutbound: true, source: `lineage:/${configDestination.source}`, destination: `${configDestination.dbDestination}`, fileTypeId, correlationId })  
@@ -201,30 +213,54 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
             } catch (inputFileError) {
                 if (inputFileError.errorcode != 'E_FIIDA') throw (inputFileError)
                 fileEntityId = await baas.sql.file.exists( sha256, true )
+                receiptAlreadyExists = true
             }
 
-            // send SFTP
-            // SFTP TO ORGANIZATION
-            let outencrypted = await baas.pgp.encryptFile(CONFIG.vendor, CONFIG.environment, inputFile, inputFile + '.gpg')
-            let encryptedFileStream = fs.createReadStream(inputFile + '.gpg')
+            // do not send the file via SFTP again if the SHA256 already exists but send the email notificaiton again.
+            if( receiptAlreadyExists == false ) {
+                // save this for the email output for the internal notifications
 
-            // let's write these bits on the remote SFTP server
-            let remoteDestinationPath = configDestination.destination + '/' + path.basename(inputFile) + '.gpg'
-            await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream, remoteDestinationPath, correlationId });
-
-            // does the file exist remotely after the push?
-            let fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote(CONFIG, configDestination.destination, path.basename(inputFile) + '.gpg')
-
-            if (fileIsOnRemote) {
-                await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.processfileReceipt() - file [${path.basename(inputFile)}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: fileEntityId, correlationId })
+                let fileDescriptor = currentAccountFileName + ':\n';
+                fileDescriptor += '**********************************************************\n'
                 
-                // delete the encrypted file
-                await baas.processing.deleteBufferFile(inputFile + '.gpg') // remove the local file now it is uploaded
-                console.warn('TODO: Switch to a 2 phase commit in case of failure.')
-                await baas.sql.file.setSentViaSFTP({ entityId: fileEntityId, contextOrganizationId, correlationId })
-                await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.processfileReceipt() - file [${path.basename(inputFile)}] was set as isSentViaSFTP using baas.sql.file.setSentViaSFTP() for environment [${CONFIG.environment}].`, effectedEntityId: fileEntityId, correlationId })
-            }
+                finalOutput = fileDescriptor + finalOutput;
 
+                // send SFTP
+                // SFTP TO ORGANIZATION
+                let outencrypted = await baas.pgp.encryptFile(CONFIG.vendor, CONFIG.environment, inputFile, inputFile + '.gpg')
+                let encryptedFileStream = fs.createReadStream(inputFile + '.gpg')
+
+                // let's write these bits on the remote SFTP server
+                let remoteDestinationPath = configDestination.destination + '/' + path.basename(inputFile) + '.gpg'
+                await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream, remoteDestinationPath, correlationId });
+
+                // does the file exist remotely after the push?
+                let fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote(CONFIG, configDestination.destination, path.basename(inputFile) + '.gpg')
+
+                if (fileIsOnRemote) {
+                    await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.processfileReceipt() - file [${path.basename(inputFile)}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: fileEntityId, correlationId })
+                    
+                    // delete the encrypted file
+                    await baas.processing.deleteBufferFile(inputFile + '.gpg') // remove the local file now it is uploaded
+                    console.warn('TODO: Switch to a 2 phase commit in case of failure.')
+                    await baas.sql.file.setSentViaSFTP({ entityId: fileEntityId, contextOrganizationId, correlationId })
+                    await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.processfileReceipt() - file [${path.basename(inputFile)}] was set as isSentViaSFTP using baas.sql.file.setSentViaSFTP() for environment [${CONFIG.environment}].`, effectedEntityId: fileEntityId, correlationId })
+                }
+            } else {
+                // need to look up the existing file by entity ID and get the name
+                let existingFileActivityFileSQL = await baas.sql.file.read({entityId: fileEntityId, contextOrganizationId})
+                let existingFileActivityFile = await baas.sql.executeTSQL(existingFileActivityFileSQL);
+              
+                let fileDescriptor = existingFileActivityFile[0].data[0].fileName + ':\n';
+                fileDescriptor += '**********************************************************\n'
+                finalOutput = fileDescriptor + finalOutput;
+
+                if (existingFileActivityFile[0].data[0].isSentViaSFTP == false) {
+                    // if we are processing this again and the original FAF was not sent via SFTP... that is unexpected.
+                    throw new (`baas.output.processfileReceipt() failed, there was an existing File Activity File present but it had not been sent via SFTP for original FileNameOutbound:[${existingFileActivityFile[0].data[0].fileName}]. SHA256:[${sha256}]`)
+                }
+            }
+           
             // delete the original file
             await baas.processing.deleteBufferFile(inputFile)
 
@@ -237,8 +273,34 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
         // send email of the final output
         if(finalOutput != '') {
+            // add the body header
+            let header = '**********************************************************************\n'
+            header += '***              F I L E   A C T I V I T Y   F I L E               ***\n'
+            header += '**********************************************************************\n'
+            header += `File Activity File for [${VENDOR_NAME.toUpperCase()}].[${ENVIRONMENT.toUpperCase()}]: \n`
+            header += `   Total Credits USD: $${ await baas.common.formatMoney({ amount: totalCreditsUSD.toString(), decimalPosition: 2 }) } \n` 
+            header += `   Total Credits Count: ${totalCreditCount} \n\n` 
+            header += `   Total Debits USD: $${ await baas.common.formatMoney({ amount: totalDebitsUSD.toString(), decimalPosition: 2 }) } \n` 
+            header += `   Total Debits Count: ${totalDebitCount} \n\n`
+
+            let netOfDebitAndCredits = totalDebitsUSD - totalCreditsUSD
+            header += `   Net: $${ await baas.common.formatMoney({ amount: netOfDebitAndCredits.toString(), decimalPosition: 2 }) } (debits-credits)\n` 
+            header += '**********************************************************************\n\n\n'
+
+            finalOutput = header + finalOutput
+
             const client = await baas.email.getClient();
             let recipientsAdviceTo = await baas.email.parseEmails( 'baas.notifications@lineagebank.com' )
+
+            if (receiptAlreadyExists) {
+                // the receipt was already sent... but the files were set to send a receipt again.
+                finalOutput += '\n\n\n********************************************************\n'
+                finalOutput += '  NOTE:\n'
+                finalOutput += '  File Activity already sent.\n'
+                finalOutput += '  Processing Email Notification again per file status\n'
+                finalOutput += '  Files had been updated to [isReceiptProcessed] = false\n'
+                finalOutput += '********************************************************\n'
+            }
     
             let receiptAdviceMessage = {
                 subject: `ENCRYPT: BaaS: FILE ACTIVITY ADVICE - ${CONFIG.vendor}.${CONFIG.environment}`,
