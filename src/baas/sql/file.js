@@ -454,6 +454,7 @@ function Handler(mssql) {
             AND t.[fromOrganizationId] = '${fromOrganizationId}'
             AND t.[toOrganizationId] = '${toOrganizationId}'
             AND f.[isSentViaSFTP] = 0
+            AND f.[isMultifileParent] = 0
             AND f.[isProcessed] = 1
             AND f.[hasProcessingErrors] = 0;`
     
