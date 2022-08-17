@@ -10,6 +10,8 @@ const parseCSV = papa.unparse
 
 async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId, toOrganizationId, fromOrganizationId, correlationId }) {
     let output = {};
+    output.outputData = [];
+
     let date = new Date();
 
     let VENDOR_NAME = CONFIG.vendor
@@ -108,6 +110,9 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
         let totalCreditCount = 0
         let totalDebitCount = 0
 
+        let outputJSON = true
+        let maskAccount = false
+
         let receiptAlreadyExists = false
 
         for(let accountNumber of output.accounts){
@@ -140,6 +145,10 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                     processedData.push({entityId: row["entityId"], fileName: row["fileName"], SHA256: row["sha256"]})
                     sendEmailsProcessedFiles.push({entityId: row["entityId"], fileName: row["fileName"], SHA256: row["sha256"]})
                     outputData.push(newDataRow)
+
+                    if( outputJSON ) {
+                        output.outputData.push( newDataRow )
+                    }
                 }
             }
 
@@ -167,8 +176,10 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
             currentAccountFileName = currentAccountFileName.replace('{index}', fileIndex)
 
             // Place the CSV in the Output Body for the Email
-            finalOutput += csv + '\n\n';
-
+            if(outputJSON == false) {
+                finalOutput += csv + '\n\n';
+            }
+            
             // write the file to the working buffer
             writeCSV(workingDirectory, currentAccountFileName, csv)
 
@@ -190,8 +201,6 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
             let inputFileStatus
             let fileVaultResult
-
-       
 
             try{
                 // save the file SHA256 to the DB
@@ -251,8 +260,8 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                 let existingFileActivityFileSQL = await baas.sql.file.read({entityId: fileEntityId, contextOrganizationId})
                 let existingFileActivityFile = await baas.sql.executeTSQL(existingFileActivityFileSQL);
               
-                let fileDescriptor = existingFileActivityFile[0].data[0].fileName + ':\n';
-                fileDescriptor += '**********************************************************\n'
+                let fileDescriptor = `[${existingFileActivityFile[0].data[0].fileName}]]:\n`;
+                fileDescriptor += '**********************************************************\n\n'
                 finalOutput = fileDescriptor + finalOutput;
 
                 if (existingFileActivityFile[0].data[0].isSentViaSFTP == false) {
@@ -274,36 +283,61 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
         // send email of the final output
         if(finalOutput != '') {
             // add the body header
-            let header = '**********************************************************************\n'
-            header += '***              F I L E   A C T I V I T Y   F I L E               ***\n'
-            header += '**********************************************************************\n'
-            header += `File Activity File for [${VENDOR_NAME.toUpperCase()}].[${ENVIRONMENT.toUpperCase()}]: \n`
-            header += `   Total Credits USD: $${ await baas.common.formatMoney({ amount: totalCreditsUSD.toString(), decimalPosition: 2 }) } \n` 
+            let header = '**************************************************************************\n'
+            header += '*               F I L E   A C T I V I T Y   F I L E       Processor: 2.0\n'
+            header += '**************************************************************************\n\n'
+            header += `File Activity File for [${VENDOR_NAME.toUpperCase()}].[${ENVIRONMENT.toUpperCase()}]: \n\n`
+            header += `   Total Credits USD: $${ await baas.common.formatMoney({ amount: totalCreditsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
             header += `   Total Credits Count: ${totalCreditCount} \n\n` 
-            header += `   Total Debits USD: $${ await baas.common.formatMoney({ amount: totalDebitsUSD.toString(), decimalPosition: 2 }) } \n` 
+            header += `   Total Debits USD: $${ await baas.common.formatMoney({ amount: totalDebitsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
             header += `   Total Debits Count: ${totalDebitCount} \n\n`
 
             let netOfDebitAndCredits = totalDebitsUSD - totalCreditsUSD
-            header += `   Net: $${ await baas.common.formatMoney({ amount: netOfDebitAndCredits.toString(), decimalPosition: 2 }) } (debits-credits)\n` 
-            header += '**********************************************************************\n\n\n'
+            header += `   NET: $${ await baas.common.formatMoney({ amount: netOfDebitAndCredits.toString(), decimalPosition: 2, addComma: true }) } (debits-credits)\n\n` 
+            header += '**********************************************************************\n\n'
 
             finalOutput = header + finalOutput
+
+            if(outputJSON){
+                // let's do a better formatted output via JSON
+                let spacing = '  '
+                let leftJustify = '                    ' // 20 chars
+                for (let faf of output.outputData) {
+                    
+                    finalOutput += spacing + `>> ${ faf['fileName'] }:\n`
+                    finalOutput += spacing + `**********************************************\n`
+                    finalOutput += spacing + `FRB File Direction: ${ faf['Incoming / Outgoing'] }\n`
+                    finalOutput += spacing + `Posting Date: ${ faf['Date'] }\n`
+                    
+                    if(maskAccount) {
+                        finalOutput += spacing + `Account: **-****-****${ faf['Account Number'].substring(-4) } - ${ faf['Account Name'] }\n`
+                    } else {
+                        finalOutput += spacing + `Account: ${ faf['Account Number'] } - ${ faf['Account Name'] }\n`
+                    }
+                    
+                    finalOutput += spacing + `Credit Amount: $${ faf['Credit Amount'] }\n`
+                    finalOutput += spacing + `Credit Count:  ${ faf['Credit Count'] }\n`
+                    finalOutput += spacing + `Debit Amount:  $${ faf['Debit Amount'] }\n`
+                    finalOutput += spacing + `Debit Count:   ${ faf['Debit Count'] } \n`
+                    finalOutput += `\n`
+                }
+            }
 
             const client = await baas.email.getClient();
             let recipientsAdviceTo = await baas.email.parseEmails( 'baas.notifications@lineagebank.com' )
 
             if (receiptAlreadyExists) {
                 // the receipt was already sent... but the files were set to send a receipt again.
-                finalOutput += '\n\n\n********************************************************\n'
-                finalOutput += '  NOTE:\n'
-                finalOutput += '  File Activity already sent.\n'
+                finalOutput += '-------------------------------------------------------------\n'
+                finalOutput += '  ** NOTICE **\n'
+                finalOutput += '  File Activity already sent. CAUTION: May not need a GL entry.\n'
                 finalOutput += '  Processing Email Notification again per file status\n'
                 finalOutput += '  Files had been updated to [isReceiptProcessed] = false\n'
-                finalOutput += '********************************************************\n'
+                finalOutput += '-------------------------------------------------------------\n'
             }
     
             let receiptAdviceMessage = {
-                subject: `ENCRYPT: BaaS: FILE ACTIVITY ADVICE - ${CONFIG.vendor}.${CONFIG.environment}`,
+                subject: `ENCRYPT: BaaS: FILE ACTIVITY ADVICE - [${CONFIG.vendor.toUpperCase()}].[${CONFIG.environment.toUpperCase()}]`,
                 body: { contentType: 'Text', content: finalOutput },
                 toRecipients: recipientsAdviceTo,
             }
