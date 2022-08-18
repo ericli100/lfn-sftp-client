@@ -310,7 +310,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                     finalOutput += spacing + `Posting Date: ${ faf['Date'] }\n`
                     
                     if(maskAccount) {
-                        finalOutput += spacing + `Account: **-****-****${ faf['Account Number'].substring(-4) } - ${ faf['Account Name'] }\n`
+                        // finalOutput += spacing + `Account: **-****-****${ faf['Account Number'].substring(-4) } - ${ faf['Account Name'] }\n`
                     } else {
                         finalOutput += spacing + `Account: ${ faf['Account Number'] } - ${ faf['Account Name'] }\n`
                     }
