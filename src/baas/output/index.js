@@ -287,7 +287,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
             header += '*               F I L E   A C T I V I T Y   F I L E       Processor: 2.0\n'
             header += '**************************************************************************\n\n'
             header += `File Activity File for [${VENDOR_NAME.toUpperCase()}].[${ENVIRONMENT.toUpperCase()}]: \n\n`
-            header += `   Total Credits USD: $${ await baas.common.formatMoney({ amount: totalCreditsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
+            header += `   Total Credits USD: $-${ await baas.common.formatMoney({ amount: totalCreditsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
             header += `   Total Credits Count: ${totalCreditCount} \n\n` 
             header += `   Total Debits USD: $${ await baas.common.formatMoney({ amount: totalDebitsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
             header += `   Total Debits Count: ${totalDebitCount} \n\n`
@@ -315,7 +315,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                         finalOutput += spacing + `Account: ${ faf['Account Number'] } - ${ faf['Account Name'] }\n`
                     }
                     
-                    finalOutput += spacing + `Credit Amount: $${ faf['Credit Amount'] }\n`
+                    finalOutput += spacing + `Credit Amount: $-${ faf['Credit Amount'] }\n`
                     finalOutput += spacing + `Credit Count:  ${ faf['Credit Count'] }\n`
                     finalOutput += spacing + `Debit Amount:  $${ faf['Debit Amount'] }\n`
                     finalOutput += spacing + `Debit Count:   ${ faf['Debit Count'] } \n`
