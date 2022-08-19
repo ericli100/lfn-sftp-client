@@ -608,13 +608,6 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                     let replyToAddress = await baas.email.parseEmails( file.emailReplyTo ) || `${CONFIG.vendor}.${CONFIG.environment}.ach@lineagebank.com`
                     let recipientsAdviceTo = await baas.email.parseEmails( file.emailAdviceTo )
 
-                    let wireAdviceMessage = {
-                        subject: `ENCRYPT: BaaS: OUTBOUND ACH ADVICE - ${CONFIG.vendor}.${CONFIG.environment}`,
-                        body: { contentType: 'Text', content: achAdvice + footer },
-                        replyTo: replyToAddress,
-                        toRecipients: recipientsAdviceTo,
-                    }
-
                     let instructions = '>>> INSTRUCTIONS: Process the file via the appropriate FED connection for this Vendor. Reply to this email and attach the processing receipt from the FED. <<<\n\n'
                     let recipientsProcessingTo = await baas.email.parseEmails( file.emailProcessingTo )
                     let attachment = await baas.email.createMsGraphAttachments(fullFilePath)
@@ -656,8 +649,14 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                             }
                         }
 
+                        let achAdviceMessage = {
+                            subject: `ENCRYPT: BaaS: OUTBOUND ACH ADVICE - ${CONFIG.vendor}.${CONFIG.environment}`,
+                            body: { contentType: 'Text', content: achAdvice + footer },
+                            replyTo: replyToAddress,
+                            toRecipients: recipientsAdviceTo,
+                        }
 
-                        let sendACHAdvice = await baas.email.sendEmail({ client, message: achProcessingMessage })
+                        let sendACHAdvice = await baas.email.sendEmail({ client, message: achAdviceMessage })
                         await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - ACH Advice Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsAdviceTo} ].`, effectedEntityId: file.entityId, correlationId })
 
                         // Set Status In DB
