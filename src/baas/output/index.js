@@ -287,7 +287,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
             header += '*               F I L E   A C T I V I T Y   F I L E       Processor: 2.0\n'
             header += '**************************************************************************\n\n'
             header += `File Activity File for [${VENDOR_NAME.toUpperCase()}].[${ENVIRONMENT.toUpperCase()}]: \n\n`
-            header += `   Total Credits USD: $-${ await baas.common.formatMoney({ amount: totalCreditsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
+            header += `   Total Credits USD: $${ await baas.common.formatMoney({ amount: totalCreditsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
             header += `   Total Credits Count: ${totalCreditCount} \n\n` 
             header += `   Total Debits USD: $${ await baas.common.formatMoney({ amount: totalDebitsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
             header += `   Total Debits Count: ${totalDebitCount} \n\n`
@@ -315,7 +315,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                         finalOutput += spacing + `Account: ${ faf['Account Number'] } - ${ faf['Account Name'] }\n`
                     }
                     
-                    finalOutput += spacing + `Credit Amount: $-${ faf['Credit Amount'] }\n`
+                    finalOutput += spacing + `Credit Amount: $${ faf['Credit Amount'] }\n`
                     finalOutput += spacing + `Credit Count:  ${ faf['Credit Count'] }\n`
                     finalOutput += spacing + `Debit Amount:  $${ faf['Debit Amount'] }\n`
                     finalOutput += spacing + `Debit Count:   ${ faf['Debit Count'] } \n`
@@ -618,7 +618,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                     let instructions = '>>> INSTRUCTIONS: Process the file via the appropriate FED connection for this Vendor. Reply to this email and attach the processing receipt from the FED. <<<\n\n'
                     let recipientsProcessingTo = await baas.email.parseEmails( file.emailProcessingTo )
                     let attachment = await baas.email.createMsGraphAttachments(fullFilePath)
-                    let wireProcessingMessage = {
+                    let achProcessingMessage = {
                         subject: `ENCRYPT: BaaS: OUTBOUND ACH - ${CONFIG.vendor}.${CONFIG.environment} - ** SEND TO FED **`,
                         body: { contentType: 'Text', content: instructions + achAdvice + footer },
                         replyTo: replyToAddress,
@@ -627,11 +627,38 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                     }
                     
                     if(file.isSentToDepositOperations == false) {
-                        let sendACHAdvice = await baas.email.sendEmail({ client, message: wireAdviceMessage })
-                        await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - ACH Advice Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsAdviceTo} ].`, effectedEntityId: file.entityId, correlationId })
+                        let tooLargeAttachment = false
+                        try{
+                            let sendACHProcessing = await baas.email.sendEmail({ client, message: achProcessingMessage })
+                            await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - ACH Processing Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
+                        } catch ( achProcessingEmailError ) {
+                            if (achProcessingEmailError.statusCode == 413) {
+                                tooLargeAttachment = true
+                            } else {
+                                throw ( achProcessingEmailError )
+                            }
+                        }
 
-                        let sendACHProcessing = await baas.email.sendEmail({ client, message: wireProcessingMessage })
-                        await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - ACH Processing Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
+                        if(tooLargeAttachment) {
+                            tooLargeAttachment = false
+                            try{
+                                // the attachment + the body was too large.
+                                achAdvice = await baas.ach.achAdvice({ vendor: CONFIG.vendor, environment: CONFIG.environment, filename: fullFilePath, isOutbound: true, short: true })
+                                achProcessingMessage.body = { contentType: 'Text', content: instructions + achAdvice + footer }
+                                let sendACHProcessing = await baas.email.sendEmail({ client, message: achProcessingMessage })
+                            } catch ( achProcessingEmailError ){
+                                if (achProcessingEmailError.statusCode == 413) {
+                                    // still too large
+                                    tooLargeAttachment = true
+                                } else {
+                                    throw ( achProcessingEmailError )
+                                }
+                            }
+                        }
+
+
+                        let sendACHAdvice = await baas.email.sendEmail({ client, message: achProcessingMessage })
+                        await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - ACH Advice Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsAdviceTo} ].`, effectedEntityId: file.entityId, correlationId })
 
                         // Set Status In DB
                         await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })

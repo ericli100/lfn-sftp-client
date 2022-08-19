@@ -62,7 +62,7 @@ async function main(args) {
     if (DEBUG) console.log('ACH_CLI:',`${achtool} ${flatArgs}`)
 
     try{
-        const { stdout, stderr } = await exec(`${achtool} ${flatArgs}`);
+        const { stdout, stderr } = await exec(`${achtool} ${flatArgs}`, {maxBuffer: undefined});
 
         let mask = flatArgs.includes('mask')
         let json = flatArgs.includes('json')
@@ -133,7 +133,7 @@ async function isValidJSON( data ) {
     }
 }
 
-async function achAdvice({ vendor, environment, filename, isOutbound }){
+async function achAdvice({ vendor, environment, filename, isOutbound, short }){
     let ach_data = await main( [`-reformat json`, `-mask`, `"${filename}"`] )
 
     let isJSON = await isValidJSON( ach_data )
@@ -204,15 +204,22 @@ async function achAdvice({ vendor, environment, filename, isOutbound }){
 
     messageBody += `ACH FILE DETAILS:\n`
 
-    if(typeof ach_data == 'string') {
-        messageBody += ach_data
+    if(!short) {
+        if(typeof ach_data == 'string') {
+            messageBody += ach_data
+        }
+    
+        if(typeof ach_data == 'object') {
+            messageBody += JSON.stringify( ach_data )
+        }
+    
+        messageBody += `\n\n`
     }
 
-    if(typeof ach_data == 'object') {
-        messageBody += JSON.stringify( ach_data )
+    if(short) {
+        messageBody += '** NOTICE **\n'
+        messageBody += '** The JSON Body was too large to include in the body of this message. ** \n'
     }
-
-    messageBody += `\n\n`
 
     return messageBody
 }
