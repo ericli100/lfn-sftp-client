@@ -47,12 +47,13 @@ let is_entry_return = function (entry_json) {
 
     for (let x = 0; x < addendas.length; x++) {
         let addenda_content = entry_json[addendas[x]];
-        if (addenda_content['returnCode']) { return true }
+        if (addenda_content['returnCode'] || addenda_content['changeCode']) { return true }
     }
 
     return false
 }
 let render_dynamic_length = function (value, max_length) {
+    if (!value) value = '';
     while (value.length < max_length) { value += ' ' }
     return value;
 }
@@ -236,7 +237,7 @@ let renderPaymentEntryAddendaFromJSON = function (entry_addenda_json_content) {
 
     let entry_addenda = `7${json_content['typeCode']}`;
 
-    if(json_content['typeCode'] == '98'){
+    if (json_content['typeCode'] == '98') {
         // NOC Addenda - requires a different format for the Addenda record
         entry_addenda += json_content['changeCode'];
         entry_addenda += json_content['originalTrace'];
@@ -254,19 +255,30 @@ let renderPaymentEntryAddendaFromJSON = function (entry_addenda_json_content) {
     return entry_addenda;
 }
 let renderReturnEntryAddendaFromJSON = function (entry_addenda_json_content) {
+    let entry_addenda = ''
     let json_content = { ...entry_addenda_json_content };
-    json_content['dateOfDeath'] = json_content['dateOfDeath'] ? json_content['dateOfDeath'] : '';
+    if (json_content['typeCode'] == '99') {
+        json_content['dateOfDeath'] = json_content['dateOfDeath'] ? json_content['dateOfDeath'] : '';
 
-    let entry_addenda = `7${json_content['typeCode']}${json_content['returnCode']}${json_content['originalTrace']}`;
+        entry_addenda = `7${json_content['typeCode']}${json_content['returnCode']}${json_content['originalTrace']}`;
 
-    entry_addenda += render_dynamic_length(json_content['dateOfDeath'], 6);
+        entry_addenda += render_dynamic_length(json_content['dateOfDeath'], 6);
 
-    entry_addenda += `${json_content['originalDFI']}`;
+        entry_addenda += `${json_content['originalDFI']}`;
 
-    entry_addenda += render_dynamic_length(json_content['addendaInformation'] || '', 44);
+        entry_addenda += render_dynamic_length(json_content['addendaInformation'], 44);
 
-    entry_addenda += `${json_content['traceNumber']}`;
-
+        entry_addenda += `${json_content['traceNumber']}`;
+    } else {
+        entry_addenda = `7${json_content['typeCode']}`;
+        entry_addenda += render_zfill(json_content['changeCode'], 3);
+        entry_addenda += render_dynamic_length(json_content['originalTrace'], 15);
+        entry_addenda += render_dynamic_length(' ', 6);
+        entry_addenda += render_dynamic_length(json_content['originalDFI'], 8);
+        entry_addenda += render_dynamic_length(json_content['correctedData'], 29);
+        entry_addenda += render_dynamic_length(' ', 15);
+        entry_addenda += render_dynamic_length(json_content['traceNumber'], 15);
+    }
     return entry_addenda;
 }
 let renderEntryRecordFromJSON = function (entry_record_json_content) {
@@ -413,7 +425,7 @@ let validateSplitFiles = function (comingled_control, payments_control, returns_
         summed_control =
         {
             'batchCount': payments_control['batchCount'] + returns_control['batchCount'],
-            'blockCount': payments_control['blockCount'] + returns_control['blockCount'],
+            // 'blockCount': payments_control['blockCount'] + returns_control['blockCount'],
             'entryAddendaCount': payments_control['entryAddendaCount'] + returns_control['entryAddendaCount'],
             'entryHash': payments_control['entryHash'] + returns_control['entryHash'],
             'totalDebit': payments_control['totalDebit'] + returns_control['totalDebit'],
@@ -423,7 +435,7 @@ let validateSplitFiles = function (comingled_control, payments_control, returns_
     }
 
     if (summed_control['batchCount'] !== comingled_control['batchCount']) { throw new Error(`Actual batchCount "${summed_control['batchCount']}" does not equal expected value "${comingled_control['batchCount']}"!`) }
-    // if (summed_control['blockCount'] !== comingled_control['blockCount']) { throw new Error(`Actual blockCount "${summed_control['blockCount']}" does not equal expected value "${comingled_control['blockCount']}"!`) }
+    // if (summed_control['blockCount'] !== comingled_control['blockCount']){throw new Error(`Actual blockCount "${summed_control['blockCount']}" does not equal expected value "${comingled_control['blockCount']}"!`)}
     if (summed_control['entryAddendaCount'] !== comingled_control['entryAddendaCount']) { throw new Error(`Actual entryAddendaCount "${summed_control['entryAddendaCount']}" does not equal expected value "${comingled_control['entryAddendaCount']}"!`) }
     if (summed_control['entryHash'] !== comingled_control['entryHash']) { throw new Error(`Actual entryHash "${summed_control['entryHash']}" does not equal expected value "${comingled_control['entryHash']}"!`) }
     if (summed_control['totalDebit'] !== comingled_control['totalDebit']) { throw new Error(`Actual totalDebit "${summed_control['totalDebit']}" does not equal expected value "${comingled_control['totalDebit']}"!`) }
@@ -466,12 +478,12 @@ async function split_from_json(json_content, date, working_directory, file_name,
     let returnsJSON = split_json_content['returns']
 
     if (renderFiles) {
-        // Render File Content
+    // Render File Content
         let payments_file_content = await renderFileContentFromJSON(paymentsJSON);
         let returns_file_content = await renderFileContentFromJSON(returnsJSON);
-        
-        // Exit
-        return {
+
+    // Exit
+    return {
             'payments': await render_file(payments_file_content, 'subnet_ach', date, working_directory, file_name),
             'returns': await render_file(returns_file_content, 'ach_returns', date, working_directory, file_name)
         }
