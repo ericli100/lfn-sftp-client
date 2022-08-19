@@ -1423,9 +1423,15 @@ async function splitOutMultifileACH({ baas, logger, VENDOR_NAME, ENVIRONMENT, PR
     let parsedACH = await baas.ach.parseACH( fullFilePath, true )
     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - PARENT FILE NAME [${fileName}] for environment [${ENVIRONMENT}] successfully parsed the ACH file via parsedACH().`, effectedEntityId: parentEntityId, correlationId })
 
-    let splitFiles = await baas.ach.splitReturnACH( parsedACH, new Date(), workingDirectory, fileName, true )
-    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - PARENT FILE NAME [${fileName}] for environment [${ENVIRONMENT}] successfully split the file via baas.ach.splitReturnACH().`, effectedEntityId: parentEntityId, correlationId })
-
+    let splitFiles
+    try{
+        splitFiles = await baas.ach.splitReturnACH( parsedACH, new Date(), workingDirectory, fileName, true )
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - PARENT FILE NAME [${fileName}] for environment [${ENVIRONMENT}] successfully split the file via baas.ach.splitReturnACH().`, effectedEntityId: parentEntityId, correlationId })
+    } catch (splitFileError) {
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - split erro for file [${fileName}] for environment [${ENVIRONMENT}] SPLIT ERROR: [${JSON.stringify(splitFileError)}]`, effectedEntityId: parentEntityId, correlationId  })
+        throw (splitFileError)
+    }
+   
     // run for the return file and subnet file
     for (let key of Object.keys(splitFiles)) {
         let splitFilePath = splitFiles[key]

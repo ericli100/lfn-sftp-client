@@ -225,7 +225,7 @@ let renderBatchHeaderFromJSON = function (batch_header_json_content) {
     batch_header += render_dynamic_length(json_content['companyEntryDescription'], 10);
     batch_header += render_dynamic_length(json_content['companyDescriptiveDate'], 6);
 
-    batch_header += `${json_content['effectiveEntryDate']}${json_content['settlementDate']}${json_content['originatorStatusCode']}${json_content['ODFIIdentification']}`;
+    batch_header += `${json_content['effectiveEntryDate']}${json_content['settlementDate'] || '   '}${json_content['originatorStatusCode']}${json_content['ODFIIdentification']}`;
 
     batch_header += render_zfill(json_content['batchNumber'], 7);
 
@@ -236,9 +236,20 @@ let renderPaymentEntryAddendaFromJSON = function (entry_addenda_json_content) {
 
     let entry_addenda = `7${json_content['typeCode']}`;
 
-    entry_addenda += render_dynamic_length(json_content['paymentRelatedInformation'], 80);
-    entry_addenda += render_zfill(json_content['sequenceNumber'], 4);
-    entry_addenda += render_zfill(json_content['entryDetailSequenceNumber'], 7);
+    if(json_content['typeCode'] == '98'){
+        // NOC Addenda - requires a different format for the Addenda record
+        entry_addenda += json_content['changeCode'];
+        entry_addenda += json_content['originalTrace'];
+        entry_addenda += render_dynamic_length('', 6);
+        entry_addenda += json_content['originalDFI'];
+        entry_addenda += render_dynamic_length(json_content['correctedData'] || '', 29);
+        entry_addenda += render_dynamic_length('', 15);
+        entry_addenda += json_content['traceNumber'];
+    } else {
+        entry_addenda += render_dynamic_length(json_content['paymentRelatedInformation'] || '', 80);
+        entry_addenda += render_zfill(json_content['sequenceNumber'] || '1', 4);
+        entry_addenda += render_zfill(json_content['entryDetailSequenceNumber'], 7);
+    }
 
     return entry_addenda;
 }
@@ -252,7 +263,7 @@ let renderReturnEntryAddendaFromJSON = function (entry_addenda_json_content) {
 
     entry_addenda += `${json_content['originalDFI']}`;
 
-    entry_addenda += render_dynamic_length(json_content['addendaInformation'], 44);
+    entry_addenda += render_dynamic_length(json_content['addendaInformation'] || '', 44);
 
     entry_addenda += `${json_content['traceNumber']}`;
 
