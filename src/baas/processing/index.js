@@ -92,7 +92,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
         await baas.output.downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, correlationId: CORRELATION_ID })
     }
 
-    await validateACHQuickBalanceJSON ({ baas, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID, contextOrganizationId: CONFIG.contextOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId })
+    //await validateACHQuickBalanceJSON ({ baas, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID, contextOrganizationId: CONFIG.contextOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId })
 
     if(ENABLE_OUTBOUND_PROCESSING_FROM_DB){
         await processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, PROCESSING_DATE, CORRELATION_ID)
