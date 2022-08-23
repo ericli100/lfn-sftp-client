@@ -626,6 +626,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                             await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - ACH Processing Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
                         } catch ( achProcessingEmailError ) {
                             if (achProcessingEmailError.statusCode == 413) {
+                                await baas.audit.log({ baas, logger: baas.logger, level: 'warn', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - ACH Processing Email Attachment Too Large [${outFileName}] for environment [${CONFIG.environment}] processing with large body removed...`, effectedEntityId: file.entityId, correlationId })
                                 tooLargeAttachment = true
                             } else {
                                 throw ( achProcessingEmailError )
@@ -642,6 +643,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                             } catch ( achProcessingEmailError ){
                                 if (achProcessingEmailError.statusCode == 413) {
                                     // still too large
+                                    await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - ACH Processing Email Attachment Too Large! [${outFileName}] for environment [${CONFIG.environment}] email send failed! Pull file manually!`, effectedEntityId: file.entityId, correlationId })
                                     tooLargeAttachment = true
                                 } else {
                                     throw ( achProcessingEmailError )
@@ -656,12 +658,15 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                             toRecipients: recipientsAdviceTo,
                         }
 
+                        if(tooLargeAttachment) { achAdviceMessage = `!! FILE ATTACHEMENT TOO LARGE !! \n\n Contact BaaS IT Support for Processing.\n\n` + achAdviceMessage }
                         let sendACHAdvice = await baas.email.sendEmail({ client, message: achAdviceMessage })
                         await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - ACH Advice Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsAdviceTo} ].`, effectedEntityId: file.entityId, correlationId })
 
                         // Set Status In DB
-                        await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
-                        await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - file [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                        if(!tooLargeAttachment){
+                            await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
+                            await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - file [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                        }
                     }
                 }
             }
