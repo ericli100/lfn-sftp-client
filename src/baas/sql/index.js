@@ -126,6 +126,11 @@ module.exports.execute = (param) => {
     return results
 }
 
+module.exports.executeBulk = (param) => {
+    let results = mssql.sqlExecuteBulk(param);
+    return results
+}
+
 module.exports.executeTSQL = (tsql) => {
     let param = {}
         param.params = []
