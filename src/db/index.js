@@ -211,6 +211,111 @@ async function mssqlExecute(param) {
     }
 }
 
+async function mssqlQuery(param) {
+    try {
+        if(pool.connected === false && pool.connecting === false) {
+            debug('Connecting to the SQL server...');
+            await poolConnect(pool);
+        }
+        const request = pool.request();
+        // add the params from the passed in array
+        if (param.params.length > 0) {
+            for (let i=0;i<param.params.length;i++) {
+                request.input(param.params[i].varName, param.params[i].varType, param.params[i].varValue); 
+            }
+        }
+
+        let result = await pool.request().query(param.tsql);
+        delete result.recordsets;
+        result.data = result.recordset;
+        delete result.recordset;
+        return result;
+    } catch (err) {
+        debug('Error: Connection to the database server failed.');
+        debug('database error: ', err);
+        return Promise.reject(new Error(err));
+    }
+};
+
+async function mssqlExecuteBulk(param) {
+    try {
+        // an additional request came in while we are connection to the SQL db...  stall.
+        if(pool.connected === false && pool.connecting === true) {
+            let stalledConnection = await delay(pool.connected, 3);
+            if (stalledConnection) {
+                debug('Stalled SQL connection is connected now.');
+            } else {
+                throw ('Stalled SQL connection failed to connect in 3 seconds!');
+            }
+        }
+
+        if(pool.connected === false && pool.connecting === false) {
+            debug('Connecting to the SQL server...');
+            await pool.connect();
+            await poolConnect(pool);
+        }
+        const transaction = new sql.Transaction(pool);
+        const request = transaction.request();
+        
+        let results = [];
+        let result;
+
+        let bulkSQL = '';
+        let bulkCounter = 0
+        let totalBulkCount = 0
+        
+        debug('Transaction BEGIN...');
+        await transaction.begin();
+
+        for( let sqlStatementEach of param) {
+            bulkCounter++
+            bulkSQL += sqlStatementEach.tsql
+
+            // execute 100 statements at a time
+            if(bulkCounter >= 100) {
+                totalBulkCount++
+                debug('Bulk executing 100 block...');
+                try{
+                    result = await request.batch( bulkSQL );
+                } catch (bulkBatchError){
+                    console.error('SQL BULK BATCH ERROR:', bulkBatchError)
+                    throw (bulkBatchError)
+                }
+                
+                bulkSQL = '';
+                bulkCounter = 0
+        
+                // rename the recordset key to data
+                result.data = result.recordset;
+                delete result.recordset;
+                
+                if( !result ) { result = {}; }
+                results.push( result )
+            }
+        }
+
+        debug('Bulk executing the remaining statements(' + bulkCounter + ')...');
+        // execute the remaining statements
+        result = await request.batch( bulkSQL );
+        
+        // rename the recordset key to data
+        result.data = result.recordset;
+        delete result.recordset;
+
+        if( !result ) { result = {}; }
+        results.push( result )
+
+        debug('Transaction COMMIT...');
+        await transaction.commit();
+
+        return results;
+    } catch (err) {
+        debug('DB Error: ' + err.message);
+        debug('Transaction ROLLBACK via XACT_ABORT...');
+        return Promise.reject(new Error(err));
+    }
+}
+
 function convertToArray (param) {
     let output = []
     /* if it is an object add it to an array for further processing.  this is so we can 
@@ -342,6 +447,10 @@ module.exports = function constructor () {
     function sqlExecute(data) {
         return Promise.resolve(mssqlExecute(data));
     }
+
+    function sqlExecuteBulk(data) {
+        return Promise.resolve(mssqlExecuteBulk(data));
+    }
     
     function sqlQuery(data) {
         return Promise.resolve(mssqlQuery(data));
@@ -353,6 +462,7 @@ module.exports = function constructor () {
     
     return {
         sqlExecute,
+        sqlExecuteBulk,
         sqlQuery,
         sql,
         populateParams,
