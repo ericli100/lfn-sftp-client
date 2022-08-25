@@ -465,6 +465,9 @@ async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizati
     let updatedBatchType = standardEntryClassCode
     if(batchType) updatedBatchType = batchType + '-' + updatedBatchType
 
+    let dataJSON = JSON.parse(JSON.stringify(batch))
+    if (dataJSON.entryDetails) delete dataJSON.entryDetails
+
     let batchInsert = {
         entityId: fileBatchEntityId, 
         contextOrganizationId: contextOrganizationId, 
@@ -476,7 +479,7 @@ async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizati
         batchName: path.basename( inputFile ).toUpperCase() + '-' + standardEntryClassCode.toUpperCase() + '-' + batch.batchControl.batchNumber, 
         batchCredits: batch.batchControl.totalCredit, 
         batchDebits: batch.batchControl.totalDebit, 
-        dataJSON: batch, 
+        dataJSON: dataJSON, 
         correlationId: correlationId,
     }
     let sqlBatch = await sql.fileBatch.insert( batchInsert )
@@ -760,8 +763,8 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
             let fileBatchEntityId = baas.id.generate();
     
             // insert the batch entityId
-            let sqlBatchEntitySQL = await createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} )
-            sqlStatements.push( sqlBatchEntitySQL.param )
+            // let sqlBatchEntitySQL = await createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} )
+            // sqlStatements.push( sqlBatchEntitySQL.param )
     
             // insert the batch
             let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, batchType: 'ACH', correlationId } )
@@ -776,8 +779,8 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
                 let fileTransactionEntityId = baas.id.generate();
     
                 // create the transaction entity
-                let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
-                sqlStatements.push( batchTransactionEntitySQL.param )
+                // let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
+                // sqlStatements.push( batchTransactionEntitySQL.param )
         
                 // transaction processing
                 let achType = achTypeCheck( transaction )
@@ -817,8 +820,8 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
             let fileBatchEntityId = baas.id.generate();
     
             // insert the batch entityId
-            let sqlBatchEntitySQL = await createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} )
-            sqlStatements.push( sqlBatchEntitySQL.param )
+            // let sqlBatchEntitySQL = await createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} )
+            // sqlStatements.push( sqlBatchEntitySQL.param )
     
             // insert the batch
             let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, batchType: 'ACH', correlationId } )
@@ -833,8 +836,8 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
                 let fileTransactionEntityId = baas.id.generate();
     
                 // create the transaction entity
-                let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
-                sqlStatements.push( batchTransactionEntitySQL.param )
+                // let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
+                // sqlStatements.push( batchTransactionEntitySQL.param )
         
                 // transaction processing
                 let achType = achTypeCheck( transaction )
@@ -882,8 +885,13 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
     }
     
     // call SQL and run the SQL transaction to import the ach file to the database
-    output.results = await sql.execute( sqlStatements )
-
+    try{
+        output.results = await sql.executeBulk( sqlStatements )
+    } catch (sqlProcessingError) {
+        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR}: baas.input.ach() failed during sql.execute for [${fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( sqlProcessingError )}]`, correlationId, effectedEntityId: fileEntityId })
+        throw( sqlProcessingError )
+    }
+    
     await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${VENDOR}: processed ACH file [${fileName}].`, correlationId, effectedEntityId: fileEntityId })
 
     // output the status
