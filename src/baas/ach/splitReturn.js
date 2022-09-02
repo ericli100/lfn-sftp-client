@@ -466,7 +466,13 @@ async function split_from_json(json_content, date, working_directory, file_name,
         'returns': split_json_content['returns'] ? recalculateJSON(split_json_content['returns']) : null,
     };
     // - Integrity Check
-    if (!split_json_content['payments'] && !split_json_content['returns']) { throw new Error('Split operation returned no ACH payment or return files!') }
+    if (!split_json_content['payments'] || !split_json_content['returns']) { 
+        console.warn('Split operation returned no ACH payment or return files!') 
+        return {
+            'payments': null,
+            'returns': null
+        }
+    }
     // - Validate
     validateSplitFiles(
         content_integrity,
