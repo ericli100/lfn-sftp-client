@@ -215,6 +215,10 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.wire@lineagefn.com`, destination: `${config.vendor}.${config.environment}.wire` })
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.fis@lineagebank.com`, destination: `${config.vendor}.${config.environment}.fis` })
 
+    // added to process wire trace file inbound
+    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.trace@lineagefn.com`, destination: `${config.vendor}.${config.environment}.trace` })
+    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.trace@lineagebank.com`, destination: `${config.vendor}.${config.environment}.trace` })
+
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.ach@lineagebank.com`, destination: `${config.vendor}.uat.ach` })
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.wire@lineagebank.com`, destination: `${config.vendor}.uat.wire` })
     config.email.inbound.folderMappings.push({ to: `${config.vendor}.fis@lineagebank.com`, destination: `${config.vendor}.uat.fis` })
