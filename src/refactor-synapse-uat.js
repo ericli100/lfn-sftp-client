@@ -189,7 +189,8 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.email.inbound.wireApprovedRecipients = [
         `${config.vendor}.${config.environment}.wire@lineagebank.com`,
         `${config.vendor}.wire@lineagebank.com`,
-        `${config.vendor}.${config.environment}.wire@lineagefn.com`
+        `${config.vendor}.${config.environment}.wire@lineagefn.com`,
+        `${config.vendor}.${config.environment}.trace@lineagebank.com`,
     ]
     
     config.email.inbound.approvedRecipients = [
