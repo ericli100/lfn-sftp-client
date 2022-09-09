@@ -100,7 +100,7 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isReceiptProcessed, isMultifile, parentEntityId, dataJSON, quickBalanceJSON, fileNameOutbound, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isReceiptProcessed, isMultifile, parentEntityId, dataJSON, quickBalanceJSON, fileNameOutbound, isTrace, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
@@ -115,6 +115,7 @@ function Handler(mssql) {
         if (!fileNameOutbound) fileNameOutbound = ''
         if (!isMultifile) isMultifile = '0'
         if (!parentEntityId) parentEntityId = ''
+        if (!isTrace) isTrace = '0'
 
         if (parentEntityId.length > 1) {
             // there was a parentEntityId set... it is a multifile
@@ -145,7 +146,8 @@ function Handler(mssql) {
                ,[fileNameOutbound]
                ,[isMultifile]
                ,[parentEntityId]
-               ,[correlationId])
+               ,[correlationId]
+               ,[isTrace])
          VALUES
                ('${entityId}'
                ,'${tenantId}'
@@ -169,6 +171,7 @@ function Handler(mssql) {
                ,'${isMultifile}'
                ,'${parentEntityId}'
                ,'${correlationId}'
+               ,'${isTrace}'
                );`
 
         if(effectiveDate) {
@@ -243,6 +246,7 @@ function Handler(mssql) {
             ,f.[parentEntityId]
             ,f.[isSentViaSFTP]
             ,f.[sentViaSFTPDate]
+            ,f.[isTrace]
         FROM [baas].[files] f
         INNER JOIN [baas].[fileTypes] t
         ON t.[entityId] = f.[fileTypeId] AND t.[contextOrganizationId] = f.[contextOrganizationId] AND t.[tenantId] = f.[tenantId]
@@ -345,6 +349,7 @@ function Handler(mssql) {
             ,f.[isMultifile]
             ,f.[isMultifileParent]
             ,f.[parentEntityId]
+            ,f.[isTrace]
         FROM [baas].[files] f
         INNER JOIN [baas].[fileTypes] t
         ON f.[fileTypeId] = t.entityId AND f.[tenantId] = t.[tenantId] AND f.contextOrganizationId = t.contextOrganizationId
@@ -449,6 +454,7 @@ function Handler(mssql) {
                 ,t.[isACH]
                 ,t.[isFedWire]
                 ,t.[fileNameFormat]
+                ,f.[isTrace]
             FROM [baas].[files] f
             INNER JOIN [baas].[fileTypes] t
                 ON f.fileTypeId = t.entityId 
