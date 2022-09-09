@@ -723,6 +723,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                         fileTypeId = determinedFileTypeId.fileTypeId;
                         inputFileObj.fileNameOutbound = determinedFileTypeId.fileNameOutbound
                         inputFileObj.overrideExtension = determinedFileTypeId.overrideExtension
+                        inputFileObj.isTrace = determinedFileTypeId.isFedWireConfirmation
                     }
                     // ***********************************
                     // *** WRITE THE FILE TO THE DB ****
@@ -855,7 +856,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                 
                 if(DEBUG) console.log('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] Wrote attachment [${attachment.fileName}].`)
             } else {
-                console.error('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] The attachment file type is not approved, skipping processing for [${attachment.fileName}]... `)
+                console.warn('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] The attachment file type is not approved, skipping processing for [${attachment.fileName}]... `)
 
                 if(processedAttachementsCount == emailAttachmentsArray.emailAttachmentsArray.length) {
                     // Only move the message when it is the last message in the attachments array
@@ -960,18 +961,27 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
 
     try{
         output.isFedWire = await baas.wire.isFedWireCheck( { inputFile: inputFileObj.inputFile }) // false; // WIRE_INBOUND
-        output.isFedWireConfirmaiton = false;
+        output.isFedWireConfirmation = false;
+
+        if(`${config.vendor}.${config.environment}:/${config.vendor}.${config.environment}.trace` == inputFileObj.destination) {
+            output.isFedWireConfirmation = true
+        }
     } catch (isFedWireCheckError) {
         let errorMessage = {}
         errorMessage.message = isFedWireCheckError.toString()
 
         await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: INBOUND EMAILS - determineInputFileTypeId() [${output.fileName}] issue running isFedWireCheck() check: [${JSON.stringify( errorMessage )}]`, correlationId })
         output.isFedWire = false
-        output.isFedWireConfirmaiton = false;
+        output.isFedWireConfirmation = false;
     }
 
-    if(output.isFedWire) {
+    if(output.isFedWire && !output.isFedWireConfirmation) {
         FILE_TYPE_MATCH = 'WIRE_INBOUND'
+        extensionOverride = 'txt'
+    }
+
+    if(output.isFedWire && output.isFedWireConfirmation) {
+        FILE_TYPE_MATCH = 'WIRE_TRACE_INBOUND'
         extensionOverride = 'txt'
     }
 
