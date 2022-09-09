@@ -78,6 +78,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
     INNER JOIN [baas].[fileTypes] t
         ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
     WHERE f.[tenantId] = '${tenantId}'
+    AND f.[isTrace] = 0
     AND f.[isReceiptProcessed] = 0
     AND f.[isRejected] = 0
     AND f.[isMultifileParent] = 0
@@ -87,7 +88,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
     AND ( f.[isSentViaSFTP] = 1 OR f.[isSentToDepositOperations] = 1 )
     AND ( (f.[isProcessed] = 1 AND f.[hasProcessingErrors] = 0) OR f.[isForceOverrideProcessingErrors] = 1);
     `
-
+    
     try {
         let param = {}
         param.params = []
