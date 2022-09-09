@@ -172,7 +172,7 @@ let recalculateJSON = function (json_content) {
             line_count += addenda_count; // addenda
         }
 
-        batch_control['entryHash'] = parseInt(String(batch_control['entryHash']).slice(0, 10));
+        batch_control['entryHash'] = parseInt(String(batch_control['entryHash']).slice(-10));
         json_content['batches'][x]['batchControl'] = batch_control;
 
         file_control['batchCount'] += 1;
@@ -184,7 +184,7 @@ let recalculateJSON = function (json_content) {
     while (line_count % 10) { line_count += 1 } // file block
 
     file_control['blockCount'] = line_count / 10;
-    file_control['entryHash'] = parseInt(String(file_control['entryHash']).slice(0, 10));
+    file_control['entryHash'] = parseInt(String(file_control['entryHash']).slice(-10));
     json_content['fileControl'] = file_control;
 
     return json_content;
@@ -431,7 +431,7 @@ let validateSplitFiles = function (comingled_control, payments_control, returns_
             'totalDebit': payments_control['totalDebit'] + returns_control['totalDebit'],
             'totalCredit': payments_control['totalCredit'] + returns_control['totalCredit']
         }
-        summed_control['entryHash'] = parseInt(String(summed_control['entryHash']).slice(0, 10));
+        summed_control['entryHash'] = parseInt(String(summed_control['entryHash']).slice(-10));
     }
 
     if (summed_control['batchCount'] !== comingled_control['batchCount']) { throw new Error(`Actual batchCount "${summed_control['batchCount']}" does not equal expected value "${comingled_control['batchCount']}"!`) }
