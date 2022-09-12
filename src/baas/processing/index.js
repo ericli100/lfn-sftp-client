@@ -549,7 +549,11 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         let errorMessage = {}
         errorMessage.message = inboundEmailProcessingError.toString()
 
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: MSGRAPH::> INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(errorMessage) }]!`, correlationId  })
+        if(errorMessage.message.indexOf('Error: fetch failed', 0) >= 0){
+            await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: MSGRAPH::> INBOUND EMAILS - ISSUE PROCESSING for [${ENVIRONMENT}] with WARNING:[${ JSON.stringify(errorMessage) }]!`, correlationId  })
+        } else {
+            await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: MSGRAPH::> INBOUND EMAILS - ERROR PROCESSING for [${ENVIRONMENT}] with ERROR:[${ JSON.stringify(errorMessage) }]!`, correlationId  })
+        }
         
         try{
             // one final try to delete the folder
