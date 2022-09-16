@@ -729,6 +729,12 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                         inputFileObj.overrideExtension = determinedFileTypeId.overrideExtension
                         inputFileObj.isTrace = determinedFileTypeId.isFedWireConfirmation
                     }
+
+                    if( inputFileObj.isTrace ) {
+                        // update the LF on the file and split multiples
+                        await baas.wire.splitWireNewLines( {inputFile: inputFileObj.inputFile} )
+                    }
+
                     // ***********************************
                     // *** WRITE THE FILE TO THE DB ****
                     // ***********************************
@@ -1278,8 +1284,10 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                 throw (fileVaultError)
             }
 
-            try{                
+            try{       
+                // **************************** //         
                 // ** PERFORM ACH PROCESSING ** //
+                // **************************** //  
 
                 if(file.isACH) {
                     try{
@@ -1304,6 +1312,8 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                         quickBalanceJSON.totalDebits = achProcessing.totalDebits
                         quickBalanceJSON.creditCount = achProcessing.creditCount
                         quickBalanceJSON.debitCount = achProcessing.debitCount
+
+                        if(achProcessing.hasIAT) quickBalanceJSON.hasIAT = achProcessing.hasIAT
 
                         if(achProcessing.hasReturns){
                             quickBalanceJSON.hasReturns = true
@@ -1344,7 +1354,9 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                     }
                 }
 
+                // ***************************** //  
                 // ** PERFORM WIRE PROCESSING ** //
+                // ***************************** //  
                 if(file.isFedWire){
                     try{
                         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId, effectedEntityId: file.entityId })

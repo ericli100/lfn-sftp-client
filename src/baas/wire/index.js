@@ -511,6 +511,17 @@ async function isFedWireCheck( { inputFile, listDetails } ) {
     return output
 }
 
+async function splitWireNewLines( { inputFile } ) {
+    // This function will all an LF ( \n ) for each 'XFT811  {1500}' after the first
+    // This fix will need to be done early in the processing before the SHA256 is generated
+    let output = false
+
+    // do work
+
+    output = true
+    return output
+}
+
 async function wireAdvice( { vendor, environment, inputFile, isOutbound, listDetails } ){
     let wireJSON = await isFedWireCheck( { inputFile, listDetails: true } )
 
@@ -571,5 +582,7 @@ module.exports.parse = parse
 module.exports.isFedWireCheck = isFedWireCheck
 
 module.exports.wireAdvice = wireAdvice
+
+module.exports.splitWireNewLines = splitWireNewLines
 
 

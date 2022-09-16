@@ -445,6 +445,8 @@ let validateSplitFiles = function (comingled_control, payments_control, returns_
 
 /* MAIN */
 async function split_from_json(json_content, date, working_directory, file_name, renderFiles = true) {
+    // Adding in the IAT batches
+
     // NOTE: input format varies on CLI vs API
     json_content = json_content['file'] ? json_content['file'] : json_content;
 
@@ -457,6 +459,28 @@ async function split_from_json(json_content, date, working_directory, file_name,
         'totalDebit': json_content['fileControl']['totalDebit'],
         'totalCredit': json_content['fileControl']['totalCredit']
     };
+
+    if(json_content.IATBatches) {
+        // if there are IATBatches, remove them from the content_integrity check for now
+        content_integrity.batchCount -= json_content.IATBatches.length
+
+        let IATentryAdendaCount = 0
+        let IATentryHash = 0
+        let IATtotalDebit = 0
+        let IATtotalCredit = 0
+
+        for (let batch of json_content.IATBatches){
+            IATentryAdendaCount += batch.batchControl.entryAddendaCount
+            IATentryHash += batch.batchControl.entryHash
+            IATtotalDebit += batch.batchControl.totalDebit
+            IATtotalCredit += batch.batchControl.totalCredit
+        }
+
+        content_integrity.entryAddendaCount -= IATentryAdendaCount
+        content_integrity.entryHash -= IATentryHash
+        content_integrity.totalDebit -= IATtotalDebit
+        content_integrity.totalCredit -= IATtotalCredit
+    }
 
     // Split JSON Files
     let split_json_content = await splitFileJSON(json_content);

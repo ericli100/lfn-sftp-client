@@ -88,7 +88,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
     AND ( f.[isSentViaSFTP] = 1 OR f.[isSentToDepositOperations] = 1 )
     AND ( (f.[isProcessed] = 1 AND f.[hasProcessingErrors] = 0) OR f.[isForceOverrideProcessingErrors] = 1);
     `
-    
+
     try {
         let param = {}
         param.params = []

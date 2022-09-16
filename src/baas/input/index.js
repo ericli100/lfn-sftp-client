@@ -313,7 +313,11 @@ async function populateLookupCache({ baas, sql, inputFile, contextOrganizationId
             jsonBatchData.totalCredit = achJSON.fileControl.totalCredit
             jsonBatchData.totalDebit = achJSON.fileControl.totalDebit
             jsonBatchData.totalAdendaCount = achJSON.fileControl.entryAddendaCount
-            jsonBatchData.batches = achJSON.IATBatches
+
+            let combinedBatches = []
+            if(achJSON.batches) combinedBatches = combinedBatches.concat(achJSON.batches)
+            if(achJSON.IATBatches) combinedBatches = combinedBatches.concat(achJSON.IATBatches)
+            jsonBatchData.batches = combinedBatches
             jsonBatchData.isIAT = true;
             output.jsonBatchData = jsonBatchData  
         }
@@ -750,15 +754,15 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
     let entityTransactionTypeId = cache.entityTransactionTypeId
     let jsonBatchData = cache.jsonBatchData
 
-    if (jsonBatchData.batchCount != jsonBatchData.batches.length) throw ('baas.input.ach file is invalid! Internal Batch Count does not match the Batches array')
-
     // update the file record with the achJSON data
     let updateFileJsonSQL = await createUpdateFileJsonSQL( { sql, contextOrganizationId, fileEntityId, correlationId, achJSON, returnSQL: true } )
     sqlStatements.push( updateFileJsonSQL.param )
     let jsonFileData = updateFileJsonSQL.jsonFileData;
 
     // loop over the batches for processing
-    if(!jsonBatchData.isIAT) {
+    if(!jsonBatchData.isIAT) {   // NOT IAT
+        if (jsonBatchData.batchCount != jsonBatchData.batches.length) throw ('baas.input.ach file is invalid! Internal Batch Count does not match the Batches array')
+
         for (const batch of jsonBatchData.batches) {
             // create the fileBatch Entries:
             let fileBatchEntityId = baas.id.generate();
@@ -815,7 +819,8 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
         } 
     }
 
-    if(jsonBatchData.isIAT) {
+    if(jsonBatchData.isIAT) { // IAT ACH file ( INTERNATIONAL - Needs OFAC check )
+        if (jsonBatchData.batchCount != jsonBatchData.batches.length) throw ('baas.input.ach file is invalid! Internal Batch Count does not match the Batches array')
         for (const batch of jsonBatchData.batches) {
             // create the fileBatch Entries:
             let fileBatchEntityId = baas.id.generate();
@@ -832,40 +837,80 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
             let DebitBatchRunningTotal = 0
             let CreditBatchRunningTotal = 0
             
-            // loop over the IAT transactions for processing
-            for (const transaction of batch.IATEntryDetails) {
-                let fileTransactionEntityId = baas.id.generate();
-    
-                // create the transaction entity
-                // let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
-                // sqlStatements.push( batchTransactionEntitySQL.param )
+            if(batch.IATEntryDetails) {
+                // loop over the IAT transactions for processing
+                for (const transaction of batch.IATEntryDetails) {
+                    let fileTransactionEntityId = baas.id.generate();
         
-                // transaction processing
-                let achType = achTypeCheck( transaction )
-    
-                // keep the running total for validation at the end
-                CreditBatchRunningTotal += achType.transactionCredit
-                DebitBatchRunningTotal += achType.transactionDebit
-    
-                if(achType.isCredit) {
-                    output.creditCount = output.creditCount + 1;
-                    output.totalCredits = output.totalCredits + achType.transactionCredit
+                    // create the transaction entity
+                    // let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
+                    // sqlStatements.push( batchTransactionEntitySQL.param )
+            
+                    // transaction processing
+                    let achType = achTypeCheck( transaction )
+        
+                    // keep the running total for validation at the end
+                    CreditBatchRunningTotal += achType.transactionCredit
+                    DebitBatchRunningTotal += achType.transactionDebit
+
+                    output.hasIAT = true
+        
+                    if(achType.isCredit) {
+                        output.creditCount = output.creditCount + 1;
+                        output.totalCredits = output.totalCredits + achType.transactionCredit
+                    }
+        
+                    if(achType.isDebit) {
+                        output.debitCount = output.debitCount + 1;
+                        output.totalDebits = output.totalDebits + achType.transactionDebit
+                    }
+        
+                    // TODO: lookup the fromAccountId ( this is the RDFI end user account based on isOutbound value)
+                    // TODO: lookup the toAccountId ( this is the destination for the BaaS money movement based on the Immediate Origin - jsonFileData.fileHeader.immediateOrigin)
+                    // TODO: get the ABA list from the FRB - import into the DB
+        
+                    // create the batch transaction entry
+                    let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
+                    sqlStatements.push( batchTransactionSQL.param )
                 }
-    
-                if(achType.isDebit) {
-                    output.debitCount = output.debitCount + 1;
-                    output.totalDebits = output.totalDebits + achType.transactionDebit
-                }
-    
-                // TODO: lookup the fromAccountId ( this is the RDFI end user account based on isOutbound value)
-                // TODO: lookup the toAccountId ( this is the destination for the BaaS money movement based on the Immediate Origin - jsonFileData.fileHeader.immediateOrigin)
-                // TODO: get the ABA list from the FRB - import into the DB
-    
-                // create the batch transaction entry
-                let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
-                sqlStatements.push( batchTransactionSQL.param )
             }
-    
+
+            if(batch.entryDetails){
+                // loop over the standard transactions for processing
+                for (const transaction of batch.entryDetails) {
+                    let fileTransactionEntityId = baas.id.generate();
+        
+                    // create the transaction entity
+                    // let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
+                    // sqlStatements.push( batchTransactionEntitySQL.param )
+            
+                    // transaction processing
+                    let achType = achTypeCheck( transaction )
+        
+                    // keep the running total for validation at the end
+                    CreditBatchRunningTotal += achType.transactionCredit
+                    DebitBatchRunningTotal += achType.transactionDebit
+        
+                    if(achType.isCredit) {
+                        output.creditCount = output.creditCount + 1;
+                        output.totalCredits = output.totalCredits + achType.transactionCredit
+                    }
+        
+                    if(achType.isDebit) {
+                        output.debitCount = output.debitCount + 1;
+                        output.totalDebits = output.totalDebits + achType.transactionDebit
+                    }
+        
+                    // TODO: lookup the fromAccountId ( this is the RDFI end user account based on isOutbound value)
+                    // TODO: lookup the toAccountId ( this is the destination for the BaaS money movement based on the Immediate Origin - jsonFileData.fileHeader.immediateOrigin)
+                    // TODO: get the ABA list from the FRB - import into the DB
+        
+                    // create the batch transaction entry
+                    let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
+                    sqlStatements.push( batchTransactionSQL.param )
+                }
+            }
+
             // these totals should match, best to fail the whole task if it does not balance here
             if (CreditBatchRunningTotal != batch.batchControl.totalCredit) throw('baas.input.ach batch total from the individual IAT credit transacitons does not match the batch.batchControl.totalCredit! Aborting because something is wrong.')
             if (DebitBatchRunningTotal != batch.batchControl.totalDebit) throw('baas.input.ach batch total from the individual IAT debit transacitons does not match the batch.batchControl.totalDebit! Aborting because something is wrong.')
