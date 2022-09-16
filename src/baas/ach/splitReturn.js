@@ -31,8 +31,8 @@ let get_settlement_direction = function (entry_json) {
     return ({
         'payment':
         {
-            '22': 'credit', '23': 'credit', '32': 'credit', '33': 'credit', '42': 'credit', '52': 'credit',
-            '27': 'debit', '28': 'debit', '37': 'debit', '38': 'debit', '47': 'debit', '55': 'debit'
+            '22': 'credit', '23': 'credit', '24': 'credit', '32': 'credit', '33': 'credit', '34': 'credit', '42': 'credit', '52': 'credit',
+            '27': 'debit', '28': 'debit', '29': 'debit', '37': 'debit', '38': 'debit', '39': 'debit', '47': 'debit', '55': 'debit'
         },
         'return':
         {
@@ -57,14 +57,10 @@ let render_dynamic_length = function (value, max_length) {
     while (value.length < max_length) { value += ' ' }
     return value;
 }
-let render_file = function (lines, file_type, date, working_directory, file_name) {
+let render_file = function (lines, file_type, date, working_directory, file_name, index) {
     return new Promise((resolve, reject) => {
         let date_format = `${date.getFullYear()}${date.getMonth() + 1}${date.getDate()}${date.getHours()}${date.getMinutes()}${date.getSeconds()}`
-        if (!file_name) {
-            file_name = path.resolve(working_directory, `${file_type}_${date_format}_0.ach`)
-        } else {
-            file_name = path.resolve(working_directory, `${file_type}_${file_name}`)
-        };
+        if (!file_name) file_name = path.resolve(working_directory, `${file_type}_${date_format}__${index}.ach`);
 
         fs.writeFile(file_name, lines.join('\n'), function (error) {
             if (error) { reject(error) }
@@ -126,6 +122,8 @@ let recalculateJSON = function (json_content) {
         json_content['batches'][x]['batchHeader']['batchNumber'] = x + 1;
         line_count += 1; // batch header
 
+        const is_IAT = json_content['batches'][x]['batchHeader']['standardEntryClassCode'] == 'IAT'
+
         let batch_control =
         {
             'id': '',
@@ -134,7 +132,7 @@ let recalculateJSON = function (json_content) {
             'entryHash': 0,
             'totalDebit': 0,
             'totalCredit': 0,
-            'companyIdentification': json_content['batches'][x]['batchHeader']['companyIdentification'],
+            'companyIdentification': is_IAT ? json_content['batches'][x]['batchHeader']['originatorIdentification'] : json_content['batches'][x]['batchHeader']['companyIdentification'],
             'ODFIIdentification': json_content['batches'][x]['batchHeader']['ODFIIdentification'],
             'batchNumber': x + 1
         }
@@ -232,6 +230,96 @@ let renderBatchHeaderFromJSON = function (batch_header_json_content) {
 
     return batch_header;
 }
+let renderIATBatchHeaderFromJSON = function (batch_header_json_content) {
+    let json_content = { ...batch_header_json_content };
+
+    let batch_header = `5${json_content['serviceClassCode']}                `;
+
+    batch_header += render_dynamic_length(json_content['foreignExchangeIndicator'], 2);
+    batch_header += render_dynamic_length(json_content['foreignExchangeReferenceIndicator'], 1);
+    batch_header += render_dynamic_length(json_content['foreignExchangeReference'], 15);
+    batch_header += render_dynamic_length(json_content['ISODestinationCountryCode'], 2);
+    batch_header += render_dynamic_length(json_content['originatorIdentification'], 10);
+
+    batch_header += `${json_content['standardEntryClassCode']}`;
+
+    batch_header += render_dynamic_length(json_content['companyEntryDescription'], 10);
+    batch_header += render_dynamic_length(json_content['ISOOriginatingCurrencyCode'], 3);
+    batch_header += render_dynamic_length(json_content['ISODestinationCurrencyCode'], 3);
+    batch_header += render_dynamic_length(json_content['effectiveEntryDate'], 6);
+    batch_header += '   ';
+    batch_header += render_dynamic_length(json_content['originatorStatusCode'], 1);
+    batch_header += render_dynamic_length(json_content['ODFIIdentification'], 8);
+
+    batch_header += render_zfill(json_content['batchNumber'], 7);
+
+    return batch_header;
+}
+let renderIATPaymentEntryAddendaFromJSON = function (entry_addenda_json_content) {
+    let json_content = { ...entry_addenda_json_content };
+
+    let entry_addenda = `7${json_content['typeCode']}`;
+    switch (json_content['typeCode']) {
+
+        case '10':
+            entry_addenda += render_dynamic_length(json_content['transactionTypeCode'], 3);
+            entry_addenda += render_zfill(json_content['foreignPaymentAmount'], 18);
+            entry_addenda += render_dynamic_length('', 22);
+            entry_addenda += render_dynamic_length(json_content['name'], 35);
+            entry_addenda += render_dynamic_length('', 6);
+            break;
+        case '11':
+            entry_addenda += render_dynamic_length(json_content['originatorName'], 35);
+            entry_addenda += render_dynamic_length(json_content['originatorStreetAddress'], 35);
+            entry_addenda += render_dynamic_length('', 14);
+            break;
+        case '12':
+            entry_addenda += render_dynamic_length(json_content['originatorCityStateProvince'], 35);
+            entry_addenda += render_dynamic_length(json_content['originatorCountryPostalCode'], 35);
+            entry_addenda += render_dynamic_length('', 14);
+            break;
+        case '13':
+            entry_addenda += render_dynamic_length(json_content['ODFIName'], 35);
+            entry_addenda += render_zfill(json_content['ODFIIDNumberQualifier'], 2);
+            entry_addenda += render_dynamic_length(json_content['ODFIIdentification'], 34);
+            entry_addenda += render_dynamic_length(json_content['ODFIBranchCountryCode'], 3);
+            entry_addenda += render_dynamic_length('', 10);
+            break;
+        case '14':
+            entry_addenda += render_dynamic_length(json_content['RDFIName'], 35);
+            entry_addenda += render_zfill(json_content['RDFIIDNumberQualifier'], 2);
+            entry_addenda += render_dynamic_length(json_content['RDFIIdentification'], 34);
+            entry_addenda += render_dynamic_length(json_content['RDFIBranchCountryCode'], 3);
+            entry_addenda += render_dynamic_length('', 10);
+            break;
+        case '15':
+            entry_addenda += render_dynamic_length(json_content['receiverIDNumber'], 15);
+            entry_addenda += render_dynamic_length(json_content['receiverStreetAddress'], 35);
+            entry_addenda += render_dynamic_length('', 34);
+            break;
+        case '16':
+            entry_addenda += render_dynamic_length(json_content['receiverCityStateProvince'], 35);
+            entry_addenda += render_dynamic_length(json_content['receiverCountryPostalCode'], 35);
+            entry_addenda += render_dynamic_length('', 14);
+            break;
+        case '17':
+            entry_addenda += render_dynamic_length(json_content['paymentRelatedInformation'], 80);
+            entry_addenda += render_zfill(json_content['sequenceNumber'], 4);
+            break;
+        case '18':
+            entry_addenda += render_dynamic_length(json_content['foreignCorrespondentBankName'], 35);
+            entry_addenda += render_dynamic_length(json_content['foreignCorrespondentBankIDNumberQualifier'], 2);
+            entry_addenda += render_dynamic_length(json_content['foreignCorrespondentBankIDNumber'], 34);
+            entry_addenda += render_dynamic_length(json_content['foreignCorrespondentBankBranchCountryCode'], 3);
+            entry_addenda += render_dynamic_length(json_content[''], 6);
+            entry_addenda += render_zfill(json_content['sequenceNumber'], 4);
+            break;
+    }
+
+    entry_addenda += render_zfill(json_content['entryDetailSequenceNumber'], 7);
+    return entry_addenda;
+}
+
 let renderPaymentEntryAddendaFromJSON = function (entry_addenda_json_content) {
     let json_content = { ...entry_addenda_json_content };
 
@@ -280,6 +368,27 @@ let renderReturnEntryAddendaFromJSON = function (entry_addenda_json_content) {
         entry_addenda += render_dynamic_length(json_content['traceNumber'], 15);
     }
     return entry_addenda;
+}
+let renderIATEntryRecordFromJSON = function (entry_record_json_content) {
+    let json_content = { ...entry_record_json_content };
+
+    let entry_addenda_keys = get_addendas(json_content);
+    let entry_record_keys = Object.keys(json_content).filter((key) => { return key !== 'id' && key !== 'category' && entry_addenda_keys.indexOf(key) === -1 })
+
+    let entry_record = `6${json_content['transactionCode']}`;
+    entry_record += render_dynamic_length(json_content['RDFIIdentification'], 8);
+    entry_record += render_dynamic_length(json_content['checkDigit'], 1);
+    entry_record += render_zfill(json_content['AddendaRecords'], 4);;
+    entry_record += '             '
+    entry_record += render_zfill(json_content['amount'], 10);
+    entry_record += render_dynamic_length(json_content['DFIAccountNumber'], 35);
+    entry_record += '  '
+    entry_record += render_dynamic_length(json_content['OFACScreeningIndicator'], 1);
+    entry_record += render_dynamic_length(json_content['SecondaryOFACScreeningIndicator'], 1);
+    entry_record += render_zfill(json_content['addendaRecordIndicator'], 1);
+    entry_record += render_dynamic_length(json_content['traceNumber'], 15);
+
+    return entry_record;
 }
 let renderEntryRecordFromJSON = function (entry_record_json_content) {
     let json_content = { ...entry_record_json_content };
@@ -336,7 +445,57 @@ let renderFileHeaderFromJSON = function (file_header_json_content) {
 
     return file_header
 }
-let renderFileContentFromJSON = async function (json_content) {
+let renderIATFileContentFromJSON = function (json_content) {
+    let lines = Array();
+
+    // File Header
+    lines.push(renderFileHeaderFromJSON(json_content['fileHeader']));
+
+    // Batches
+    for (let x = 0; x < json_content['batches'].length; x++) {
+        // Batch Header
+        lines.push(renderIATBatchHeaderFromJSON(json_content['batches'][x]['batchHeader']));
+
+        // Entries
+        for (let y = 0; y < json_content['batches'][x]['entryDetails'].length; y++) {
+            // Entry Record
+            lines.push(renderIATEntryRecordFromJSON(json_content['batches'][x]['entryDetails'][y]));
+
+            // Entry Addenda - Types
+            let addenda_keys = get_addendas(json_content['batches'][x]['entryDetails'][y]);
+            for (let z = 0; z < addenda_keys.length; z++) {
+                // - Entry Addenda - Line Item
+                let addendas = json_content['batches'][x]['entryDetails'][y][addenda_keys[z]];
+                if (!Array.isArray(addendas)) { addendas = [addendas] }
+
+                for (let a = 0; a < addendas.length; a++) {
+                    const typeCode = parseInt(addendas[a]['typeCode'], 10)
+                    if (typeCode < 98) {
+                        lines.push(renderIATPaymentEntryAddendaFromJSON(addendas[a]))
+                    }
+                    else {
+                        lines.push(renderReturnEntryAddendaFromJSON(addendas[a]))
+                    }
+                }
+            }
+        }
+
+        // Batch Control
+        lines.push(renderBatchControlFromJSON(json_content['batches'][x]['batchControl']));
+    }
+
+    // File Control
+    lines.push(renderFileControlFromJSON(json_content['fileControl']));
+
+    // Blocking Factor
+    while (lines.length % 10) {
+        lines.push('9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999');
+    }
+
+    // Exit
+    return lines
+}
+let renderFileContentFromJSON = function (json_content) {
     let lines = Array();
 
     // File Header
@@ -361,8 +520,13 @@ let renderFileContentFromJSON = async function (json_content) {
                 if (!Array.isArray(addendas)) { addendas = [addendas] }
 
                 for (let a = 0; a < addendas.length; a++) {
-                    if (!is_return) { lines.push(renderPaymentEntryAddendaFromJSON(addendas[a])) }
-                    else { lines.push(renderReturnEntryAddendaFromJSON(addendas[a])) }
+                    const typeCode = parseInt(addendas[a]['typeCode'], 10)
+                    if (typeCode < 98) {
+                        lines.push(renderPaymentEntryAddendaFromJSON(addendas[a]))
+                    }
+                    else {
+                        lines.push(renderReturnEntryAddendaFromJSON(addendas[a]))
+                    }
                 }
             }
         }
@@ -382,6 +546,41 @@ let renderFileContentFromJSON = async function (json_content) {
     // Exit
     return lines
 }
+let splitIATFileJSON = function (json_content) {
+    let payment_file = null, return_file = null;
+
+    for (let x = 0; x < json_content['IATBatches'].length; x++) {
+        let payment_batch = null, return_batch = null;
+
+        for (let y = 0; y < json_content['IATBatches'][x]['IATEntryDetails'].length; y++) {
+            let is_return = is_entry_return(json_content['IATBatches'][x]['IATEntryDetails'][y])
+
+            if (is_return === false) {
+                if (payment_batch === null) { payment_batch = { 'batchHeader': json_content['IATBatches'][x]['IATBatchHeader'], 'entryDetails': [] } }
+                payment_batch['entryDetails'].push(json_content['IATBatches'][x]['IATEntryDetails'][y])
+            }
+            else {
+                if (return_batch === null) { return_batch = { 'batchHeader': json_content['IATBatches'][x]['IATBatchHeader'], 'entryDetails': [] } }
+                return_batch['entryDetails'].push(json_content['IATBatches'][x]['IATEntryDetails'][y])
+            }
+        }
+
+        if (payment_batch !== null) {
+            if (payment_file === null) { payment_file = { 'fileHeader': json_content['fileHeader'], 'batches': [] } }
+            payment_file['batches'].push(payment_batch)
+        }
+        if (return_batch !== null) {
+            if (return_file === null) { return_file = { 'fileHeader': json_content['fileHeader'], 'batches': [] } }
+            return_file['batches'].push(return_batch)
+        }
+    }
+
+    return {
+        'payments': payment_file,
+        'returns': return_file
+    }
+}
+
 let splitFileJSON = function (json_content) {
     let payment_file = null, return_file = null;
 
@@ -442,7 +641,6 @@ let validateSplitFiles = function (comingled_control, payments_control, returns_
     if (summed_control['totalCredit'] !== comingled_control['totalCredit']) { throw new Error(`Actual totalCredit "${summed_control['totalCredit']}" does not equal expected value "${comingled_control['totalCredit']}"!`) }
 }
 
-
 /* MAIN */
 async function split_from_json(json_content, date, working_directory, file_name, renderFiles = true) {
     // Adding in the IAT batches
@@ -460,7 +658,10 @@ async function split_from_json(json_content, date, working_directory, file_name,
         'totalCredit': json_content['fileControl']['totalCredit']
     };
 
-    if(json_content.IATBatches) {
+    let split_iat_json_content = {};
+    let content_integrity_iat = {};
+    if (json_content.IATBatches) {
+
         // if there are IATBatches, remove them from the content_integrity check for now
         content_integrity.batchCount -= json_content.IATBatches.length
 
@@ -469,7 +670,7 @@ async function split_from_json(json_content, date, working_directory, file_name,
         let IATtotalDebit = 0
         let IATtotalCredit = 0
 
-        for (let batch of json_content.IATBatches){
+        for (let batch of json_content.IATBatches) {
             IATentryAdendaCount += batch.batchControl.entryAddendaCount
             IATentryHash += batch.batchControl.entryHash
             IATtotalDebit += batch.batchControl.totalDebit
@@ -480,6 +681,26 @@ async function split_from_json(json_content, date, working_directory, file_name,
         content_integrity.entryHash -= IATentryHash
         content_integrity.totalDebit -= IATtotalDebit
         content_integrity.totalCredit -= IATtotalCredit
+
+        split_iat_json_content = await splitIATFileJSON(json_content);
+
+        content_integrity_iat =
+        {
+            'batchCount': json_content.IATBatches.length,
+            'blockCount': 0,
+            'entryAddendaCount': IATentryAdendaCount,
+            'entryHash': IATentryHash,
+            'totalDebit': IATtotalDebit,
+            'totalCredit': IATtotalCredit
+        };
+
+    } else {
+        split_iat_json_content = {
+            'payments': null,
+            'returns': null,
+            'iat_payments': null,
+            'iat_returns': null,
+        }
     }
 
     // Split JSON Files
@@ -488,40 +709,61 @@ async function split_from_json(json_content, date, working_directory, file_name,
     {
         'payments': split_json_content['payments'] ? recalculateJSON(split_json_content['payments']) : null,
         'returns': split_json_content['returns'] ? recalculateJSON(split_json_content['returns']) : null,
+        'iat_payments': split_iat_json_content['payments'] ? recalculateJSON(split_iat_json_content['payments']) : null,
+        'iat_returns': split_iat_json_content['returns'] ? recalculateJSON(split_iat_json_content['returns']) : null,
     };
     // - Integrity Check
-    if (!split_json_content['payments'] || !split_json_content['returns']) { 
-        console.warn('Split operation returned no ACH payment or return files!') 
-        return {
-            'payments': null,
-            'returns': null
-        }
+    if (!split_json_content['payments'] || !split_json_content['returns']) { throw new Error('Split operation returned no ACH payment or return files!') }
+        // - Validate
+        validateSplitFiles(
+            content_integrity,
+            split_json_content['payments'] ? split_json_content['payments']['fileControl'] : null,
+            split_json_content['returns'] ? split_json_content['returns']['fileControl'] : null
+        );
+    if (json_content.IATBatches) {
+        validateSplitFiles(
+            content_integrity_iat,
+            split_json_content['iat_payments'] ? split_json_content['iat_payments']['fileControl'] : null,
+            split_json_content['iat_returns'] ? split_json_content['iat_returns']['fileControl'] : null
+        )
     }
-    // - Validate
-    validateSplitFiles(
-        content_integrity,
-        split_json_content['payments'] ? split_json_content['payments']['fileControl'] : null,
-        split_json_content['returns'] ? split_json_content['returns']['fileControl'] : null
-    );
 
     let paymentsJSON = split_json_content['payments']
     let returnsJSON = split_json_content['returns']
+    let IATpaymentsJSON = split_json_content['iat_payments']
+    let IATreturnsJSON = split_json_content['iat_returns']
 
     if (renderFiles) {
-    // Render File Content
-        let payments_file_content = await renderFileContentFromJSON(paymentsJSON);
-        let returns_file_content = await renderFileContentFromJSON(returnsJSON);
+        let payments_file_content = null;
+        let returns_file_content = null;
+        let iat_payments_file_content = null;
+        let iat_returns_file_content = null;
+       
+        // Render File Content
+        if (split_json_content['payments'])
+            payments_file_content = renderFileContentFromJSON(split_json_content['payments']);
+        if (split_json_content['returns'])
+            returns_file_content = renderFileContentFromJSON(split_json_content['returns']);
+        if (split_json_content['iat_payments'])
+            iat_payments_file_content = renderIATFileContentFromJSON(split_json_content['iat_payments']);
+        if (split_json_content['iat_returns'])
+            iat_returns_file_content = renderIATFileContentFromJSON(split_json_content['iat_returns']);
 
-    // Exit
-    return {
-            'payments': await render_file(payments_file_content, 'subnet_ach', date, working_directory, file_name),
-            'returns': await render_file(returns_file_content, 'ach_returns', date, working_directory, file_name)
+        // Exit
+        // TODO verify what to do with subnet_ach_iat and ach_returns_iat is likey better to use a different index
+        return {
+            'payments': payments_file_content ? await render_file(payments_file_content, 'subnet_ach', date, working_directory, file_name, 0) : null,
+            'returns': returns_file_content ? await render_file(returns_file_content, 'ach_returns', date, working_directory, file_name, 0) : null,
+            'iat_payments': iat_payments_file_content ? await render_file(iat_payments_file_content, 'subnet_ach', date, working_directory, file_name, 1) : null,
+            'iat_returns': iat_returns_file_content ? await render_file(iat_returns_file_content, 'ach_returns', date, working_directory, file_name, 1) : null
         }
     } else {
         // just return the parsed values
         return {
             'payments': paymentsJSON,
-            'returns': returnsJSON
+            'returns': returnsJSON,
+            'iat_payments': IATpaymentsJSON,
+            'iat_returns': IATreturnsJSON,
         }
     }
 }
@@ -531,5 +773,5 @@ async function split_from_native_file(absolute_path, date, working_directory) {
     return await split_from_json(json_content, date, working_directory);
 }
 
-module.exports.split_from_json = split_from_json //async (json_content, date, working_directory, file_name) => {return await split_from_json(json_content, date, working_directory, file_name)}
-// module.exports.split_from_native_file = (absolute_path, date, working_directory) => {return split_from_native_file(absolute_path, date, working_directory)}
+module.exports.split_from_json = split_from_json
+module.exports.split_from_native_file = (absolute_path, date, working_directory) => { return split_from_native_file(absolute_path, date, working_directory) }
