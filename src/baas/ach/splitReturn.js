@@ -58,9 +58,16 @@ let render_dynamic_length = function (value, max_length) {
     return value;
 }
 let render_file = function (lines, file_type, date, working_directory, file_name, index) {
+    if(!lines) return null
+    
     return new Promise((resolve, reject) => {
         let date_format = `${date.getFullYear()}${date.getMonth() + 1}${date.getDate()}${date.getHours()}${date.getMinutes()}${date.getSeconds()}`
-        if (!file_name) file_name = path.resolve(working_directory, `${file_type}_${date_format}__${index}.ach`);
+        
+        if (!file_name) {
+            file_name = path.resolve(working_directory, `${file_type}_${date_format}_${index}.ach`)
+        } else {
+            file_name = path.resolve(working_directory, `${file_type}_${index}_${file_name}`)
+        };
 
         fs.writeFile(file_name, lines.join('\n'), function (error) {
             if (error) { reject(error) }
@@ -446,6 +453,7 @@ let renderFileHeaderFromJSON = function (file_header_json_content) {
     return file_header
 }
 let renderIATFileContentFromJSON = function (json_content) {
+    if(!json_content) return null
     let lines = Array();
 
     // File Header
@@ -496,6 +504,7 @@ let renderIATFileContentFromJSON = function (json_content) {
     return lines
 }
 let renderFileContentFromJSON = function (json_content) {
+    if(!json_content) return null
     let lines = Array();
 
     // File Header
@@ -713,7 +722,7 @@ async function split_from_json(json_content, date, working_directory, file_name,
         'iat_returns': split_iat_json_content['returns'] ? recalculateJSON(split_iat_json_content['returns']) : null,
     };
     // - Integrity Check
-    if (!split_json_content['payments'] || !split_json_content['returns']) { throw new Error('Split operation returned no ACH payment or return files!') }
+    if ((!split_json_content['payments'] && !split_iat_json_content['payments']) || (!split_json_content['returns'] &&  !split_iat_json_content['payments'])) { console.error('Split operation returned no ACH payment or return files!') }
         // - Validate
         validateSplitFiles(
             content_integrity,
@@ -734,28 +743,19 @@ async function split_from_json(json_content, date, working_directory, file_name,
     let IATreturnsJSON = split_json_content['iat_returns']
 
     if (renderFiles) {
-        let payments_file_content = null;
-        let returns_file_content = null;
-        let iat_payments_file_content = null;
-        let iat_returns_file_content = null;
-       
         // Render File Content
-        if (split_json_content['payments'])
-            payments_file_content = renderFileContentFromJSON(split_json_content['payments']);
-        if (split_json_content['returns'])
-            returns_file_content = renderFileContentFromJSON(split_json_content['returns']);
-        if (split_json_content['iat_payments'])
-            iat_payments_file_content = renderIATFileContentFromJSON(split_json_content['iat_payments']);
-        if (split_json_content['iat_returns'])
-            iat_returns_file_content = renderIATFileContentFromJSON(split_json_content['iat_returns']);
+        let payments_file_content = await renderFileContentFromJSON(paymentsJSON);
+        let returns_file_content = await renderFileContentFromJSON(returnsJSON);
+        let iat_payments_file_content = await renderIATFileContentFromJSON(IATpaymentsJSON);
+        let iat_returns_file_content = await renderIATFileContentFromJSON(IATreturnsJSON);
 
         // Exit
         // TODO verify what to do with subnet_ach_iat and ach_returns_iat is likey better to use a different index
         return {
-            'payments': payments_file_content ? await render_file(payments_file_content, 'subnet_ach', date, working_directory, file_name, 0) : null,
-            'returns': returns_file_content ? await render_file(returns_file_content, 'ach_returns', date, working_directory, file_name, 0) : null,
-            'iat_payments': iat_payments_file_content ? await render_file(iat_payments_file_content, 'subnet_ach', date, working_directory, file_name, 1) : null,
-            'iat_returns': iat_returns_file_content ? await render_file(iat_returns_file_content, 'ach_returns', date, working_directory, file_name, 1) : null
+            'payments': await render_file(payments_file_content, 'subnet_ach', date, working_directory, file_name, 0),
+            'returns': await render_file(returns_file_content, 'ach_returns', date, working_directory, file_name, 0),
+            'iat_payments': await render_file(iat_payments_file_content, 'subnet_ach_iat', date, working_directory, file_name, 1),
+            'iat_returns': await render_file(iat_returns_file_content, 'ach_returns_iat', date, working_directory, file_name, 1),
         }
     } else {
         // just return the parsed values

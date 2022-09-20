@@ -1313,7 +1313,12 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                         quickBalanceJSON.creditCount = achProcessing.creditCount
                         quickBalanceJSON.debitCount = achProcessing.debitCount
 
-                        if(achProcessing.hasIAT) quickBalanceJSON.hasIAT = achProcessing.hasIAT
+                        if(achProcessing.hasIAT) {
+                            quickBalanceJSON.hasIAT = achProcessing.hasIAT
+
+                            // update the file entry to update hasIAT status to true
+
+                        }
 
                         if(achProcessing.hasReturns){
                             quickBalanceJSON.hasReturns = true
@@ -1325,7 +1330,7 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                                 // only split files that are inbound from the FRB
                                 let splitAchCheck = await baas.ach.splitReturnACH( achProcessing.achJSON, new Date(), workingDirectory, file.fileName, false)
 
-                                if ( splitAchCheck.payments && splitAchCheck.returns ) {
+                                if ( splitAchCheck.payments && splitAchCheck.returns || splitAchCheck.iat_payments ) {
                                         // we have both Payments & Returns... need to split out into multifile
                                         output.isMultifile = true
                                         await baas.sql.file.setMultifileParent({ entityId: file.entityId, contextOrganizationId, correlationId })
@@ -1461,6 +1466,8 @@ async function splitOutMultifileACH({ baas, logger, VENDOR_NAME, ENVIRONMENT, PR
     // run for the return file and subnet file
     for (let key of Object.keys(splitFiles)) {
         let splitFilePath = splitFiles[key]
+        if(!splitFilePath) continue
+
         let splitFileName = path.basename( splitFilePath )
 
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - SPLIT FILE NAME [${splitFileName}] for environment [${ENVIRONMENT}] the new [${key}] file is called [${splitFileName}]`, effectedEntityId: parentEntityId, correlationId })
