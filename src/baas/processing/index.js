@@ -1317,7 +1317,8 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                             quickBalanceJSON.hasIAT = achProcessing.hasIAT
 
                             // update the file entry to update hasIAT status to true
-
+                            await baas.sql.file.setHasIAT({ entityId: file.entityId, contextOrganizationId, correlationId })
+                            await baas.audit.log( {baas, logger: baas.logger, level: 'info', message: `file marked as having an IAT transaction`, correlationId, effectedEntityId: file.entityId} )
                         }
 
                         if(achProcessing.hasReturns){
