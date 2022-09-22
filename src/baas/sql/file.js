@@ -235,7 +235,6 @@ function Handler(mssql) {
             ,f.[hasProcessingErrors]
             ,f.[isReceiptProcessed]
             ,f.[fileVaultId]
-            ,f.[dataJSON]
             ,f.[quickBalanceJSON]
             ,f.[correlationId]
             ,f.[versionNumber]
