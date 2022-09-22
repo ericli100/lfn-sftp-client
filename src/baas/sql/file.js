@@ -460,6 +460,7 @@ function Handler(mssql) {
                 AND f.tenantId = t.tenantId 
                 AND f.contextOrganizationId = t.contextOrganizationId
             WHERE f.[tenantId] = '${tenantId}'
+            AND f.isRejected = 0
             AND f.[contextOrganizationId] = '${contextOrganizationId}'
             AND t.[fromOrganizationId] = '${fromOrganizationId}'
             AND t.[toOrganizationId] = '${toOrganizationId}'

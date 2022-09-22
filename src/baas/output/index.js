@@ -78,6 +78,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
     INNER JOIN [baas].[fileTypes] t
         ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
     WHERE f.[tenantId] = '${tenantId}'
+    AND f.isRejected = 0
     AND f.[isTrace] = 0
     AND f.[isReceiptProcessed] = 0
     AND f.[isRejected] = 0
