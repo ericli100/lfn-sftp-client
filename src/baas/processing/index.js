@@ -909,6 +909,17 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         output.isACH = await baas.ach.isACH( inputFileObj.inputFile )
         output.isAchReturn = false // ACH_RETURN https://moov-io.github.io/ach/returns/
         output.isAchInbound = false;
+
+        if(output.isACH === false) {
+            try{
+                await baas.ach.parseACH(inputFileObj.inputFile)
+            } catch (moovError) {
+                output.moovError = moovError.stdout
+                output.moovError = output.moovError.split('\n')
+                output.moovError.splice(0, 1)
+                output.moovError = output.moovError.join('\n')
+            }
+        }
     } catch (achParseError){
         let errorMessage = {}
         errorMessage.message = achParseError.toString()
@@ -916,6 +927,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         output.isACH = false
         output.isAchReturn = false
         output.isAchInbound = false;
+        output.moovError = achParseError.stdout
     }
 
     if(output.isACH) {
@@ -944,6 +956,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
 
     let checkExtention = path.extname( inputFileObj.inputFile ).substring(1, path.extname( inputFileObj.inputFile ).length)
     if(checkExtention.toLowerCase() == 'ach' && !output.isACH) {
+        await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `[${config.vendor}].[${config.environment}]: MOOV.ACH parsing error details [${ output.fileName }]:\n{${output.moovError}}`, correlationId})
         throw(`ACH PARSE ERROR! The file provided [${output.fileName}] could not be parsed and needs to be validated and resumbitted! baas.processing.determineInputFileTypeId()`)
     }
 
