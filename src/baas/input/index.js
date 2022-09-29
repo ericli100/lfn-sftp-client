@@ -723,6 +723,8 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
         achParseError.Stack = achParseError.stack
 
         await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `${VENDOR}: ACH parsing error [${ fileName }] and attempting the achFixKnownErrors() function...`, correlationId, effectedEntityId: fileEntityId})
+        await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `${VENDOR}: MOOV.ACH parsing error details [${ fileName }]:\n{${achParseError.stdout}}`, correlationId, effectedEntityId: fileEntityId})
+
         await achFixKnownErrors( {baas, fileEntityId, inputFile, achParseError} )
     }
 
