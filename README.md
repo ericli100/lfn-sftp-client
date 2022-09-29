@@ -47,3 +47,20 @@ Note: You must comment the function in the Go source code that you want exported
 1. From the command prompt, navigate to `./wire/cmd/webui/wire/`, use Go to build the source with this command `GOOS=js GOARCH=wasm go build -o wire.wasm wire_js.go`
 1. Ensure the Hex prefix of the file content for `wire.wasm` is `0061 736d` or it is not a valid WASM file!
 1. Copy the `main.wasm` file into the project in the `./src/baas/wire/` folder
+
+
+### Build the MOOV ACH Tools locally
+
+1. Install Go
+1. Pull down the repo git@github.com:moov-io/ach.git
+1. Checkout the version you want to build
+1. Build the achcli files for windows and mac
+
+bash:
+```
+cd /ach/cmd/achcli
+GOOS=windows GOARCH=amd64 go build -o bin/achcli-1-19-3.exe main.go diff.go reformat.go describe.go
+GOOS=darwin GOARCH=amd64 go build -o bin/achcli-1-19-3 main.go diff.go reformat.go describe.go
+```
+1. copy these files into the `tools` directory
+1. update the ach processing code to reference these new versions
