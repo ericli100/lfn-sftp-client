@@ -6,6 +6,9 @@ const FlakeId = require('flake-idgen');
 const fidc = process.env.FLAKEID_DATACENTER;
 const fiw = process.env.FLAKEID_WORKER;
 
+console.log('flake-idgen started with process.env.FLAKEID_DATACENTER:', fidc)
+console.log('flake-idgen started with process.env.FLAKEID_WORKER:', fiw)
+
 const datacenter = fidc && !isNaN(Number.parseInt(fidc)) ? Number.parseInt(fidc) : 0;
 const worker = fiw && !isNaN(Number.parseInt(fiw)) ? Number.parseInt(fiw) : 0;
 
