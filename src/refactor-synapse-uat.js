@@ -5,10 +5,10 @@ let ENVIRONMENT = 'uat'
 let DATACENTER = 10
 let WORKERID = 200
 
+require('dotenv').config({ path: __dirname + '/.env' })
+
 if(!process.env.FLAKEID_DATACENTER) process.env['FLAKEID_DATACENTER'] = DATACENTER;
 if(!process.env.FLAKEID_WORKER) process.env['FLAKEID_WORKER'] = WORKERID;
-
-require('dotenv').config({ path: __dirname + '/.env' })
 
 global.DEBUG = false;
 if(DEBUG) console.warn('** GLOBAL DEBUG == TRUE **')

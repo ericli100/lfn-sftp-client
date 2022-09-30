@@ -6,13 +6,14 @@ let ENVIRONMENT = 'prd'
 let DATACENTER = 10
 let WORKERID = 100
 
-if(!process.env.FLAKEID_DATACENTER) process.env['FLAKEID_DATACENTER'] = DATACENTER;
-if(!process.env.FLAKEID_WORKER) process.env['FLAKEID_WORKER'] = WORKERID;
-
 global.DEBUG = false;
 if(DEBUG) console.warn('** GLOBAL DEBUG == TRUE **')
 
 require('dotenv').config({ path: __dirname + '/.env' })
+
+if(!process.env.FLAKEID_DATACENTER) process.env['FLAKEID_DATACENTER'] = DATACENTER;
+if(!process.env.FLAKEID_WORKER) process.env['FLAKEID_WORKER'] = WORKERID;
+
 var path = require('path');
 const fs = require('fs');
 
