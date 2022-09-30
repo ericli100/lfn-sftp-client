@@ -58,6 +58,8 @@ Note: You must comment the function in the Go source code that you want exported
 
 bash:
 ```
+git fetch --all --tags
+git checkout tags/v1.19.3 -b v1.19.3
 cd /ach/cmd/achcli
 GOOS=windows GOARCH=amd64 go build -o bin/achcli-1-19-3.exe main.go diff.go reformat.go describe.go
 GOOS=darwin GOARCH=amd64 go build -o bin/achcli-1-19-3 main.go diff.go reformat.go describe.go
