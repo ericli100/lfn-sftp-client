@@ -48,10 +48,10 @@ async function main(args) {
     var achtool
     switch(process.platform){
         case 'darwin':
-            achtool = path.join(process.cwd(),'src','tools','achcli-1-19-3')
+            achtool = path.join(process.cwd(),'src','tools','achcli-1-18-1')
             break;
         case 'win32':
-            achtool = path.join(process.cwd(),'src','tools','achcli-1-19-3.exe')
+            achtool = path.join(process.cwd(),'src','tools','achcli-1-18-1.exe')
             break;
         default:
             throw('Error: OS not implemented for the ACH tool.');
