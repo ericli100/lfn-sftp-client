@@ -64,3 +64,75 @@ GOOS=darwin GOARCH=amd64 go build -o bin/achcli-1-19-3 main.go diff.go reformat.
 ```
 1. copy these files into the `tools` directory
 1. update the ach processing code to reference these new versions
+
+### SharePoint MS Graph
+
+How to get the {site-id}:
+https://graph.microsoft.com/v1.0/sites/lineagefn.sharepoint.com:/sites/LineageBank?$select=id
+
+Returns:
+```
+{
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#sites(id)/$entity",
+    "id": "lineagefn.sharepoint.com,7a28ea89-bac8-4244-b9f0-90ca1ac2cd24,0ba516fa-3d5d-4600-b9d7-31916a4d72bd"
+}
+```
+
+How to get the {parent-id} of a folder:
+https://graph.microsoft.com/v1.0/sites/lineagefn.sharepoint.com,7a28ea89-bac8-4244-b9f0-90ca1ac2cd24,0ba516fa-3d5d-4600-b9d7-31916a4d72bd/drive/root:/BaaS/Synapse/Inbound%20SFTP%20Files/prd
+
+Note: put the URL safe path to the desired folder after the `root:` to look up the ID.
+
+This would be the parent-id: `012NVLJIID6DZNV2EAMVFK4ANGV4XTI43E`
+
+Returns:
+```
+{
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#sites('lineagefn.sharepoint.com%2C7a28ea89-bac8-4244-b9f0-90ca1ac2cd24%2C0ba516fa-3d5d-4600-b9d7-31916a4d72bd')/drive/root/$entity",
+    "createdDateTime": "2022-10-03T19:27:54Z",
+    "eTag": "\"{DAF2F003-80E8-4A65-AE01-A6AF2F347364},1\"",
+    "id": "012NVLJIID6DZNV2EAMVFK4ANGV4XTI43E",
+    "lastModifiedDateTime": "2022-10-03T19:27:54Z",
+    "name": "prd",
+    "webUrl": "https://lineagefn.sharepoint.com/sites/LineageBank/Shared%20Documents/BaaS/Synapse/Inbound%20SFTP%20Files/prd",
+    "cTag": "\"c:{DAF2F003-80E8-4A65-AE01-A6AF2F347364},0\"",
+    "size": 0,
+    "createdBy": {
+        "user": {
+            "email": "brandon.hedge@lineagebank.com",
+            "id": "8efd25a4-e09f-4c1b-b078-b152098712f1",
+            "displayName": "Brandon Hedge"
+        }
+    },
+    "lastModifiedBy": {
+        "user": {
+            "email": "brandon.hedge@lineagebank.com",
+            "id": "8efd25a4-e09f-4c1b-b078-b152098712f1",
+            "displayName": "Brandon Hedge"
+        }
+    },
+    "parentReference": {
+        "driveType": "documentLibrary",
+        "driveId": "b!ieooesi6REK58JDKGsLNJPoWpQtdPQBGudcxkWpNcr1xTjTlRpnaSpI1XNL8nkBF",
+        "id": "012NVLJIPIW7MHABUFF5GK4U5MSYBAYTIO",
+        "path": "/drive/root:/BaaS/Synapse/Inbound SFTP Files"
+    },
+    "fileSystemInfo": {
+        "createdDateTime": "2022-10-03T19:27:54Z",
+        "lastModifiedDateTime": "2022-10-03T19:27:54Z"
+    },
+    "folder": {
+        "childCount": 0
+    }
+}
+```
+
+The command to upload a file that is under 4MB would be:
+
+`PUT /sites/{site-id}/drive/items/{parent-id}:/{filename}:/content`
+
+OR
+
+```
+https://graph.microsoft.com/v1.0/sites/lineagefn.sharepoint.com,7a28ea89-bac8-4244-b9f0-90ca1ac2cd24,0ba516fa-3d5d-4600-b9d7-31916a4d72bd/drive/items/012NVLJIID6DZNV2EAMVFK4ANGV4XTI43E:/content
+```
