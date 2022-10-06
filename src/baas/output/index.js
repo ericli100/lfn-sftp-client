@@ -74,6 +74,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
         ,t.[isFedWire]
         ,f.[mutatedDate]
         ,f.[effectiveDate]
+        ,f.[fileName] AS [fileNameOriginal]
     FROM [baas].[files] f
     INNER JOIN [baas].[fileTypes] t
         ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
@@ -149,6 +150,10 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                     outputData.push(newDataRow)
 
                     if( outputJSON ) {
+                        if(row["fileName"] != row["fileNameOriginal"]){
+                            // the original fileName is different, capture it in the output
+                            newDataRow.fileNameOriginal = row["fileNameOriginal"]
+                        }
                         output.outputData.push( newDataRow )
                     }
                 }
@@ -286,7 +291,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
         if(finalOutput != '') {
             // add the body header
             let header = '**************************************************************************\n'
-            header += '*               F I L E   A C T I V I T Y   F I L E       Processor: 2.0\n'
+            header += '*               F I L E   A C T I V I T Y   F I L E       Processor: 2.2\n'
             header += '**************************************************************************\n\n'
             header += `File Activity File for [${VENDOR_NAME.toUpperCase()}].[${ENVIRONMENT.toUpperCase()}]: \n\n`
             header += `   Total Credits USD: $${ await baas.common.formatMoney({ amount: totalCreditsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
@@ -309,6 +314,9 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                     finalOutput += spacing + `>> ${ faf['fileName'] }:\n`
                     finalOutput += spacing + `**********************************************\n`
                     finalOutput += spacing + `FRB File Direction: ${ faf['Incoming / Outgoing'] }\n`
+                    if(faf.fileNameOriginal){
+                        finalOutput += spacing + `Original File Name: ${ faf['fileNameOriginal'] }\n`
+                    }
                     finalOutput += spacing + `Posting Date: ${ faf['Date'] }\n`
                     
                     if(maskAccount) {
