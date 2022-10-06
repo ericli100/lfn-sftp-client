@@ -761,21 +761,36 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
     sqlStatements.push( updateFileJsonSQL.param )
     let jsonFileData = updateFileJsonSQL.jsonFileData;
 
+
+
     // loop over the batches for processing
     if(!jsonBatchData.isIAT) {   // NOT IAT
         if (jsonBatchData.batchCount != jsonBatchData.batches.length) throw ('baas.input.ach file is invalid! Internal Batch Count does not match the Batches array')
 
+        let BATCH_IDS = []
+
         for (const batch of jsonBatchData.batches) {
             // create the fileBatch Entries:
-            let fileBatchEntityId = baas.id.generate();
+            let fileBatchEntityId
     
             // insert the batch entityId
             // let sqlBatchEntitySQL = await createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} )
             // sqlStatements.push( sqlBatchEntitySQL.param )
     
             // insert the batch
-            let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, batchType: 'ACH', correlationId } )
-            sqlStatements.push( batchSQL.param )
+            let current_batch_id = path.basename( inputFile ).toUpperCase() + '-' + batch.batchHeader.standardEntryClassCode.toUpperCase() + '-' + batch.batchControl.batchNumber
+
+            let i = BATCH_IDS.findIndex(e => e.batch === current_batch_id)
+            if (i > -1){
+                // return the batchID that we already assigned
+                fileBatchEntityId = BATCH_IDS[i].fileBatchEntityId
+            } else {
+                fileBatchEntityId = baas.id.generate();
+                // only add the batch ID to the list if it has not already been created.
+                BATCH_IDS.push({batch: current_batch_id, fileBatchEntityId: fileBatchEntityId})
+                let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, batchType: 'ACH', correlationId } )
+                sqlStatements.push( batchSQL.param )
+            }
     
             // TRANSACTION DETAIL PROCESSING *********
             let DebitBatchRunningTotal = 0
@@ -813,6 +828,8 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
                 // create the batch transaction entry
                 let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
                 sqlStatements.push( batchTransactionSQL.param )
+
+                
             }
     
             // these totals should match, best to fail the whole task if it does not balance here

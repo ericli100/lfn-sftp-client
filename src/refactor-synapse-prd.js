@@ -66,7 +66,7 @@ async function main(){
     } catch (unhandled) {
         let errorMessage = {}
         errorMessage.message = unhandled.toString()
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: UNHANDLED ERROR [${ENVIRONMENT}] with ERROR:[${ JSON.stringify( errorMessage ) }]!`, correlationId: CORRELATION_ID   })
+        await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `${VENDOR_NAME}: UNHANDLED ERROR [${ENVIRONMENT}] with ERROR:[${ JSON.stringify( errorMessage ) }]!`, correlationId: CORRELATION_ID   })
     }
     
     console.log('sql: disconnecting...')
