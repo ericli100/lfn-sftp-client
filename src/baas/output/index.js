@@ -313,7 +313,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                     
                     finalOutput += spacing + `>> ${ faf['fileName'] }:\n`
                     finalOutput += spacing + `**********************************************\n`
-                    finalOutput += spacing + `FRB File Direction: ${ faf['Incoming / Outgoing'] }\n`
+                    finalOutput += spacing + `FRB File Direction: ${ faf['Incoming / Outgoing'].toUpperCase() }\n`
                     if(faf.fileNameOriginal){
                         finalOutput += spacing + `Original File Name: ${ faf['fileNameOriginal'] }\n`
                     }
