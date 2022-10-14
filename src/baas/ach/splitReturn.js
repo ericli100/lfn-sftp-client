@@ -47,7 +47,7 @@ let is_entry_return = function (entry_json) {
 
     for (let x = 0; x < addendas.length; x++) {
         let addenda_content = entry_json[addendas[x]];
-        if (addenda_content['returnCode'] || addenda_content['changeCode']) { return true }
+        if (addenda_content['returnCode'] || addenda_content['changeCode'] || addenda_content['dishonoredReturnReasonCode']) { return true }
     }
 
     return false
@@ -517,6 +517,10 @@ let renderFileContentFromJSON = function (json_content) {
 
         // Entries
         for (let y = 0; y < json_content['batches'][x]['entryDetails'].length; y++) {
+            // use this to find specific error transactions for debugging.
+            if (json_content['batches'][x]['entryDetails'][y].traceNumber == '063106149617305' ){
+                console.log('Broken Return Entry: 063106149617305')
+            } 
             // Entry Record
             let is_return = is_entry_return(json_content['batches'][x]['entryDetails'][y])
             lines.push(renderEntryRecordFromJSON(json_content['batches'][x]['entryDetails'][y]));
