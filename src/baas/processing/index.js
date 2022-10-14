@@ -1563,7 +1563,8 @@ async function splitOutMultifileACH({ baas, logger, VENDOR_NAME, ENVIRONMENT, PR
 
         } catch (err) {
             if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
-            throw(err);
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - file [${splitFileName}] for environment [${ENVIRONMENT}] Failed to split properly. Error in the splitReturn.js processing.`, effectedEntityId: parentEntityId, correlationId  })
+                throw(err);
             }
             let existingEntityId = await baas.sql.file.exists( sha256, true )
             await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - file [${splitFileName}] for environment [${ENVIRONMENT}] file already exists in the database with SHA256: [${sha256}]`, effectedEntityId: parentEntityId, correlationId  })
