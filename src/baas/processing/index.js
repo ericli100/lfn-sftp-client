@@ -453,8 +453,11 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
 
         // get the mail and filter for the CONFIG items listed
         // store the files in the database
+        let mainFoldername = 'Inbox'
+        let mailFolders = await baas.email.readMailFolders({ client, displayName: mainFoldername, includeChildren: true })
+
         let processFoldername = 'processed'
-        let mailFolders = await baas.email.readMailFolders({ client, displayName: processFoldername, includeChildren: true })
+        mailFolders = mailFolders.concat( await baas.email.readMailFolders({ client, displayName: processFoldername, includeChildren: true }) )
         if(DEBUG) console.log(mailFolders)
 
         // process this folder too until fully migrated
@@ -655,6 +658,8 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     let emailAttachmentsArray = await baas.email.downloadMsGraphAttachments({ client, messageId: email.id, destinationPath: path.resolve( workingDirectory ), baas })
     output.attachments = output.attachments.concat(emailAttachmentsArray.emailAttachmentsArray)
 
+    let errorOnEmailWithAllBadAttachments = true
+
     let processedAttachementsCount = 0
     if (emailAttachmentsArray.emailAttachmentsArray.length) {
         for (let attachment of emailAttachmentsArray.emailAttachmentsArray){
@@ -663,6 +668,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
             let isApprovedAttachment = await baas.email.approvedAttachmentCheck(attachment.fileName, config)
         
             if(isApprovedAttachment) {
+                errorOnEmailWithAllBadAttachments = false
                 // console.log('Message UID:', msgUID, `Writing the attachment [${attachment.filename}]... `)
                 // let fileName = attachmentPath.destination + '\\' + EMAIL_DATE + '_' + attachment.filename
                 // let fileWriter = fs.createWriteStream( fileName )
@@ -871,6 +877,20 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                 if(processedAttachementsCount == emailAttachmentsArray.emailAttachmentsArray.length) {
                     // Only move the message when it is the last message in the attachments array
                     if(DEBUG) console.log(`[baas.processing.perEmailInboundProcessing()]: Moving the email to Folder (End of Array): [${moveToFolder[0].displayName}]`)
+
+                    if(errorOnEmailWithAllBadAttachments) {
+                        let filenames = ''
+                    
+                        for (attachment of emailAttachmentsArray.emailAttachmentsArray) {
+                            if (attachment.fileName){
+                                filenames += attachment.fileName + ", ";
+                            }
+                        }
+
+                        // send an alert if there were no valid attachments on this email
+                        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: [baas.processing.perEmailInboundProcessing()] EMAIL REJECTED!!!! Attachments:[${filenames}] for environment [${ENVIRONMENT}]`, correlationId })
+                    }
+         
                     let moveStatus = await baas.email.moveMailFolder({ client, messageId: email.id, destinationFolderId: moveToFolder[0].id })
                 }    
             }
