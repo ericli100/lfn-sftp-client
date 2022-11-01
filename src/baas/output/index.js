@@ -716,12 +716,17 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                     }
                     
                     if(file.isSentToDepositOperations == false) {
-                        let sendFileDelivery = await baas.email.sendEmail({ client, message: fileDeliveryMessage })
-                        await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
+                        try{
+                            let sendFileDelivery = await baas.email.sendEmail({ client, message: fileDeliveryMessage })
 
-                        // Set Status In DB
-                        await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
-                        await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                            await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
+
+                            // Set Status In DB
+                            await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
+                            await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                        } catch (fileDeliveryError) {
+                            await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
+                        }
                     }
                 }
             }
@@ -745,8 +750,22 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
     // The Type will let us know where to send the emails.
 
     // Refactor this later to process in a better location, there is a time crunch and we are shipping this!
-    let currentFilesOnRemoteSFTP = await baas.sftp.validateFileExistsOnRemote(CONFIG, '/tosynapse', '', true)
-    await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: SFTP REMOTE FILES: baas.output.downloadFilesfromDBandSFTPToOrganization() - ** currentFilesOnRemoteSFTP: [${currentFilesOnRemoteSFTP}] ** for environment [${CONFIG.environment}].`, correlationId })
+    try{
+        let currentFilesOnRemoteSFTP = []
+
+        for (let folderMapping of CONFIG.folderMappings) {
+            if (folderMapping.type) {
+                if(folderMapping.type == 'put') {
+                    let currentRemoteFiles = await baas.sftp.validateFileExistsOnRemote(CONFIG, folderMapping.destination, '', true)
+                    currentFilesOnRemoteSFTP.push({ destination: folderMapping.destination, files: currentRemoteFiles})
+                }
+            }
+        }
+       
+        await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: SFTP REMOTE FILES: baas.output.downloadFilesfromDBandSFTPToOrganization() - ** currentFilesOnRemoteSFTP: [${JSON.stringify(currentFilesOnRemoteSFTP)}] ** for environment [${CONFIG.environment}].`, correlationId })
+    } catch (remoteListFilesError){
+        console.error('Remote file SFTP logging error... skip...')
+    }
 
     let output = {}
 
