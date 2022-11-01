@@ -392,12 +392,13 @@ function Handler() {
     
         for (let extension of config.email.inbound.approvedAttachmentExtensions){
             try{
-                if (extension == filename.substr(filename.length - extension.length)){
+                if (extension == filename.substr(filename.length - extension.length).toLocaleLowerCase()){
                     returnVal = true
                 }
             } catch (error) {
-                console.error('File Name:', filename, `Error: Approved attachment check failed.`)
-                throw (error)
+                let newError = 'EMAIL ATTACHMENTS NOT APPROVED! File Name:' + filename + ` Error: Approved attachment check failed.`
+                console.error(newError)
+                throw (newError)
             }
         }
         return returnVal
