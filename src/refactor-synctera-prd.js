@@ -116,7 +116,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.folderMappings = []    // FTP file processing
 
     // FTP get commands ( PULL )
-    config.folderMappings.push({ type: 'get', source: '/ach/outbound/processed', destination: `${VENDOR_NAME}.${ENVIRONMENT}.ach.outbound`, usePGP:false, actionAfterGet: 'processed' })
+    config.folderMappings.push({ type: 'get', source: '/ach/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.ach.outbound`, usePGP:false, actionAfterGet: 'processed' })
     config.folderMappings.push({ type: 'get', source: '/secure_file_delivery', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed'})
     config.folderMappings.push({ type: 'get', source: '/encrypted/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
     config.folderMappings.push({ type: 'get', source: '/encrypted', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
@@ -227,7 +227,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.processing.ENABLE_INBOUND_PROCESSING_FROM_DB = true
     config.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB = false
     config.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING = false
-    config.processing.ENABLE_FILE_RECEIPT_PROCESSING = false
+    config.processing.ENABLE_FILE_RECEIPT_PROCESSING = true
     config.processing.ENABLE_REMOTE_DELETE = false
     config.processing.ENABLE_MANUAL_DB_DOWNLOAD = false
     config.processing.ENABLE_NOTIFICATIONS = true
