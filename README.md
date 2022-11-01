@@ -161,3 +161,19 @@ SELECT [invoiceNumber]
 ```
 
 Export this data and provide it to Jennifer D.
+
+How to split large files:
+
+```
+awk -v nums="726980" '
+BEGIN {        
+    c=split(nums,b)
+    for(i=1; i<=c; i++) a[b[i]]
+    j=1; out = "file_split_1.csv"
+} 
+{ print > out }
+NR in a {
+    close(out)
+    out = "file_split_" ++j ".csv"
+}' Results.csv
+```
