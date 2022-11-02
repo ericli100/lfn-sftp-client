@@ -61,7 +61,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     baas.logger = logger;
 
     if(ENABLE_INBOUND_EMAIL_PROCESSING){
-        let inboundEmailsStatus = await getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID } )
+        let inboundEmailsStatus = await getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID, PROCESSING_DATE } )
     }
 
     if(ENABLE_FTP_PULL){
@@ -425,7 +425,7 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
     return output
 }
 
-async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId }) {
+async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId, PROCESSING_DATE }) {
     if(!baas) throw ('processing.getInboundEmailFiles() requires [baas]!')
     if(!config) throw ('processing.getInboundEmailFiles() requires [config]!')
     if(!VENDOR_NAME) VENDOR_NAME = config.vendor
@@ -534,7 +534,6 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
                         }
                         if(!KEEP_PROCESSING_ON_ERROR) throw(perEmailProcessingError)
                     }
-                    
                 }
             } // WHILE LOOP END
         }
@@ -727,7 +726,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                     /// ******************************
 
                     let fileTypeId
-                    let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId } )
+                    let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId, PROCESSING_DATE } )
                     if( determinedFileTypeId.fileTypeId ) {
                         inputFileObj.fileTypeId = determinedFileTypeId.fileTypeId;
                         fileTypeId = determinedFileTypeId.fileTypeId;
@@ -908,7 +907,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     return output
 }
 
-async function determineInputFileTypeId({baas, inputFileObj, contextOrganizationId, config, correlationId}) {
+async function determineInputFileTypeId({baas, inputFileObj, contextOrganizationId, config, correlationId, PROCESSING_DATE}) {
     // refactor the complex logic here to determine the file type
     // we will likely have to inspect content, email body, or other facts
 
@@ -1087,7 +1086,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
 
             if(matchedFileType.fileNameFormat == '%'){
                 // splat match provided, just pass the name outbound
-                output.fileNameOutbound = output.fileName
+                output.fileNameOutbound = PROCESSING_DATE + '_' + output.fileName
                 return output
             }
             
@@ -1557,7 +1556,7 @@ async function splitOutMultifileACH({ baas, logger, VENDOR_NAME, ENVIRONMENT, PR
             /// ******************************
 
             let fileTypeId
-            let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId } )
+            let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId, PROCESSING_DATE } )
             if( determinedFileTypeId.fileTypeId ) {
                 inputFileObj.fileTypeId = determinedFileTypeId.fileTypeId;
                 fileTypeId = determinedFileTypeId.fileTypeId;
