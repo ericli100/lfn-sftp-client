@@ -230,6 +230,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.processing.ENABLE_FILE_RECEIPT_PROCESSING = true
     config.processing.ENABLE_REMOTE_DELETE = true
     config.processing.ENABLE_MANUAL_DB_DOWNLOAD = false
+    config.processing.DISABLE_INBOUND_FILE_SPLIT = true
    
     return config
 }

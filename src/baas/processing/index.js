@@ -26,6 +26,7 @@ var ENABLE_OUTBOUND_EMAIL_PROCESSING
 var ENABLE_FILE_RECEIPT_PROCESSING
 var ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
 var ENABLE_NOTIFICATION
+var DISABLE_INBOUND_FILE_SPLIT = false
 
 var DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
 var KEEP_PROCESSING_ON_ERROR = true
@@ -57,6 +58,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     ENABLE_FILE_RECEIPT_PROCESSING = CONFIG.processing.ENABLE_FILE_RECEIPT_PROCESSING
     ENABLE_REMOTE_DELETE = CONFIG.processing.ENABLE_REMOTE_DELETE
     ENABLE_NOTIFICATION = CONFIG.processing.ENABLE_NOTIFICATIONS
+    if (CONFIG.processing.DISABLE_INBOUND_FILE_SPLIT == true) { DISABLE_INBOUND_FILE_SPLIT = true }
 
     baas.logger = logger;
 
@@ -1363,7 +1365,8 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                                 // only split files that are inbound from the FRB
                                 let splitAchCheck = await baas.ach.splitReturnACH( achProcessing.achJSON, new Date(), workingDirectory, file.fileName, false)
 
-                                if ( splitAchCheck.payments && splitAchCheck.returns || splitAchCheck.iat_payments ) {
+                                if(!DISABLE_INBOUND_FILE_SPLIT){  // feature flag for file split
+                                    if ( splitAchCheck.payments && splitAchCheck.returns || splitAchCheck.iat_payments ) {
                                         // we have both Payments & Returns... need to split out into multifile
                                         output.isMultifile = true
                                         await baas.sql.file.setMultifileParent({ entityId: file.entityId, contextOrganizationId, correlationId })
@@ -1378,6 +1381,7 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
 
                                         // add the newEntries to the existing unprocessedFiles array... probably a bad idea, but want to process in context.
                                         unprocessedFiles.push.apply(unprocessedFiles, newEntries);
+                                    }
                                 }
                             }
                         }
