@@ -231,6 +231,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.processing.ENABLE_REMOTE_DELETE = true
     config.processing.ENABLE_MANUAL_DB_DOWNLOAD = false
     config.processing.DISABLE_INBOUND_FILE_SPLIT = true
+    config.processing.SEND_SFTP_NOT_ENCRYPTED = true    // also, set the GPG false flag on the sftp config above ^^
    
     return config
 }
