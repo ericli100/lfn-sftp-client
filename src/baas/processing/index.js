@@ -527,7 +527,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
                     let email = mailInFolder[j]
 
                     try{
-                        await perEmailInboundProcessing({ baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId })
+                        await perEmailInboundProcessing({ baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId, PROCESSING_DATE })
                     } catch (perEmailProcessingError) {
                         let errorMessage = {}
                         errorMessage.message = perEmailProcessingError.toString()
@@ -571,7 +571,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
     return output
 }
 
-async function perEmailInboundProcessing({baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId}){
+async function perEmailInboundProcessing({baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId, PROCESSING_DATE}){
     let output = {}
     output.file = {}
     output.attachments = []
