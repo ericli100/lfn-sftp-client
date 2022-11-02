@@ -291,7 +291,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
         if(finalOutput != '') {
             // add the body header
             let header = '**************************************************************************\n'
-            header += '*               F I L E   A C T I V I T Y   F I L E       Processor: 2.2\n'
+            header += '*               F I L E   A C T I V I T Y   F I L E       Processor: 2.2.5\n'
             header += '**************************************************************************\n\n'
             header += `File Activity File for [${VENDOR_NAME.toUpperCase()}].[${ENVIRONMENT.toUpperCase()}]: \n\n`
             header += `   Total Credits USD: $${ await baas.common.formatMoney({ amount: totalCreditsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
