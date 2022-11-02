@@ -1076,6 +1076,26 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
             if (fileTypeId.length == 1) {
                 // okay... we did not match the CSV definitions above BUT... we only have1 option. Let's set it and go on.
                 output.fileTypeId = fileTypeId[0].entityId.trim()
+                FILE_TYPE_MATCH = 'CSV'
+
+                output.fileNameOutbound = PROCESSING_DATE + '_' + output.fileName
+
+                return output
+            }
+        }
+
+        if (FILE_TYPE_MATCH == 'UNMATCHED'){
+            // STILL UNMATCHED???
+            if (fileTypeId.length > 1) {
+                // okay... we did not match the CSV definitions above... and we have multiple
+                for(let fileType of fileTypeId){
+                    if(fileType.fileTypeMatch == 'DEFAULT' || fileType.fileTypeMatch == '') {
+                        output.fileTypeId = fileType.entityId.trim()
+                        FILE_TYPE_MATCH = 'CSV'
+
+                        output.fileNameOutbound = PROCESSING_DATE + '_' + output.fileName
+                    }
+                }
 
                 return output
             }
