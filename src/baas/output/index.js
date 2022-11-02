@@ -242,8 +242,8 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                 // ****************************** 
                 var SEND_SFTP_NOT_ENCRYPTED = false
 
-                if (CONFIG.SEND_SFTP_NOT_ENCRYPTED) {
-                    if (CONFIG.SEND_SFTP_NOT_ENCRYPTED == true){
+                if (CONFIG.processing.SEND_SFTP_NOT_ENCRYPTED) {
+                    if (CONFIG.processing.SEND_SFTP_NOT_ENCRYPTED == true){
                         SEND_SFTP_NOT_ENCRYPTED = true
                     }
                 }
@@ -260,19 +260,22 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
                 // let's write these bits on the remote SFTP server
                 
+                // does the file exist remotely after the push?
+                let fileIsOnRemote
                 // let's write these bits on the remote SFTP server
                 if(SEND_SFTP_NOT_ENCRYPTED == true){
                     let unencryptedFileStream = fs.createReadStream(inputFile)
                     let remoteDestinationPath = configDestination.destination + '/' + path.basename(inputFile)
-                    await baas.sftp.put({ baas, config: CONFIG, unencryptedFileStream, remoteDestinationPath, correlationId });
+                    await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream: unencryptedFileStream, remoteDestinationPath, correlationId });
                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - [SEND_SFTP_NOT_ENCRYPTED == true] - file [${path.basename(inputFile)}] was PUT **UNENCRYPTED** on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: fileEntityId, correlationId })
+
+                    fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote(CONFIG, configDestination.destination, path.basename(inputFile))
                 } else {
                     let remoteDestinationPath = configDestination.destination + '/' + path.basename(inputFile) + '.gpg'
                     await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream, remoteDestinationPath, correlationId });
-                }
 
-                // does the file exist remotely after the push?
-                let fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote(CONFIG, configDestination.destination, path.basename(inputFile) + '.gpg')
+                    fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote(CONFIG, configDestination.destination, path.basename(inputFile) + '.gpg')
+                }
 
                 if (fileIsOnRemote) {
                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.processfileReceipt() - file [${path.basename(inputFile)}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: fileEntityId, correlationId })
@@ -746,7 +749,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                             await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
                             await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
                         } catch (fileDeliveryError) {
-                            await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
+                            await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
                         }
                     }
                 }
@@ -812,8 +815,8 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
         // ****************************** 
         var SEND_SFTP_NOT_ENCRYPTED = false
 
-        if (CONFIG.SEND_SFTP_NOT_ENCRYPTED) {
-            if (CONFIG.SEND_SFTP_NOT_ENCRYPTED == true){
+        if (CONFIG.processing.SEND_SFTP_NOT_ENCRYPTED) {
+            if (CONFIG.processing.SEND_SFTP_NOT_ENCRYPTED == true){
                 SEND_SFTP_NOT_ENCRYPTED = true
             }
         }
@@ -864,30 +867,30 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
                 let remoteDestination = await baas.sftp.putRemoteDestinationFromConfig(CONFIG, file.destination)
                 if (!remoteDestination) throw (`ERROR: we called baas.sftp.putRemoteDestinationFromConfig and it did not match a config value for file.destination:[${file.destination}]`)
 
+                // does the file exist remotely after the push?
+                let fileIsOnRemote 
+
                 // let's write these bits on the remote SFTP server
                 if(SEND_SFTP_NOT_ENCRYPTED == true){
                     let unencryptedFileStream = fs.createReadStream(fullFilePath)
                     let remoteDestinationPath = remoteDestination + '/' + path.basename(fullFilePath)
-                    await baas.sftp.put({ baas, config: CONFIG, unencryptedFileStream, remoteDestinationPath, correlationId });
+                    await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream: unencryptedFileStream, remoteDestinationPath, correlationId });
                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - [SEND_SFTP_NOT_ENCRYPTED == true] - file [${outFileName}] was PUT **UNENCRYPTED** on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+
+                    fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote(CONFIG, remoteDestination, path.basename(fullFilePath))
                 } else {
                     let remoteDestinationPath = remoteDestination + '/' + path.basename(fullFilePath) + '.gpg'
                     await baas.sftp.put({ baas, config: CONFIG, encryptedFileStream, remoteDestinationPath, correlationId });
+
+                    fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote(CONFIG, remoteDestination, path.basename(fullFilePath) + '.gpg')
                 }
 
-                // does the file exist remotely after the push?
-                let fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote(CONFIG, remoteDestination, path.basename(fullFilePath) + '.gpg')
-
+               
                 if (fileIsOnRemote) {
                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
                     await baas.processing.deleteBufferFile(fullFilePath + '.gpg') // remove the local file now it is uploaded
                     await baas.sql.file.setSentViaSFTP({ entityId: file.entityId, contextOrganizationId, correlationId })
                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was set as isSentViaSFTP using baas.sql.file.setSentViaSFTP() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
-
-                    // process the Advice for Wires or ACH
-                    console.warn('TODO: ', 'process the Advice for Wires or ACH')
-                    // Send the Advice Emails
-                    console.warn('TODO: ', 'Send the Advice Emails')
                 }
             }
             // let fileExistsOnRemote = await validateFileExistsOnRemote(sftp, logger, mapping.destination, filename + '.gpg')
