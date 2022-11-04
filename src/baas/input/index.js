@@ -109,6 +109,14 @@ function achTypeCheck( transaction ) {
             transactionDebit = 0
             break;
 
+        case 51:
+            // 51 Pre-Note: Loan Deposit (Credit) - Synapse Issue on 20221104 - "traceNumber": "122487400000003"
+            isCredit = true
+            isDebit = false
+            transactionCredit = transaction.amount
+            transactionDebit = 0
+            break;
+
         case 53:
             // 53 Pre-Note: Loan Deposit (Credit)
             isCredit = true
