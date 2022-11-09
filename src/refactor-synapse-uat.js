@@ -161,6 +161,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         "gloria.dodd@lineagebank.com",
         "htc.reports@fisglobal.com",
         "ellen.hartley@lineagefn.com",
+        "fritzi.bronson@lineagebank.com",
         "depositoperations.outbound.processing@lineagebank.com",
     ]
     
@@ -169,6 +170,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         "gloria.dodd@lineagebank.com",
         "ellen.hartley@lineagefn.com",
         "paul.hignutt@lineagefn.com",
+        "fritzi.bronson@lineagebank.com",
         "depositoperations.outbound.processing@lineagebank.com",
     ]
 
@@ -184,6 +186,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         "gloria.dodd@lineagebank.com",
         "ellen.hartley@lineagefn.com",
         "paul.hignutt@lineagefn.com",
+        "fritzi.bronson@lineagebank.com",
         "depositoperations.outbound.processing@lineagebank.com",
     ]
     
