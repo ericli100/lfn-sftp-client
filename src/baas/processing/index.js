@@ -752,6 +752,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
 
                 } catch (err) {
                     if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
+                        err.message += ' >> error writing file to DB. Check baas.input.file() function.'
                         throw(err);
                     }
                     let existingEntityId = await baas.sql.file.exists( sha256, true )
