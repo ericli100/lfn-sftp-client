@@ -752,7 +752,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
 
                 } catch (err) {
                     if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
-                    throw(err);
+                        throw(err);
                     }
                     let existingEntityId = await baas.sql.file.exists( sha256, true )
                     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS [baas.processing.perEmailInboundProcessing()] - file [${attachment.fileName}] for environment [${ENVIRONMENT}] file already exists in the database with SHA256: [${sha256}]`, effectedEntityId: existingEntityId, correlationId  })
