@@ -155,7 +155,7 @@ function Handler(mssql) {
                ,'${fromOrganizationId}'
                ,'${toOrganizationId}'
                ,'${fileType}'
-               ,'${fileName}'
+               ,'${fileName.replace(/[\/\(\)\']/g, "' + char(39) + '" )}'
                ,${fileBinary}
                ,'${sizeInBytes}'
                ,'${sha256}'
