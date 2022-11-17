@@ -13,6 +13,8 @@ const parseCSV = papa.unparse
 const eol = require('eol')
 const os = require('node:os');
 
+const platformReports = require('./platformReports')
+
 var VENDOR_NAME
 var ENVIRONMENT
 
@@ -27,6 +29,7 @@ var ENABLE_FILE_RECEIPT_PROCESSING
 var ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
 var ENABLE_NOTIFICATION
 var DISABLE_INBOUND_FILE_SPLIT = false
+var ENABLE_REPORT_PROCESSING = false
 
 var DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
 var KEEP_PROCESSING_ON_ERROR = true
@@ -60,7 +63,17 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     ENABLE_NOTIFICATION = CONFIG.processing.ENABLE_NOTIFICATIONS
     if (CONFIG.processing.DISABLE_INBOUND_FILE_SPLIT == true) { DISABLE_INBOUND_FILE_SPLIT = true }
 
+    if(CONFIG.processing.ENABLE_REPORT_PROCESSING == true) { ENABLE_REPORT_PROCESSING = true }
+
     baas.logger = logger;
+
+    if(ENABLE_REPORT_PROCESSING) {
+        await baas.audit.log({ baas, logger, level: 'info', message: `REPORT Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID })
+        await baas.audit.log({ baas, logger, level: 'warn', message: `** REPORT FLAG PROCESSING ENABLED - ALL OTHER PROCESSING DISABLED (ONLY PROCESSING REPORTS - NO SFTP, etc. on this job.) ** [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID })
+        await platformReports.parsePlatformReports({baas, contextOrganizationId: CONFIG.contextOrganizationId, reportOrganizationId: CONFIG.fromOrganizationId, correlationId: CORRELATION_ID})
+        await baas.audit.log({baas, logger, level: 'info', message: `REPORT Processing ended for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+        return
+    }
 
     if(ENABLE_INBOUND_EMAIL_PROCESSING){
         let inboundEmailsStatus = await getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID, PROCESSING_DATE } )
