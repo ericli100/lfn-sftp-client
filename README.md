@@ -59,10 +59,10 @@ Note: You must comment the function in the Go source code that you want exported
 bash:
 ```
 git fetch --all --tags
-git checkout tags/v1.21.2 -b v1.21.2
+git checkout tags/v1.26.0 -b v1.26.0
 cd /ach/cmd/achcli
-GOOS=windows GOARCH=amd64 go build -o bin/achcli-1-21-2.exe main.go diff.go reformat.go describe.go
-GOOS=darwin GOARCH=amd64 go build -o bin/achcli-1-21-2 main.go diff.go reformat.go describe.go
+GOOS=windows GOARCH=amd64 go build -o bin/achcli-1-26-0.exe main.go diff.go reformat.go describe.go
+GOOS=darwin GOARCH=amd64 go build -o bin/achcli-1-26-0 main.go diff.go reformat.go describe.go
 ```
 1. copy these files into the `tools` directory
 1. update the ach processing code to reference these new versions
