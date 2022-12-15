@@ -961,7 +961,7 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
     try{
         output.results = await sql.executeBulk( sqlStatements )
     } catch (sqlProcessingError) {
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR}: baas.input.ach() failed during sql.execute for [${fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( sqlProcessingError )}]`, correlationId, effectedEntityId: fileEntityId })
+        await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `${VENDOR}: baas.input.ach() failed during sql.execute for [${fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( sqlProcessingError.message )}]`, correlationId, effectedEntityId: fileEntityId })
         throw( sqlProcessingError )
     }
     
