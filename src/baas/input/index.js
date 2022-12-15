@@ -36,6 +36,14 @@ function achTypeCheck( transaction ) {
             transactionCredit = transaction.amount
             transactionDebit = 0
             break;
+        
+        case 41:
+                // 41 GL Automated Return or NOC
+                isCredit = true
+                isDebit = false
+                transactionCredit = transaction.amount
+                transactionDebit = 0
+                break;
 
         case 42:
             // 42 GL Deposit (Credit)
