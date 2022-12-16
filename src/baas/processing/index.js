@@ -140,6 +140,14 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     // ******************************************
     if(ENABLE_NOTIFICATION){
         let effectedOrganizationId = baas.processing.EFFECTED_ORGANIZATION_ID
+
+        let processingErrorFiles = await baas.sql.file.getProcessingErrorFiles({ contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId })
+        if(processingErrorFiles.length > 0){
+            for(let errFile of processingErrorFiles ){
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: baas.sql.file.getProcessingErrorFiles() [${ENVIRONMENT}] errorProcessingFile:[${ JSON.stringify( errFile ) }]!`, correlationId: CORRELATION_ID, effectedOrganizationId: baas.processing.EFFECTED_ORGANIZATION_ID, effectedEntityId: errFile.entityId  })
+            }
+        }
+
         let auditErrors = await baas.sql.audit.getUnprocessedErrors({ effectedOrganizationId, contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID })
     
         if(auditErrors.length > 0) {

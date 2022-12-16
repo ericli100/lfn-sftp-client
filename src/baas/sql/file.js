@@ -374,6 +374,45 @@ function Handler(mssql) {
         return output
     }
 
+    Handler.getProcessingErrorFiles = async function getProcessingErrorFiles({contextOrganizationId, fromOrganizationId, toOrganizationId}){
+        let output = {}
+
+        let tenantId = process.env.PRIMAY_TENANT_ID
+
+        // override this
+        toOrganizationId = fromOrganizationId;
+
+        let sqlStatement = `
+        SELECT f.[entityId]
+              ,f.[filenameOutbound]
+              ,f.[filename]
+             , f.[hasProcessingErrors]
+            ,f.[quickBalanceJSON]
+        FROM [baas].[files] f
+        INNER JOIN [baas].[fileTypes] t
+        ON f.[fileTypeId] = t.entityId AND f.[tenantId] = t.[tenantId] AND f.contextOrganizationId = t.contextOrganizationId
+        WHERE f.tenantId = '${tenantId}'
+        AND f.contextOrganizationId = '${contextOrganizationId}'
+        AND (t.[fromOrganizationId] = '${fromOrganizationId}' OR t.[toOrganizationId] = '${toOrganizationId}')
+        AND f.[hasProcessingErrors] = 1
+        AND f.isProcessed = 0
+        AND f.isRejected = 0;`
+    
+        let param = {}
+        param.params = []
+        param.tsql = sqlStatement
+        
+        try {
+            let results = await mssql.sqlQuery(param);
+            output = results.data
+        } catch (err) {
+            console.error(err)
+            throw err
+        }
+
+        return output
+    }
+
     Handler.validateACHQuickBalanceJSON = async function validateACHQuickBalanceJSON({contextOrganizationId, fromOrganizationId, toOrganizationId}){
         let output = {}
 
