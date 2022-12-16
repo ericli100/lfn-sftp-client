@@ -144,7 +144,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
         let processingErrorFiles = await baas.sql.file.getProcessingErrorFiles({ contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId })
         if(processingErrorFiles.length > 0){
             for(let errFile of processingErrorFiles ){
-                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: baas.sql.file.getProcessingErrorFiles() [${ENVIRONMENT}] errorProcessingFile:[${ JSON.stringify( errFile ) }]!`, correlationId: CORRELATION_ID, effectedOrganizationId: baas.processing.EFFECTED_ORGANIZATION_ID, effectedEntityId: errFile.entityId  })
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: baas.sql.file.getProcessingErrorFiles() [${ENVIRONMENT}] File Needs to be [isRejected] == 1 to stop alerting! The errorProcessingFile:[${ JSON.stringify( errFile ) }]!`, correlationId: CORRELATION_ID, effectedOrganizationId: baas.processing.EFFECTED_ORGANIZATION_ID, effectedEntityId: errFile.entityId  })
             }
         }
 
