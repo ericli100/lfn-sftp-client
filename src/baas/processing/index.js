@@ -1136,9 +1136,9 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
                     output.overrideExtension = extensionOverride
 
                     // go ahead and change the file name extension if it does not match the override
-                    const currentExtension = path.extname( output.fileNameOutbound )
+                    const currentExtension = path.extname( output.fileNameOutbound ).toLowerCase()
                     if(currentExtension !== `.${extensionOverride}`) {
-                        await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: Override Extension - determineInputFileTypeId() [${output.fileNameOutbound}] extension was changed to: [${extensionOverride}]`, correlationId })
+                        await baas.audit.log({baas, logger:baas.logger, level: 'warn', message: `${VENDOR_NAME}: Override Extension - determineInputFileTypeId() [${output.fileNameOutbound}] extension was changed to: [${extensionOverride}]`, correlationId })
                         output.fileNameOutbound.replace(currentExtension, `.${extensionOverride}`)
                     }
                 }
