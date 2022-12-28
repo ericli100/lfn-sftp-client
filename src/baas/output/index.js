@@ -852,9 +852,9 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
             await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was downloaded from the File Vault and Decrypted for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
 
             let sha256_VALIDATION = await baas.sql.file.generateSHA256(fullFilePath)
-            if (sha256_VALIDATION != file.sha256) {
-                await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] SHA256 Check Failed! Stopping processing. [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
-                throw ('ERROR: baas.output.downloadFilesfromDBandSFTPToOrganization() SHA256 CHECK FAILED!')
+            if (sha256_VALIDATION != file.sha256 && file.isForceOverrideProcessingErrors === false ) {
+                await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] SHA256 Check Failed! Stopping processing. [${CONFIG.environment}].  If the file is a File Activity File, review and set [baas].[files].[isForceOverrideProcessingErrors] to true to allow for processing.`, effectedEntityId: file.entityId, correlationId })
+                throw ('ERROR: baas.output.downloadFilesfromDBandSFTPToOrganization() SHA256 CHECK FAILED! If the file is a File Activity File, review and set [baas].[files].[isForceOverrideProcessingErrors] to true to allow for processing.')
             }
             await baas.processing.deleteBufferFile(fullFilePath + '.gpg') // remove the local file now it is uploaded
 

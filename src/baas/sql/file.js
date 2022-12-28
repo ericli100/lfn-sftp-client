@@ -484,6 +484,7 @@ function Handler(mssql) {
                 ,f.[isSentViaSFTP]
                 ,f.[fedAckFileEntityId]
                 ,f.[fileVaultId]
+                ,f.[isForceOverrideProcessingErrors]
                 ,f.[isVaultValidated]
                 ,f.[quickBalanceJSON]
                 ,t.[isOutboundToFed]

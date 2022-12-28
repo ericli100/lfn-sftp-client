@@ -489,6 +489,13 @@ async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizati
     let dataJSON = JSON.parse(JSON.stringify(batch))
     if (dataJSON.entryDetails) delete dataJSON.entryDetails
 
+    let batchName =  path.basename( inputFile ).toUpperCase() + '-' + standardEntryClassCode.toUpperCase() + '-' + batch.batchControl.batchNumber
+
+    if (batch.batchControl.ODFIIdentification){
+        // odd issue with FRB inbound with duplicate Batch Number. Adding unique value of ODFI to the entry going forward.
+        batchName = path.basename( inputFile ).toUpperCase() + '-' + standardEntryClassCode.toUpperCase() + '-' + batch.batchControl.batchNumber + '-' + batch.batchControl.ODFIIdentification;
+    }
+
     let batchInsert = {
         entityId: fileBatchEntityId, 
         contextOrganizationId: contextOrganizationId, 
@@ -497,7 +504,7 @@ async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizati
         fileId: fileEntityId, 
         batchSubId: batch.batchControl.batchNumber, 
         batchType: updatedBatchType, 
-        batchName: path.basename( inputFile ).toUpperCase() + '-' + standardEntryClassCode.toUpperCase() + '-' + batch.batchControl.batchNumber, 
+        batchName: batchName, 
         batchCredits: batch.batchControl.totalCredit, 
         batchDebits: batch.batchControl.totalDebit, 
         dataJSON: dataJSON, 
