@@ -551,6 +551,26 @@ async function createBatchTransactionSQL( {sql, batch, transaction, achType, jso
         effectiveDate = batch.IATBatchHeader.effectiveEntryDate
     }
 
+    if(transaction.traceNumber === '071103500000000') {
+        console.log('tracenumber...', transaction.traceNumber)
+    }
+
+
+    // parse the additional addenda information for returns
+    let originalTracenumber = ''
+
+    if (transaction.addenda99) {
+        if(transaction.addenda99.originalTrace){
+            originalTracenumber = transaction.addenda99.originalTrace
+        }
+    }
+
+    if (transaction.addenda98) {
+        if(transaction.addenda98.originalTrace){
+            originalTracenumber = transaction.addenda98.originalTrace
+        }
+    }
+
     // TODO: Account ID Mapping in the future ( create UPSERT )
     let transactionInsert = {
         entityId: fileTransactionEntityId, 
@@ -567,6 +587,7 @@ async function createBatchTransactionSQL( {sql, batch, transaction, achType, jso
         transactionDebit: achType.transactionDebit, 
         dataJSON: transaction, 
         correlationId: correlationId,
+        originalTracenumber: originalTracenumber,
     }
 
     let sqlTransaction = await sql.fileTransaction.insert( transactionInsert )
