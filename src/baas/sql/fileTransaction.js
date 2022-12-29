@@ -27,12 +27,13 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, batchId, fromAccountId, toAccountId, paymentRelatedInformation, originationDate, effectiveDate, transactionType, tracenumber, transactionCredit, transactionDebit, dataJSON, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, batchId, fromAccountId, toAccountId, paymentRelatedInformation, originationDate, effectiveDate, transactionType, tracenumber, transactionCredit, transactionDebit, dataJSON, correlationId, originalTracenumber}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!batchId) throw ('batchId required')
         if (!dataJSON) dataJSON = {}
         if (!correlationId) correlationId = 'SYSTEM'
+        if (!originalTracenumber) originalTracenumber = '';
 
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
@@ -55,6 +56,7 @@ function Handler(mssql) {
            ,[dataJSON]
            ,[isJournalEntry]
            ,[isTest]
+           ,[originalTracenumber]
            ,[correlationId]
            ,[mutatedBy])
      VALUES
@@ -76,6 +78,7 @@ function Handler(mssql) {
            ,'${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}'
            ,0
            ,0
+           ,'${originalTracenumber}'
            ,'${correlationId}'
            ,'SYSTEM'
            );`
