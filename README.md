@@ -162,7 +162,7 @@ SELECT [invoiceNumber]
 
 Export this data and provide it to Jennifer D.
 
-How to split large files:
+How to split large files*:
 
 ```
 awk -v nums="726980" '
@@ -177,3 +177,7 @@ NR in a {
     out = "file_split_" ++j ".csv"
 }' Results.csv
 ```
+
+_*Note: Copy the file header to the split CSV file_
+
+1. Copy the files into SharePoint: (Invoicing)[https://lineagefn.sharepoint.com/:f:/s/LineageBank/EmPHqjPMEzZOiuYNhpQbfe4BR5aW365igzpN7A6jDjW1qA?e=bgaruN]
