@@ -1506,11 +1506,31 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
 
                         let parsedWire = await baas.wire.parse( fullFilePath )
                         
+                        // add the OMAD or IMAD to File entry
                         let quickBalanceJSON = {
                             totalCredits: 0,
                             totalDebits: 0,
                             creditCount: 0,
                             debitCount: 0,
+                        }
+
+                        if (parsedWire.hasMultipleWires == false){
+                            if(parsedWire.OMAD){
+                                quickBalanceJSON.OMAD = parsedWire.OMAD
+                                await baas.sql.file.setOMAD({ entityId: file.entityId, contextOrganizationId, OMAD: parsedWire.OMAD, correlationId })
+                            }
+                            if(parsedWire.IMAD){
+                                quickBalanceJSON.IMAD = parsedWire.IMAD
+                                await baas.sql.file.setIMAD({ entityId: file.entityId, contextOrganizationId, IMAD: parsedWire.IMAD, correlationId })
+                            }
+                        }
+
+                        if (parsedWire.hasMultipleWires == true){
+                            quickBalanceJSON.OMAD = 'MULTIPLE';
+                            await baas.sql.file.setOMAD({ entityId: file.entityId, contextOrganizationId, OMAD: 'MULTIPLE', correlationId })
+
+                            quickBalanceJSON.IMAD = 'MULTIPLE';
+                            await baas.sql.file.setIMAD({ entityId: file.entityId, contextOrganizationId, IMAD: 'MULTIPLE', correlationId })
                         }
                         
                         if(file.isOutboundToFed) {

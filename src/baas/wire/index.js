@@ -266,6 +266,12 @@ async function parseWireFile( inputfile ) {
 
     output.totalAmount = 0
 
+    // 1520 - IMAD [Input Message Accountability Data]( Unique ID for originated Wire )
+    output.IMAD = ''
+
+    // 1120 - OMAD [Output Message Accountability Data]( Returned from FED )
+    output.OMAD = ''
+
     try {
       const rl = readline.createInterface({
         input: fs.createReadStream( inputfile ),
@@ -365,6 +371,14 @@ async function parseWireFile( inputfile ) {
             // single wire file - set the initial total to zero
             if (currentWireJSON.hasOwnProperty("'{2000}'") && !currentWireJSON.totalAmount && output.hasMultipleWires == false) {
                 currentWireJSON.totalAmount = 0
+            }
+
+            if (currentWireJSON.hasOwnProperty("'{1520}'")) {
+                output.IMAD = currentWireJSON["'{1520}'"]
+            }
+
+            if (currentWireJSON.hasOwnProperty("'{1120}'")) {
+                output.OMAD = currentWireJSON["'{1120}'"]
             }
 
             // multiple wires - pull total
