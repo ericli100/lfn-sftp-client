@@ -1531,6 +1531,22 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
 
                             quickBalanceJSON.IMAD = 'MULTIPLE';
                             await baas.sql.file.setIMAD({ entityId: file.entityId, contextOrganizationId, IMAD: 'MULTIPLE', correlationId })
+
+
+                            // we have multiple wires... need to split out into multifile
+                            output.isMultifile = true
+                            await baas.sql.file.setMultifileParent({ entityId: file.entityId, contextOrganizationId, correlationId })
+                            await baas.audit.log( {baas, logger: baas.logger, level: 'info', message: `Updated the file to set the [isMultifile] and [isMultifileParent] flags to TRUE because of multiple WIRE files`, correlationId, effectedEntityId: file.entityId } )
+
+                            // Write out the new files and add them to the DB
+                            await splitOutMultifileWIRE({ baas, logger: baas.logger, VENDOR_NAME, ENVIRONMENT, PROCESSING_DATE, workingDirectory, fullFilePath, parentFile: file, config, correlationId })
+
+                            // we added new files... we should add them to the current processing array :thinking:
+                            let updatedUnprocessedFiles = await baas.sql.file.getUnprocessedFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
+                            let newEntries = updatedUnprocessedFiles.filter(({ entityId: id1 }) => !unprocessedFiles.some(({ entityId: id2 }) => id2 === id1)); 
+
+                            // add the newEntries to the existing unprocessedFiles array... probably a bad idea, but want to process in context.
+                            unprocessedFiles.push.apply(unprocessedFiles, newEntries);
                         }
                         
                         if(file.isOutboundToFed) {
@@ -1549,6 +1565,8 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
 
                         
                         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId, effectedEntityId: file.entityId })
+
+                        throw('ADD LOGIC TO PREVENT SEND OF ALREADY PROCESSED FILES')
                     } catch (fedWireError) {
                         // await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${fedWireError}]`, correlationId, effectedEntityId: file.entityId })
                         throw (fedWireError)
@@ -1590,6 +1608,212 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
     }
 
     return 
+}
+
+async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, PROCESSING_DATE, workingDirectory, fullFilePath, parentFile, config, wiresArray, correlationId }) {
+
+    // ******************************************
+    // ******************************************
+    // *****                                 ****
+    // *****      SPLIT MULTILFILE WIRE       ****
+    // *****                                 ****
+    // ******************************************
+    // ******************************************
+
+    let output = {}
+
+    let parentEntityId = parentFile.entityId;
+
+    // CALL THE FUNCTION TO SPLIT THE FILES
+    // Process for each split out file
+    parentFile
+    let fileName = path.basename( fullFilePath ).name
+    let fileExt = path.basename( fullFilePath ).ext
+
+    // run for each child wire file
+    let loopCount = 0
+    for (let childFileData of wiresArray) {
+        loopCount++
+
+        let childFilePath = path.resolve(workingDirectory, fileName, `_${loopCount}`, fileExt );
+
+        fs.writeSync(childFilePath, childFileData);
+
+        let childFileName = path.basename( childFilePath )
+
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - SPLIT FILE NAME [${path.basename( fullFilePath )}] for environment [${ENVIRONMENT}] the new child file is called [${childFileName}]`, effectedEntityId: parentEntityId, correlationId })
+
+        //// ********************************************************* ////
+        //// **** BEGIN -- FILE TO THE DATABASE AND VALIDATION
+        //// *********************************************************
+
+        let sha256 = await baas.sql.file.generateSHA256( childFilePath )
+        var fileEntityId = await baas.sql.file.exists( sha256, true )
+
+        // the file does not exist... let's create a new ID to tie the audit entries to before creation.
+        if(!fileEntityId) fileEntityId = await baas.id.generate()
+
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] calculated SHA256: [${sha256}]`, effectedEntityId: parentEntityId, correlationId })
+
+        // WRITE THE FILE TO THE DATABASE
+        // DOWNLOAD THE FILE TO BUFFER
+        // LOAD IT
+        // DELETE THE FILE FROM BUFFER
+        let inputFileOutput
+        let file = {}
+        file.filename = childFileName
+        file.entityId = fileEntityId
+
+        let audit = {}
+        audit.vendor = VENDOR_NAME
+        audit.filename = childFileName
+        audit.environment = ENVIRONMENT
+        audit.entityId = fileEntityId
+        audit.correlationId = correlationId 
+
+        let effectiveDate = new Date(parentFile.effectiveDate).toISOString().slice(0, 19).replace('T', ' ');
+
+        try{
+            let inputFileObj = {
+                baas, 
+                vendor: VENDOR_NAME,
+                sql: baas.sql, 
+                contextOrganizationId: parentFile.contextOrganizationId, 
+                fromOrganizationId: parentFile.fromOrganizationId, 
+                toOrganizationId: parentFile.toOrganizationId, 
+                inputFile: splitFilePath, 
+                isOutbound: parentFile.isInboundFromFed,
+                effectiveDate: effectiveDate,
+                overrideExtension: 'txt',
+                source: 'lineage:/' + `${VENDOR_NAME}.${ENVIRONMENT}.multifile:${parentEntityId.trim()}`,
+                destination: parentFile.destination,
+            }
+            
+            /// ******************************
+            /// ** DETERMINE THE FILE TYPE **    <----
+            /// ******************************
+
+            let fileTypeId
+            let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId, PROCESSING_DATE } )
+            if( determinedFileTypeId.fileTypeId ) {
+                inputFileObj.fileTypeId = determinedFileTypeId.fileTypeId;
+                fileTypeId = determinedFileTypeId.fileTypeId;
+                inputFileObj.fileNameOutbound = determinedFileTypeId.fileNameOutbound
+                inputFileObj.overrideExtension = determinedFileTypeId.overrideExtension
+            }
+
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] detected a valid File Type [${ JSON.stringify(determinedFileTypeId) }]`, effectedEntityId: parentEntityId, correlationId })
+            // this is a multipart file, act like it.
+            inputFileObj.isMultifile = 1
+            inputFileObj.isMultifileParent = 1
+            inputFileObj.parentEntityId = parentEntityId
+            inputFileObj.correlationId = correlationId
+            inputFileObj.fileEntityId = fileEntityId
+
+            // ***********************************
+            // *** WRITE THE FILE TO THE DB ****
+            // ***********************************
+            inputFileOutput = await baas.input.file( inputFileObj )
+            fileEntityId = inputFileOutput.fileEntityId
+            if(!file.entityId) file.entityId = fileEntityId;
+            audit.entityId = fileEntityId
+
+        } catch (err) {
+            if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] Failed to split properly!`, effectedEntityId: parentEntityId, correlationId  })
+                throw(err);
+            }
+            let existingEntityId = await baas.sql.file.exists( sha256, true )
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] file already exists in the database with SHA256: [${sha256}]`, effectedEntityId: parentEntityId, correlationId  })
+        }
+
+        // encrypt the file with Lineage GPG keys prior to vaulting
+        let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, childFilePath, childFilePath + '.gpg' )          
+
+        if(!fileEntityId) {
+            // check db if sha256 exists
+            fileEntityId = await baas.sql.file.exists( sha256, true )
+            audit.entityId = fileEntityId
+            if(!file.entityId) file.entityId = fileEntityId;
+        }
+
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - file [${childFileName}] was encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: parentEntityId, correlationId })
+
+        // (vault the file as PGP armored text)
+        let fileVaultExists = await baas.sql.fileVault.exists( '', fileEntityId )
+
+        // this is the same for now. Hard code this and move on.
+        let fileVaultId = fileEntityId
+
+        if(!fileVaultExists) {
+            if(DEBUG) console.log(`[baas.processing.splitOutMultifileWIRE()]: loading NEW file to the fileVault: ${childFileName}`)
+            await baas.input.fileVault({baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId: config.contextOrganizationId, fileEntityId, pgpSignature: 'lineage', filePath: childFilePath + '.gpg', fileVaultEntityId: fileEntityId, correlationId })
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] was loaded into the File Vault encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: parentEntityId, correlationId  })
+
+            await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, fileVaultId})
+        } else {
+            await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, fileVaultId})
+        }
+        await deleteBufferFile( childFilePath + '.gpg' ) // remove the local file now it is uploaded
+        
+        // download the file to validate it ( check the SHA256 Hash )
+        let fileVaultObj = {
+            baas: baas,
+            VENDOR: VENDOR_NAME,
+            contextOrganizationId: config.contextOrganizationId,
+            sql: baas.sql, 
+            entityId: '', 
+            fileEntityId: fileEntityId, 
+            destinationPath: childFilePath + '.gpg'
+        }
+        
+        await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+        await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: childFilePath + '.gpg', destinationFilePath: childFilePath + '.VALIDATION' })
+
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: parentEntityId, correlationId })
+        let sha256_VALIDATION = await baas.sql.file.generateSHA256( childFilePath + '.VALIDATION' )
+
+        // check if Win32 and update the EOL because windows... /facepalm
+        if(os.platform == 'win32'){
+            if((sha256 != sha256_VALIDATION)){
+                const removeCLRF = fs.readFileSync( path.resolve( childFilePath + '.VALIDATION' )).toString()
+                fs.writeFileSync( path.resolve( childFilePath + '.VALIDATION' ), eol.split(removeCLRF).join(eol.lf) ) 
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: [baas.processing.splitOutMultifileWIRE())] WIN32 Detected Remove CRLF on Validation before SHA256 check [${childFilePath + '.VALIDATION'}] for environment [${ENVIRONMENT}] with SHA256 Hash [${sha256_VALIDATION}].`, effectedEntityId: parentEntityId, correlationId })
+            }
+        }
+
+        sha256_VALIDATION = await baas.sql.file.generateSHA256( childFilePath + '.VALIDATION' )
+
+        if (sha256 == sha256_VALIDATION) {
+            // okay... we are 100% validated. We pulled the file, 
+            // decrypted it, encrypted with our key, wrote it to 
+            // the DB, downloaded it, decrypted it 
+            // and validated the sha256 hash.
+
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: [baas.processing.splitOutMultifileWIRE()] SFTP file [${childFilePath}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: parentEntityId, correlationId })
+
+            await baas.sql.file.setIsVaultValidated({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, correlationId})
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: [baas.processing.splitOutMultifileWIRE()] SFTP file [${childFilePath}] for environment [${ENVIRONMENT}] with SHA256 Hash [${sha256_VALIDATION}] set the baas.files.isVaultValidated flag to true`, effectedEntityId: parentEntityId, correlationId })
+            
+            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( childFilePath + '.VALIDATION' )
+        } else {
+            await baas.sql.file.setFileRejected({entityId: fileEntityId,  contextOrganizationId: config.contextOrganizationId, rejectedReason: '[baas.processing.splitOutMultifileWIRE()] SHA256 failed to match - file corrupt', correlationId })
+            await baas.sql.file.setFileHasErrorProcessing({entityId: fileEntityId,  contextOrganizationId: config.contextOrganizationId, correlationId })
+            throw(`[baas.processing.splitOutMultifileWIRE()]: Error: The SHA256 Validation Failed. This is not expected to happen. This file ${childFileName} is bogus. SourceHASH:[${sha256}] DatabaseHASH:[${sha256_VALIDATION}]`)
+        }
+
+        // buffer cleanup
+        fileEntityId = null
+        fileVaultId = null
+        inputFileOutput = null
+        audit.entityId = null
+
+        if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( childFilePath )
+        if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( childFilePath + '.gpg' )
+
+    }
+
+    return output
 }
 
 async function splitOutMultifileACH({ baas, logger, VENDOR_NAME, ENVIRONMENT, PROCESSING_DATE, workingDirectory, fullFilePath, parentFile, config, correlationId }) {
