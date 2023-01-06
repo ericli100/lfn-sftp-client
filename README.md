@@ -33,6 +33,18 @@ brew tap tinygo-org/tools
 brew install tinygo
 ```
 
+
+## FedWire Processing
+
+### IMAD
+<img width="566" alt="Screen Shot 2023-01-06 at 6 10 43 AM" src="https://user-images.githubusercontent.com/2130829/211011226-94fcfc65-02e1-4493-b4bd-85b1fd50837b.png">
+<img width="569" alt="Screen Shot 2023-01-06 at 6 11 10 AM" src="https://user-images.githubusercontent.com/2130829/211011280-b52b370c-64b8-4656-bf21-8138b2c34847.png">
+
+### OMAD
+<img width="569" alt="Screen Shot 2023-01-06 at 6 10 17 AM" src="https://user-images.githubusercontent.com/2130829/211011315-1e8a61cc-95fa-4308-b93d-6dc3732e3a0b.png">
+<img width="559" alt="Screen Shot 2023-01-06 at 6 11 25 AM" src="https://user-images.githubusercontent.com/2130829/211011337-42180e1d-9780-4fb3-adba-8c53fea9b142.png">
+
+
 ### Export the WASM
 Here are the steps to update this export this module:
 
