@@ -23,7 +23,7 @@ const wasmBuffer = fs.readFileSync( wasmPath );
 async function parse ( inputfile ) {
     const EXECUTE_MOOV_WASM = true
 
-    if(!inputfile) inputfile = './src/baas/wire/wire_fed_20220623132146_0.txt'
+    if(!inputfile) throw ('baas.wire.parse is missing an inputfile')
     // if(!inputfile) inputfile = './src/baas/wire/sample_wire.txt'
 
     let input = await inputFileToString( inputfile )
@@ -218,6 +218,15 @@ async function parse ( inputfile ) {
 
                 output.wires.push( wire )
                 output.totalAmount = parseInt(wire.amount.amount)
+                output.hasMultipleWires = false
+
+                if(wire.inputMessageAccountabilityData){
+                    output.IMAD = `${wire.inputMessageAccountabilityData.inputCycleDate}${wire.inputMessageAccountabilityData.inputSource}${wire.inputMessageAccountabilityData.inputSequenceNumber}`
+                }
+
+                if(wire.outputMessageAccountabilityData){
+                    console.warn('add wire entry for MOOV parse to JSON of OMAD')
+                }
 
                 return output
 
