@@ -29,7 +29,7 @@ var ENABLE_FILE_RECEIPT_PROCESSING
 var ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
 var ENABLE_NOTIFICATION
 var DISABLE_INBOUND_FILE_SPLIT = false
-var DISABLE_INBOUND_FILE_SPLIT_WIRES = false
+var DISABLE_FILE_SPLIT_WIRES = false
 var ENABLE_REPORT_PROCESSING = false
 
 var DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
@@ -63,7 +63,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     ENABLE_REMOTE_DELETE = CONFIG.processing.ENABLE_REMOTE_DELETE
     ENABLE_NOTIFICATION = CONFIG.processing.ENABLE_NOTIFICATIONS
     if (CONFIG.processing.DISABLE_INBOUND_FILE_SPLIT == true) { DISABLE_INBOUND_FILE_SPLIT = true }
-    if (CONFIG.processing.DISABLE_INBOUND_FILE_SPLIT_WIRES == true) { DISABLE_INBOUND_FILE_SPLIT_WIRES = true }
+    if (CONFIG.processing.DISABLE_FILE_SPLIT_WIRES == true) { DISABLE_FILE_SPLIT_WIRES = true }
 
     if(CONFIG.processing.ENABLE_REPORT_PROCESSING == true) { ENABLE_REPORT_PROCESSING = true }
 
@@ -1537,7 +1537,7 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                             quickBalanceJSON.IMAD = 'MULTIPLE';
                             await baas.sql.file.setIMAD({ entityId: file.entityId, contextOrganizationId, IMAD: 'MULTIPLE', correlationId })
 
-                            if(!DISABLE_INBOUND_FILE_SPLIT_WIRES){ // feature flag for file split wires
+                            if(!DISABLE_FILE_SPLIT_WIRES){ // feature flag for file split wires
                                 // we have multiple wires... need to split out into multifile
                                 output.isMultifile = true
                                 await baas.sql.file.setMultifileParent({ entityId: file.entityId, contextOrganizationId, correlationId })
@@ -1570,7 +1570,7 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                             quickBalanceJSON.creditCount = parsedWire.wires.length
 
                             if (parsedWire.hasMultipleWires == true){
-                                if(!DISABLE_INBOUND_FILE_SPLIT_WIRES){ // feature flag for file split wires 
+                                if(!DISABLE_FILE_SPLIT_WIRES){ // feature flag for file split wires 
                                     // prevent the processing of the Parent file, let the Child files be processed instead
                                     await baas.sql.file.setIsReceiptProcessed( {entityId: file.entityId, contextOrganizationId, isReceiptProcessed: 1, correlationId} )
                                     await baas.sql.file.setIsSentToDepositOperations( {entityId: file.entityId, contextOrganizationId, isSentToDepositOperations: 1, correlationId} )
