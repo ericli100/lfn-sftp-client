@@ -885,7 +885,6 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
                     fileIsOnRemote = await baas.sftp.validateFileExistsOnRemote(CONFIG, remoteDestination, path.basename(fullFilePath) + '.gpg')
                 }
 
-               
                 if (fileIsOnRemote) {
                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
                     await baas.processing.deleteBufferFile(fullFilePath + '.gpg') // remove the local file now it is uploaded

@@ -1638,7 +1638,6 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
 
     // CALL THE FUNCTION TO SPLIT THE FILES
     // Process for each split out file
-    parentFile
     let fileName = path.parse( fullFilePath ).name
     let fileExt = path.parse( fullFilePath ).ext
 
@@ -1648,9 +1647,7 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
         loopCount++
 
         let childFilePath = path.resolve(workingDirectory, `${fileName}_child_${loopCount}${fileExt}`);
-
         fs.writeFileSync(childFilePath, childFileData);
-
         let childFileName = path.basename( childFilePath )
 
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - SPLIT FILE NAME [${path.basename( fullFilePath )}] for environment [${ENVIRONMENT}] the new child file is called [${childFileName}]`, effectedEntityId: parentEntityId, correlationId })
@@ -1737,10 +1734,12 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
         
             if(parentFile.isInboundFromFed) {
                 // allow the split files to be processed individually
-                inputFileObj.isReceiptProcessed = 0
-                inputFileObj.isSentToDepositOperations = 0
-                inputFileObj.isSentViaSFTP = 0
-                inputFileObj.isEmailAdviceSent = 0
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] ONE TIME PROCESSING - CHILD FILE MARKED AS PROCESSED AND SENT. Receipt, Sent To Deposit Ops, Sent SFTP, and Email advice all marked true.]`, effectedEntityId: parentEntityId, correlationId })
+                console.warn('** REMOVE THIS AFTER 1 TIME PROCESSING **');
+                inputFileObj.isReceiptProcessed = 1
+                inputFileObj.isSentToDepositOperations = 1
+                inputFileObj.isSentViaSFTP = 1
+                inputFileObj.isEmailAdviceSent = 1
             }
 
             inputFileOutput = await baas.input.file( inputFileObj )
