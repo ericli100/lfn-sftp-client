@@ -1745,12 +1745,12 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
         
             if(parentFile.isInboundFromFed) {
                 // allow the split files to be processed individually
-                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] ONE TIME PROCESSING - CHILD FILE MARKED AS PROCESSED AND SENT. Receipt, Sent To Deposit Ops, Sent SFTP, and Email advice all marked true.]`, effectedEntityId: parentEntityId, correlationId })
-                console.warn('** REMOVE THIS AFTER 1 TIME PROCESSING **');
-                inputFileObj.isReceiptProcessed = 1
-                inputFileObj.isSentToDepositOperations = 1
-                inputFileObj.isSentViaSFTP = 1
-                inputFileObj.isEmailAdviceSent = 1
+                // await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] ONE TIME PROCESSING - CHILD FILE MARKED AS PROCESSED AND SENT. Receipt, Sent To Deposit Ops, Sent SFTP, and Email advice all marked true.]`, effectedEntityId: parentEntityId, correlationId })
+                // console.warn('** REMOVE THIS AFTER 1 TIME PROCESSING **');
+                inputFileObj.isReceiptProcessed = 0
+                inputFileObj.isSentToDepositOperations = 0
+                inputFileObj.isSentViaSFTP = 0
+                inputFileObj.isEmailAdviceSent = 0
             }
 
             inputFileOutput = await baas.input.file( inputFileObj )
