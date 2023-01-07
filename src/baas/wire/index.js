@@ -38,6 +38,7 @@ async function parse ( inputfile ) {
             go.run(wasm.instance)
 
             let output = {}
+            output.wiresArray = []
             output.isOutbound = false
             output.isInbound = false
 
@@ -47,6 +48,8 @@ async function parse ( inputfile ) {
             let parsed = ''
             let linenumber = 0
             for(let line of input){
+                output.wiresArray.push( line );
+
                 let skipLine = false
                 linenumber ++
                 let spaces = '                                                                                                    '
@@ -212,6 +215,7 @@ async function parse ( inputfile ) {
             
             try{
                 output.rawParsed = parsed
+                output.wiresArray.push( parsed );
                 let wire = await globalThis.parseContents(parsed)
                 wire = JSON.parse(wire); 
                 wire = wire.fedWireMessage;
@@ -275,6 +279,8 @@ async function parseWireFile( inputfile ) {
 
     output.totalAmount = 0
 
+    output.wiresArray = [];
+
     // 1520 - IMAD [Input Message Accountability Data]( Unique ID for originated Wire )
     output.IMAD = ''
 
@@ -293,6 +299,9 @@ async function parseWireFile( inputfile ) {
 
         // it will be easier to deal with an array versus reacting to events
         output.parsedFileArray.push(line);
+
+        // todo: validate if there is an entire wire on the line
+        output.wiresArray.push( line );
       });
   
       await events.once(rl, 'close');

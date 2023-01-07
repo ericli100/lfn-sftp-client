@@ -1076,6 +1076,9 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     try{
         output.isFedWire = await baas.wire.isFedWireCheck( { inputFile: inputFileObj.inputFile }) // false; // WIRE_INBOUND
         output.isFedWireConfirmation = false;
+        
+        // this cannot be both... reset the isCSV to false
+        if(output.isFedWire) output.isCSV = false
 
         if(`${config.vendor}.${config.environment}:/${config.vendor}.${config.environment}.trace` == inputFileObj.destination) {
             output.isFedWireConfirmation = true
@@ -1089,7 +1092,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         output.isFedWireConfirmation = false;
     }
 
-    if(output.isFedWire && !output.isFedWireConfirmation) {
+    if(output.isFedWire && !output.isFedWireConfirmation && inputFileObj.isOutbound == false) {
         FILE_TYPE_MATCH = 'WIRE_INBOUND'
         extensionOverride = 'txt'
     }
@@ -1146,7 +1149,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
             if (fileTypeId.length == 1) {
                 // okay... we did not match the CSV definitions above BUT... we only have1 option. Let's set it and go on.
                 output.fileTypeId = fileTypeId[0].entityId.trim()
-                FILE_TYPE_MATCH = 'CSV'
+                FILE_TYPE_MATCH = 'CSV' // ???
 
                 output.fileNameOutbound = PROCESSING_DATE + '_' + output.fileName
 
@@ -1171,7 +1174,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
             }
         }
 
-        output.fileTypeId = matchedFileType.entityId.trim()
+        if (matchedFileType.entityId) output.fileTypeId = matchedFileType.entityId.trim()
         
         if(output.fileTypeId) {
             output.fileNameFormat = matchedFileType.fileNameFormat
@@ -1532,14 +1535,13 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                             quickBalanceJSON.IMAD = 'MULTIPLE';
                             await baas.sql.file.setIMAD({ entityId: file.entityId, contextOrganizationId, IMAD: 'MULTIPLE', correlationId })
 
-
                             // we have multiple wires... need to split out into multifile
                             output.isMultifile = true
                             await baas.sql.file.setMultifileParent({ entityId: file.entityId, contextOrganizationId, correlationId })
                             await baas.audit.log( {baas, logger: baas.logger, level: 'info', message: `Updated the file to set the [isMultifile] and [isMultifileParent] flags to TRUE because of multiple WIRE files`, correlationId, effectedEntityId: file.entityId } )
 
                             // Write out the new files and add them to the DB
-                            await splitOutMultifileWIRE({ baas, logger: baas.logger, VENDOR_NAME, ENVIRONMENT, PROCESSING_DATE, workingDirectory, fullFilePath, parentFile: file, config, correlationId })
+                            await splitOutMultifileWIRE({ baas, logger: baas.logger, VENDOR_NAME, ENVIRONMENT, PROCESSING_DATE, workingDirectory, fullFilePath, parentFile: file, wiresArray: parsedWire.wiresArray, config, correlationId })
 
                             // we added new files... we should add them to the current processing array :thinking:
                             let updatedUnprocessedFiles = await baas.sql.file.getUnprocessedFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
@@ -1552,21 +1554,31 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                         if(file.isOutboundToFed) {
                             quickBalanceJSON.totalDebits = parsedWire.totalAmount
                             quickBalanceJSON.debitCount = parsedWire.wires.length
+
+                            if (parsedWire.hasMultipleWires == true){
+                                // do nothing... send the consolidated file
+                                // ensure the child files are marked processed in the splitOutMultifileWIRE code
+                            }
                         }
 
                         if(file.isInboundFromFed) {
                             quickBalanceJSON.totalCredits = parsedWire.totalAmount
                             quickBalanceJSON.creditCount = parsedWire.wires.length
+
+                            if (parsedWire.hasMultipleWires == true){
+                                // prevent the processing of the Parent file, let the Child files be processed instead
+                                await baas.sql.file.setIsReceiptProcessed( {entityId: file.entityId, contextOrganizationId, isReceiptProcessed: 1, correlationId} )
+                                await baas.sql.file.setIsSentToDepositOperations( {entityId: file.entityId, contextOrganizationId, isSentToDepositOperations: 1, correlationId} )
+                                await baas.sql.file.setIsSentViaSFTP( {entityId: file.entityId, contextOrganizationId, isSentViaSFTP: 1, correlationId} )
+                                await baas.sql.file.setIsEmailAdviceSent( {entityId: file.entityId, contextOrganizationId, isEmailAdviceSent: 1, correlationId} )
+                            }
                         }
 
                         await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed wire quickBalanceJSON: ${JSON.stringify(quickBalanceJSON)}`, correlationId} )
 
                         let updateJSONSQL = await baas.sql.file.updateJSON({ entityId: file.entityId, quickBalanceJSON: quickBalanceJSON, contextOrganizationId, correlationId })
 
-                        
                         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId, effectedEntityId: file.entityId })
-
-                        throw('ADD LOGIC TO PREVENT SEND OF ALREADY PROCESSED FILES')
                     } catch (fedWireError) {
                         // await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${fedWireError}]`, correlationId, effectedEntityId: file.entityId })
                         throw (fedWireError)
@@ -1615,7 +1627,7 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
     // ******************************************
     // ******************************************
     // *****                                 ****
-    // *****      SPLIT MULTILFILE WIRE       ****
+    // *****      SPLIT MULTILFILE WIRE      ****
     // *****                                 ****
     // ******************************************
     // ******************************************
@@ -1627,17 +1639,17 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
     // CALL THE FUNCTION TO SPLIT THE FILES
     // Process for each split out file
     parentFile
-    let fileName = path.basename( fullFilePath ).name
-    let fileExt = path.basename( fullFilePath ).ext
+    let fileName = path.parse( fullFilePath ).name
+    let fileExt = path.parse( fullFilePath ).ext
 
     // run for each child wire file
     let loopCount = 0
     for (let childFileData of wiresArray) {
         loopCount++
 
-        let childFilePath = path.resolve(workingDirectory, fileName, `_${loopCount}`, fileExt );
+        let childFilePath = path.resolve(workingDirectory, `${fileName}_child_${loopCount}${fileExt}`);
 
-        fs.writeSync(childFilePath, childFileData);
+        fs.writeFileSync(childFilePath, childFileData);
 
         let childFileName = path.basename( childFilePath )
 
@@ -1681,8 +1693,8 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
                 contextOrganizationId: parentFile.contextOrganizationId, 
                 fromOrganizationId: parentFile.fromOrganizationId, 
                 toOrganizationId: parentFile.toOrganizationId, 
-                inputFile: splitFilePath, 
-                isOutbound: parentFile.isInboundFromFed,
+                inputFile: childFilePath, 
+                isOutbound: parentFile.isOutboundToFed,
                 effectiveDate: effectiveDate,
                 overrideExtension: 'txt',
                 source: 'lineage:/' + `${VENDOR_NAME}.${ENVIRONMENT}.multifile:${parentEntityId.trim()}`,
@@ -1713,6 +1725,24 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
             // ***********************************
             // *** WRITE THE FILE TO THE DB ****
             // ***********************************
+            if(parentFile.isOutboundToFed) {
+                // Only process the parent and do not allow the split files to be processed individually
+                inputFileObj.isReceiptProcessed = 1
+                inputFileObj.isSentToDepositOperations = 1
+
+                // this is outbound... set this flag to false
+                inputFileObj.isSentViaSFTP = 0
+                inputFileObj.isEmailAdviceSent = 1
+            }
+        
+            if(parentFile.isInboundFromFed) {
+                // allow the split files to be processed individually
+                inputFileObj.isReceiptProcessed = 0
+                inputFileObj.isSentToDepositOperations = 0
+                inputFileObj.isSentViaSFTP = 0
+                inputFileObj.isEmailAdviceSent = 0
+            }
+
             inputFileOutput = await baas.input.file( inputFileObj )
             fileEntityId = inputFileOutput.fileEntityId
             if(!file.entityId) file.entityId = fileEntityId;
@@ -1737,7 +1767,7 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
             if(!file.entityId) file.entityId = fileEntityId;
         }
 
-        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - file [${childFileName}] was encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: parentEntityId, correlationId })
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] was encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: parentEntityId, correlationId })
 
         // (vault the file as PGP armored text)
         let fileVaultExists = await baas.sql.fileVault.exists( '', fileEntityId )

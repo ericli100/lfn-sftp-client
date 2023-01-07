@@ -362,7 +362,7 @@ async function createFileEntitySQL({ sql, fileEntityId, correlationId, contextOr
     return output
 }
 
-async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isMultifile, parentEntityId, effectiveDate, isOutbound, correlationId, source, destination, fileNameOutbound, isTrace } ){
+async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isMultifile, parentEntityId, effectiveDate, isOutbound, correlationId, source, destination, fileNameOutbound, isTrace, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent } ){
     let output = {}
     
     let fileInsert = {
@@ -383,8 +383,13 @@ async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrg
         fileNameOutbound: fileNameOutbound,
         isMultifile: isMultifile, 
         parentEntityId: parentEntityId,
-        isTrace: isTrace, 
+        isTrace: isTrace,
+        isReceiptProcessed,
+        isSentToDepositOperations,
+        isSentViaSFTP,
+        isEmailAdviceSent,
     }
+
     let sql1 = await sql.file.insert( fileInsert )
 
     let param = {}
@@ -1029,7 +1034,7 @@ async function fileVault({ baas, VENDOR, sql, contextOrganizationId, fileEntityI
     return output
 }
 
-async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, source, destination, effectiveDate, fileTypeId, overrideExtension, fileNameOutbound, isMultifile, isMultifileParent, parentEntityId, correlationId, fileEntityId, isTrace } ) {    
+async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, source, destination, effectiveDate, fileTypeId, overrideExtension, fileNameOutbound, isMultifile, isMultifileParent, parentEntityId, correlationId, fileEntityId, isTrace, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent } ) {    
     if(!contextOrganizationId) throw('baas.input.file: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.file: inputFile is required!')
     if(!baas) throw('baas.input.file: baas module is required!')
@@ -1040,6 +1045,11 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
     if(isOutbound == null) throw('baas.input.file: isOutboud value is required!')
     if(!isTrace) isTrace = 0
     if(!parentEntityId) parentEntityId = ''
+
+    if(!isReceiptProcessed) isReceiptProcessed = 0
+    if(!isSentToDepositOperations) isSentToDepositOperations = 0
+    if(!isSentViaSFTP) isSentViaSFTP = 0
+    if(!isEmailAdviceSent) isEmailAdviceSent = 0
 
     // allow file entityId override and specify if not provided
     if(!fileEntityId) fileEntityId = await baas.id.generate();
@@ -1074,7 +1084,7 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
         sqlStatements.push( fileEntitySQL.param )
 
         // create the file record
-        let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, effectiveDate, correlationId, source, destination, fileNameOutbound, isMultifile, isMultifileParent, parentEntityId, isTrace } )
+        let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, effectiveDate, correlationId, source, destination, fileNameOutbound, isMultifile, isMultifileParent, parentEntityId, isTrace, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent } )
         sqlStatements.push( fileSQL.param )
 
         // call SQL and run the SQL transaction to import the ach file to the database
