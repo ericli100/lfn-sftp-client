@@ -29,6 +29,7 @@ var ENABLE_FILE_RECEIPT_PROCESSING
 var ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
 var ENABLE_NOTIFICATION
 var DISABLE_INBOUND_FILE_SPLIT = false
+var DISABLE_INBOUND_FILE_SPLIT_WIRES = false
 var ENABLE_REPORT_PROCESSING = false
 
 var DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
@@ -62,6 +63,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     ENABLE_REMOTE_DELETE = CONFIG.processing.ENABLE_REMOTE_DELETE
     ENABLE_NOTIFICATION = CONFIG.processing.ENABLE_NOTIFICATIONS
     if (CONFIG.processing.DISABLE_INBOUND_FILE_SPLIT == true) { DISABLE_INBOUND_FILE_SPLIT = true }
+    if (CONFIG.processing.DISABLE_INBOUND_FILE_SPLIT_WIRES == true) { DISABLE_INBOUND_FILE_SPLIT_WIRES = true }
 
     if(CONFIG.processing.ENABLE_REPORT_PROCESSING == true) { ENABLE_REPORT_PROCESSING = true }
 
@@ -1535,20 +1537,22 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                             quickBalanceJSON.IMAD = 'MULTIPLE';
                             await baas.sql.file.setIMAD({ entityId: file.entityId, contextOrganizationId, IMAD: 'MULTIPLE', correlationId })
 
-                            // we have multiple wires... need to split out into multifile
-                            output.isMultifile = true
-                            await baas.sql.file.setMultifileParent({ entityId: file.entityId, contextOrganizationId, correlationId })
-                            await baas.audit.log( {baas, logger: baas.logger, level: 'info', message: `Updated the file to set the [isMultifile] and [isMultifileParent] flags to TRUE because of multiple WIRE files`, correlationId, effectedEntityId: file.entityId } )
+                            if(!DISABLE_INBOUND_FILE_SPLIT_WIRES){ // feature flag for file split wires
+                                // we have multiple wires... need to split out into multifile
+                                output.isMultifile = true
+                                await baas.sql.file.setMultifileParent({ entityId: file.entityId, contextOrganizationId, correlationId })
+                                await baas.audit.log( {baas, logger: baas.logger, level: 'info', message: `Updated the file to set the [isMultifile] and [isMultifileParent] flags to TRUE because of multiple WIRE files`, correlationId, effectedEntityId: file.entityId } )
 
-                            // Write out the new files and add them to the DB
-                            await splitOutMultifileWIRE({ baas, logger: baas.logger, VENDOR_NAME, ENVIRONMENT, PROCESSING_DATE, workingDirectory, fullFilePath, parentFile: file, wiresArray: parsedWire.wiresArray, config, correlationId })
+                                // Write out the new files and add them to the DB
+                                await splitOutMultifileWIRE({ baas, logger: baas.logger, VENDOR_NAME, ENVIRONMENT, PROCESSING_DATE, workingDirectory, fullFilePath, parentFile: file, wiresArray: parsedWire.wiresArray, config, correlationId })
 
-                            // we added new files... we should add them to the current processing array :thinking:
-                            let updatedUnprocessedFiles = await baas.sql.file.getUnprocessedFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
-                            let newEntries = updatedUnprocessedFiles.filter(({ entityId: id1 }) => !unprocessedFiles.some(({ entityId: id2 }) => id2 === id1)); 
+                                // we added new files... we should add them to the current processing array :thinking:
+                                let updatedUnprocessedFiles = await baas.sql.file.getUnprocessedFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
+                                let newEntries = updatedUnprocessedFiles.filter(({ entityId: id1 }) => !unprocessedFiles.some(({ entityId: id2 }) => id2 === id1)); 
 
-                            // add the newEntries to the existing unprocessedFiles array... probably a bad idea, but want to process in context.
-                            unprocessedFiles.push.apply(unprocessedFiles, newEntries);
+                                // add the newEntries to the existing unprocessedFiles array... probably a bad idea, but want to process in context.
+                                unprocessedFiles.push.apply(unprocessedFiles, newEntries);
+                            } 
                         }
                         
                         if(file.isOutboundToFed) {
@@ -1566,11 +1570,13 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                             quickBalanceJSON.creditCount = parsedWire.wires.length
 
                             if (parsedWire.hasMultipleWires == true){
-                                // prevent the processing of the Parent file, let the Child files be processed instead
-                                await baas.sql.file.setIsReceiptProcessed( {entityId: file.entityId, contextOrganizationId, isReceiptProcessed: 1, correlationId} )
-                                await baas.sql.file.setIsSentToDepositOperations( {entityId: file.entityId, contextOrganizationId, isSentToDepositOperations: 1, correlationId} )
-                                await baas.sql.file.setIsSentViaSFTP( {entityId: file.entityId, contextOrganizationId, isSentViaSFTP: 1, correlationId} )
-                                await baas.sql.file.setIsEmailAdviceSent( {entityId: file.entityId, contextOrganizationId, isEmailAdviceSent: 1, correlationId} )
+                                if(!DISABLE_INBOUND_FILE_SPLIT_WIRES){ // feature flag for file split wires 
+                                    // prevent the processing of the Parent file, let the Child files be processed instead
+                                    await baas.sql.file.setIsReceiptProcessed( {entityId: file.entityId, contextOrganizationId, isReceiptProcessed: 1, correlationId} )
+                                    await baas.sql.file.setIsSentToDepositOperations( {entityId: file.entityId, contextOrganizationId, isSentToDepositOperations: 1, correlationId} )
+                                    await baas.sql.file.setIsSentViaSFTP( {entityId: file.entityId, contextOrganizationId, isSentViaSFTP: 1, correlationId} )
+                                    await baas.sql.file.setIsEmailAdviceSent( {entityId: file.entityId, contextOrganizationId, isEmailAdviceSent: 1, correlationId} )
+                                }
                             }
                         }
 
