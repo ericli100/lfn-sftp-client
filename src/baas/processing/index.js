@@ -1705,10 +1705,15 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
             let fileTypeId
             let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId, PROCESSING_DATE } )
             if( determinedFileTypeId.fileTypeId ) {
-                inputFileObj.fileTypeId = determinedFileTypeId.fileTypeId;
-                fileTypeId = determinedFileTypeId.fileTypeId;
+                inputFileObj.fileTypeId = parentFile.fileTypeId || determinedFileTypeId.fileTypeId;
+
+                // default it to the parent type
+                fileTypeId = parentFile.fileTypeId || determinedFileTypeId.fileTypeId;
                 inputFileObj.fileNameOutbound = determinedFileTypeId.fileNameOutbound
                 inputFileObj.overrideExtension = determinedFileTypeId.overrideExtension
+            } else {
+                fileTypeId = parentFile.fileTypeId
+                inputFileObj.fileTypeId = parentFile.fileTypeId
             }
 
             await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] detected a valid File Type [${ JSON.stringify(determinedFileTypeId) }]`, effectedEntityId: parentEntityId, correlationId })
