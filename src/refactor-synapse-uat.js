@@ -241,16 +241,17 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
 
     // SET THE PROCESSING FLAGS
     config.processing = {}
-    config.processing.ENABLE_FTP_PULL = true
+    config.processing.ENABLE_FTP_PULL = false
     config.processing.ENABLE_INBOUND_EMAIL_PROCESSING = true
     config.processing.ENABLE_INBOUND_PROCESSING_FROM_DB = true
     config.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB = true
-    config.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING = true
-    config.processing.ENABLE_FILE_RECEIPT_PROCESSING = true
+    config.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING = false
+    config.processing.ENABLE_FILE_RECEIPT_PROCESSING = false
     config.processing.ENABLE_REMOTE_DELETE = true
     config.processing.ENABLE_MANUAL_DB_DOWNLOAD = false
-    config.processing.ENABLE_NOTIFICATIONS = true
+    config.processing.ENABLE_NOTIFICATIONS = false
     config.processing.DISABLE_INBOUND_FILE_SPLIT = false
+    config.processing.DISABLE_FILE_SPLIT_WIRES = false
     config.processing.ENABLE_REPORT_PROCESSING = false
 
     return config
