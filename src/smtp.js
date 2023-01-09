@@ -56,17 +56,21 @@ const emailApprovedSenders = [
     "cheryl.lamberth@lineagefn.com",
     "gloria.dodd@lineagebank.com",
     "htc.reports@fisglobal.com",
-    "ellen.hartley@lineagefn.com"
+    "ellen.hartley@lineagefn.com",
+    "fritzi.bronson@lineagebank.com",
+    "tabetha.sweeney@lineagebank.com",
+    "candace.mercer@lineagebank.com",
 ]
 
 const achApprovedSenders = [
     "cheryl.lamberth@lineagefn.com",
     "gloria.dodd@lineagebank.com",
-    "maria@citizensbankatwood.com",
-    "stephanie@citizensbankatwood.com",
     "ellen.hartley@lineagefn.com",
     "paul.hignutt@lineagefn.com",
-    "brandon.hedge@lineagebank.com"
+    "brandon.hedge@lineagebank.com",
+    "fritzi.bronson@lineagebank.com",
+    "tabetha.sweeney@lineagebank.com",
+    "candace.mercer@lineagebank.com",
 ]
 
 const achApprovedRecipients = [
