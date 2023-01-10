@@ -247,6 +247,11 @@ async function isArmoredCheck(sourceFilePath) {
 async function isGPG(sourceFilePath) {
     let output = false
     output = path.extname(sourceFilePath).toLowerCase() == '.gpg'
+
+    if (output === false ) {
+        output = path.extname(sourceFilePath).toLowerCase() == '.pgp'
+    }
+    
     return output
 }
 
