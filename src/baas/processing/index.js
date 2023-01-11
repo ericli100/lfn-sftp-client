@@ -361,13 +361,12 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
             if (file.encryptedPGP) {
                 let hasSuffixGPG = await baas.pgp.isGPG(file.filename)
                 if(hasSuffixGPG) {
-                    if(path.extname(fullFilePath).toLowerCase() == '.pgp'){
-                        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] .PGP extention was detected and will change to .GPG for processing in [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId }) 
-                        // change the encryption suffix to .gpg for standardization and because the code was originally written for this.
-                        fullFilePath = fullFilePath.substring(0, fullFilePath.indexOf('.pgp')) + '.gpg'
-                    }
                     await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath})
                     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was decrypted locally for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
+                    
+                    if(fullFilePath.split('.').pop().toLowerCase() == 'pgp') {
+                        fullFilePath = fullFilePath.substring(0, fullFilePath.indexOf('.pgp')) + '.gpg'
+                    }
                     await deleteBufferFile( fullFilePath ) // delete the original encrypted file locally
 
                     // set this to the decrypted file name without the .gpg suffix. Refactor later.

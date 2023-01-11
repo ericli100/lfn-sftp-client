@@ -127,12 +127,20 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
             ALLOW_AUDIT_ENTRIES = true
         }
     }
+    
+    if(path.extname(sourceFilePath).toLowerCase() == '.pgp'){
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: SFTP file [${audit.filename}] .PGP extention was detected and will change to .GPG for processing in [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId })
+        sourceFilePath = sourceFilePath.substring(0, sourceFilePath.indexOf('.pgp')) + '.gpg'
+    }
 
     if (!destinationFilePath) {
         let hasSuffixGPG = ( sourceFilePath.split('.').pop().toLowerCase() == 'gpg' ) 
+        if(!hasSuffixGPG) hasSuffixGPG = ( sourceFilePath.split('.').pop().toLowerCase() == 'pgp' ) 
         if (hasSuffixGPG) {
-            destinationFilePath = sourceFilePath.substring(0, sourceFilePath.indexOf('.gpg'))
-            if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] has [.gpg] suffix for environment [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId })
+            if ( sourceFilePath.split('.').pop().toLowerCase() == 'gpg' ) destinationFilePath = sourceFilePath.substring(0, sourceFilePath.indexOf('.gpg'))
+            if ( sourceFilePath.split('.').pop().toLowerCase() == 'pgp' ) destinationFilePath = sourceFilePath.substring(0, sourceFilePath.indexOf('.pgp'))
+
+            if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] has [.gpg | .pgp] suffix for environment [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId })
         } else {
             destinationFilePath = sourceFilePath + '_DECRYPTED'
         }
