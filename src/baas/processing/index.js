@@ -31,6 +31,9 @@ var ENABLE_NOTIFICATION
 var DISABLE_INBOUND_FILE_SPLIT = false
 var DISABLE_FILE_SPLIT_WIRES = false
 var ENABLE_REPORT_PROCESSING = false
+var ENABLE_TEAMS_NOTIFICATION = false
+var ENABLE_SLACK_NOTIFICATION = true
+var ENABLE_EMAIL_NOTIFICATION = true
 
 var DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
 var KEEP_PROCESSING_ON_ERROR = true
@@ -98,14 +101,30 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
             }
     
             // send email notification
-            let subject = 'SFTP PROCESSING ERRORS'
-            let emailSent = await baas.notification.sendEmailNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, subject, message, correlationId: CORRELATION_ID })
+            let emailSent
+            if(ENABLE_EMAIL_NOTIFICATION){
+                let subject = 'SFTP PROCESSING ERRORS'
+                emailSent = await baas.notification.sendEmailNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, subject, message, correlationId: CORRELATION_ID })
+            } else {
+                emailSent = true;
+            }
 
-            // send teams notification
-            let teamsSent = await baas.notification.sendTeamsNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
-    
-            // send slack notification
-            let slackSent = await baas.notification.sendSlackNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
+            let teamsSent
+            if(ENABLE_TEAMS_NOTIFICATION){
+                // send teams notification
+                teamsSent = await baas.notification.sendTeamsNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
+            } else {
+                teamsSent = true
+            }
+
+            let slackSent
+            if(ENABLE_SLACK_NOTIFICATION){
+                // send slack notification
+                slackSent = await baas.notification.sendSlackNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
+            } else {
+                slackSent = true
+            }
+
     
             if(emailSent && teamsSent && slackSent) {
                 //set the Error Audit messages [isNotificationSent] = 1
@@ -214,15 +233,30 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
             }
     
             // send email notification
-            let subject = 'SFTP PROCESSING ERRORS'
-            let emailSent = await baas.notification.sendEmailNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, subject, message, correlationId: CORRELATION_ID })
+            let emailSent
+            if(ENABLE_EMAIL_NOTIFICATION){
+                let subject = 'SFTP PROCESSING ERRORS'
+                emailSent = await baas.notification.sendEmailNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, subject, message, correlationId: CORRELATION_ID })
+            } else {
+                emailSent = true;
+            }
 
-            // send teams notification
-            let teamsSent = await baas.notification.sendTeamsNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
-    
-            // send slack notification
-            let slackSent = await baas.notification.sendSlackNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
-    
+            let teamsSent
+            if(ENABLE_TEAMS_NOTIFICATION){
+                // send teams notification
+                teamsSent = await baas.notification.sendTeamsNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
+            } else {
+                teamsSent = true
+            }
+
+            let slackSent
+            if(ENABLE_SLACK_NOTIFICATION){
+                // send slack notification
+                slackSent = await baas.notification.sendSlackNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
+            } else {
+                slackSent = true
+            }
+
             if(emailSent && teamsSent && slackSent) {
                 //set the Error Audit messages [isNotificationSent] = 1
                 for(let auditId of auditIdNotificationArray){
