@@ -60,6 +60,9 @@ async function main (args) {
     const notification = require('./notification')()
     baas.notification = notification
 
+    const sharepoint = require('./sharepoint')()
+    baas.sharepoint = sharepoint
+
     return baas
 }
 

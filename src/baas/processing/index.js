@@ -72,6 +72,9 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
 
     baas.logger = logger;
 
+    let client = await baas.sharepoint.getClient()
+    await baas.sharepoint.test_function(client)
+    return
     // ******************************************
     // ** PROCESS ERRORS and SEND NOTIFICATIONS
     // ******************************************
