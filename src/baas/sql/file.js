@@ -100,22 +100,30 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isReceiptProcessed, isMultifile, parentEntityId, dataJSON, quickBalanceJSON, fileNameOutbound, isTrace, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isMultifile, parentEntityId, dataJSON, quickBalanceJSON, fileNameOutbound, isTrace, OMAD, IMAD, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
         if (!dataJSON) dataJSON = {}
         if (!quickBalanceJSON) quickBalanceJSON = {}
         if (!correlationId) correlationId = 'SYSTEM'
-        if (!isReceiptProcessed) isReceiptProcessed = '0'
         if (!isProcessed) isProcessed = '0'
         if (!hasProcessingErrors) hasProcessingErrors = '0'
+
+        // processing flags
+        if (!isReceiptProcessed) isReceiptProcessed = '0'
+        if (!isSentToDepositOperations) isSentToDepositOperations = '0'
+        if (!isSentViaSFTP) isSentViaSFTP = '0'
+        if (!isEmailAdviceSent) isEmailAdviceSent = '0'
+
         if (!source) source = ''
         if (!destination) destination = ''
         if (!fileNameOutbound) fileNameOutbound = ''
         if (!isMultifile) isMultifile = '0'
         if (!parentEntityId) parentEntityId = ''
         if (!isTrace) isTrace = '0'
+        if (!OMAD) OMAD = '';
+        if (!IMAD) IMAD = '';
 
         if (parentEntityId.length > 1) {
             // there was a parentEntityId set... it is a multifile
@@ -143,9 +151,14 @@ function Handler(mssql) {
                ,[isProcessed]
                ,[hasProcessingErrors]
                ,[isReceiptProcessed]
+               ,[isSentToDepositOperations]
+               ,[isSentViaSFTP]
+               ,[isEmailAdviceSent]
                ,[fileNameOutbound]
                ,[isMultifile]
                ,[parentEntityId]
+               ,[OMAD]
+               ,[IMAD]
                ,[correlationId]
                ,[isTrace])
          VALUES
@@ -155,7 +168,7 @@ function Handler(mssql) {
                ,'${fromOrganizationId}'
                ,'${toOrganizationId}'
                ,'${fileType}'
-               ,'${fileName}'
+               ,'${fileName.replace(/[\/\(\)\']/g, "' + char(39) + '" )}'
                ,${fileBinary}
                ,'${sizeInBytes}'
                ,'${sha256}'
@@ -167,9 +180,14 @@ function Handler(mssql) {
                ,'${isProcessed}'
                ,'${hasProcessingErrors}'
                ,'${isReceiptProcessed}'
+               ,'${isSentToDepositOperations}'
+               ,'${isSentViaSFTP}'
+               ,'${isEmailAdviceSent}'
                ,'${fileNameOutbound}'
                ,'${isMultifile}'
                ,'${parentEntityId}'
+               ,'${OMAD}'
+               ,'${IMAD}'
                ,'${correlationId}'
                ,'${isTrace}'
                );`
@@ -246,6 +264,8 @@ function Handler(mssql) {
             ,f.[isSentViaSFTP]
             ,f.[sentViaSFTPDate]
             ,f.[isTrace]
+            ,f.[OMAD]
+            ,f.[IMAD]
         FROM [baas].[files] f
         INNER JOIN [baas].[fileTypes] t
         ON t.[entityId] = f.[fileTypeId] AND t.[contextOrganizationId] = f.[contextOrganizationId] AND t.[tenantId] = f.[tenantId]
@@ -374,6 +394,45 @@ function Handler(mssql) {
         return output
     }
 
+    Handler.getProcessingErrorFiles = async function getProcessingErrorFiles({contextOrganizationId, fromOrganizationId, toOrganizationId}){
+        let output = {}
+
+        let tenantId = process.env.PRIMAY_TENANT_ID
+
+        // override this
+        toOrganizationId = fromOrganizationId;
+
+        let sqlStatement = `
+        SELECT f.[entityId]
+              ,f.[filenameOutbound]
+              ,f.[filename]
+             , f.[hasProcessingErrors]
+            ,f.[quickBalanceJSON]
+        FROM [baas].[files] f
+        INNER JOIN [baas].[fileTypes] t
+        ON f.[fileTypeId] = t.entityId AND f.[tenantId] = t.[tenantId] AND f.contextOrganizationId = t.contextOrganizationId
+        WHERE f.tenantId = '${tenantId}'
+        AND f.contextOrganizationId = '${contextOrganizationId}'
+        AND (t.[fromOrganizationId] = '${fromOrganizationId}' OR t.[toOrganizationId] = '${toOrganizationId}')
+        AND f.[hasProcessingErrors] = 1
+        AND f.isProcessed = 0
+        AND f.isRejected = 0;`
+    
+        let param = {}
+        param.params = []
+        param.tsql = sqlStatement
+        
+        try {
+            let results = await mssql.sqlQuery(param);
+            output = results.data
+        } catch (err) {
+            console.error(err)
+            throw err
+        }
+
+        return output
+    }
+
     Handler.validateACHQuickBalanceJSON = async function validateACHQuickBalanceJSON({contextOrganizationId, fromOrganizationId, toOrganizationId}){
         let output = {}
 
@@ -445,6 +504,7 @@ function Handler(mssql) {
                 ,f.[isSentViaSFTP]
                 ,f.[fedAckFileEntityId]
                 ,f.[fileVaultId]
+                ,f.[isForceOverrideProcessingErrors]
                 ,f.[isVaultValidated]
                 ,f.[quickBalanceJSON]
                 ,t.[isOutboundToFed]
@@ -635,6 +695,146 @@ function Handler(mssql) {
             UPDATE [baas].[files]
             SET [isMultifile] = 1,
                 [isMultifileParent] = 1
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
+    Handler.setIsReceiptProcessed = async function setIsReceiptProcessed( {entityId, contextOrganizationId, isReceiptProcessed, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+        if (!isReceiptProcessed) throw ('isReceiptProcessed required')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [isReceiptProcessed] = '${isReceiptProcessed}'
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
+    Handler.setIsSentToDepositOperations = async function setIsSentToDepositOperations( {entityId, contextOrganizationId, isSentToDepositOperations, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+        if (!isSentToDepositOperations) throw ('isSentToDepositOperations required')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [isSentToDepositOperations] = '${isSentToDepositOperations}'
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
+    Handler.setIsSentViaSFTP = async function setIsSentViaSFTP( {entityId, contextOrganizationId, isSentViaSFTP, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+        if (!isSentViaSFTP) throw ('isSentViaSFTP required')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [isSentViaSFTP] = '${isSentViaSFTP}'
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
+    Handler.setIsEmailAdviceSent = async function setIsEmailAdviceSent( {entityId, contextOrganizationId, isEmailAdviceSent, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+        if (!isEmailAdviceSent) throw ('isEmailAdviceSent required')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [isEmailAdviceSent] = '${isEmailAdviceSent}'
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
@@ -912,6 +1112,76 @@ function Handler(mssql) {
         let sqlStatement = `
             UPDATE [baas].[files]
             SET [isReceiptProcessed] = 1
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
+    Handler.setIMAD = async function setIMAD( {entityId, contextOrganizationId, IMAD, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+        if (!IMAD) throw ('IMAD entry required for baas.sql.file.setIMAD')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [IMAD] = '${IMAD}'
+                ,[correlationId] = '${correlationId}'
+                ,[mutatedBy] = '${mutatedBy}'
+                ,[mutatedDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
+    }
+
+    Handler.setOMAD = async function setOMAD( {entityId, contextOrganizationId, OMAD, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+        if (!OMAD) throw ('OMAD entry required for baas.sql.file.setOMAD')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [OMAD] = '${OMAD}'
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())

@@ -6,13 +6,14 @@ let ENVIRONMENT = 'prd'
 let DATACENTER = 10
 let WORKERID = 201
 
-if(!process.env.FLAKEID_DATACENTER) process.env['FLAKEID_DATACENTER'] = DATACENTER;
-if(!process.env.FLAKEID_WORKER) process.env['FLAKEID_WORKER'] = WORKERID;
-
 global.DEBUG = false;
 if(DEBUG) console.warn('** GLOBAL DEBUG == TRUE **')
 
 require('dotenv').config({ path: __dirname + '/.env' })
+
+if(!process.env.FLAKEID_DATACENTER) process.env['FLAKEID_DATACENTER'] = DATACENTER;
+if(!process.env.FLAKEID_WORKER) process.env['FLAKEID_WORKER'] = WORKERID;
+
 var path = require('path');
 const fs = require('fs');
 
@@ -65,7 +66,7 @@ async function main(){
     } catch (unhandled) {
         let errorMessage = {}
         errorMessage.message = unhandled.toString()
-        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: UNHANDLED ERROR [${ENVIRONMENT}] with ERROR:[${ JSON.stringify( errorMessage ) }]!`, correlationId: CORRELATION_ID   })
+        await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `${VENDOR_NAME}: UNHANDLED ERROR [${ENVIRONMENT}] with ERROR:[${ JSON.stringify( errorMessage ) }]!`, correlationId: CORRELATION_ID   })
     }
     
     console.log('sql: disconnecting...')
@@ -152,6 +153,9 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         "gloria.dodd@lineagebank.com",
         "htc.reports@fisglobal.com",
         "ellen.hartley@lineagefn.com",
+        "fritzi.bronson@lineagebank.com",
+        "tabetha.sweeney@lineagebank.com",
+        "candace.mercer@lineagebank.com",
         "depositoperations.outbound.processing@lineagebank.com",
     ]
     
@@ -160,6 +164,9 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         "gloria.dodd@lineagebank.com",
         "ellen.hartley@lineagefn.com",
         "paul.hignutt@lineagefn.com",
+        "fritzi.bronson@lineagebank.com",
+        "tabetha.sweeney@lineagebank.com",
+        "candace.mercer@lineagebank.com",
         "depositoperations.outbound.processing@lineagebank.com",
     ]
 
@@ -174,6 +181,9 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         "gloria.dodd@lineagebank.com",
         "ellen.hartley@lineagefn.com",
         "paul.hignutt@lineagefn.com",
+        "fritzi.bronson@lineagebank.com",
+        "tabetha.sweeney@lineagebank.com",
+        "candace.mercer@lineagebank.com",
         "depositoperations.outbound.processing@lineagebank.com",
     ]
     
@@ -230,6 +240,9 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.processing.ENABLE_REMOTE_DELETE = true
     config.processing.ENABLE_MANUAL_DB_DOWNLOAD = false
     config.processing.ENABLE_NOTIFICATIONS = true
+    config.processing.DISABLE_INBOUND_FILE_SPLIT = false
+    config.processing.DISABLE_FILE_SPLIT_WIRES = false
+    config.processing.ENABLE_REPORT_PROCESSING = false
 
     return config
 }

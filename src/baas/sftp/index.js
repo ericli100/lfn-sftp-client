@@ -209,10 +209,22 @@ async function getFile(fileDetails, workingDirectory, config = null) {
     let destinationFile
     let hasSuffixGPG = ( fileDetails.filename.split('.').pop().toLowerCase() == 'gpg' ) 
 
+    if(!hasSuffixGPG) { 
+        hasSuffixGPG = ( fileDetails.filename.split('.').pop().toLowerCase() == 'pgp' )
+    }
+
     if (fileDetails.encryptedPGP && !hasSuffixGPG) {
         destinationFile = fs.createWriteStream( path.resolve(workingDirectory + '/' + fileDetails.filename + '.gpg') ) ;
     } else {
-        destinationFile = fs.createWriteStream( path.resolve(workingDirectory + '/' + fileDetails.filename ) );
+        if( fileDetails.filename.split('.').pop().toLowerCase() == 'pgp' ){
+            // need to rename this and standardize on .gpg
+
+            // set this to the decrypted file name without the .gpg suffix. Refactor later.
+            let newDestinationFile = fileDetails.filename.substring(0, fileDetails.filename.indexOf('.pgp')) + '.gpg'
+            destinationFile = fs.createWriteStream( path.resolve(workingDirectory + '/' + newDestinationFile ) );
+        } else {
+            destinationFile = fs.createWriteStream( path.resolve(workingDirectory + '/' + fileDetails.filename ) );
+        }
     }
 
     let sourceFile = fileDetails.sourcePath + '/' + fileDetails.filename

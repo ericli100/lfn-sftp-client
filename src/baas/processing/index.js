@@ -13,6 +13,8 @@ const parseCSV = papa.unparse
 const eol = require('eol')
 const os = require('node:os');
 
+const platformReports = require('./platformReports')
+
 var VENDOR_NAME
 var ENVIRONMENT
 
@@ -26,6 +28,12 @@ var ENABLE_OUTBOUND_EMAIL_PROCESSING
 var ENABLE_FILE_RECEIPT_PROCESSING
 var ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
 var ENABLE_NOTIFICATION
+var DISABLE_INBOUND_FILE_SPLIT = false
+var DISABLE_FILE_SPLIT_WIRES = false
+var ENABLE_REPORT_PROCESSING = false
+var ENABLE_TEAMS_NOTIFICATION = false
+var ENABLE_SLACK_NOTIFICATION = true
+var ENABLE_EMAIL_NOTIFICATION = true
 
 var DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
 var KEEP_PROCESSING_ON_ERROR = true
@@ -57,11 +65,87 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     ENABLE_FILE_RECEIPT_PROCESSING = CONFIG.processing.ENABLE_FILE_RECEIPT_PROCESSING
     ENABLE_REMOTE_DELETE = CONFIG.processing.ENABLE_REMOTE_DELETE
     ENABLE_NOTIFICATION = CONFIG.processing.ENABLE_NOTIFICATIONS
+    if (CONFIG.processing.DISABLE_INBOUND_FILE_SPLIT == true) { DISABLE_INBOUND_FILE_SPLIT = true }
+    if (CONFIG.processing.DISABLE_FILE_SPLIT_WIRES == true) { DISABLE_FILE_SPLIT_WIRES = true }
+
+    if(CONFIG.processing.ENABLE_REPORT_PROCESSING == true) { ENABLE_REPORT_PROCESSING = true }
 
     baas.logger = logger;
 
+    // ******************************************
+    // ** PROCESS ERRORS and SEND NOTIFICATIONS
+    // ******************************************
+    if(ENABLE_NOTIFICATION){
+        let effectedOrganizationId = baas.processing.EFFECTED_ORGANIZATION_ID
+
+        let processingErrorFiles = await baas.sql.file.getProcessingErrorFiles({ contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId })
+        if(processingErrorFiles.length > 0){
+            for(let errFile of processingErrorFiles ){
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: baas.sql.file.getProcessingErrorFiles() [${ENVIRONMENT}] File Needs to be [isRejected] == 1 to stop alerting! The errorProcessingFile:[${ JSON.stringify( errFile ) }]!`, correlationId: CORRELATION_ID, effectedOrganizationId: baas.processing.EFFECTED_ORGANIZATION_ID, effectedEntityId: errFile.entityId  })
+            }
+        }
+
+        let auditErrors = await baas.sql.audit.getUnprocessedErrors({ effectedOrganizationId, contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID })
+    
+        if(auditErrors.length > 0) {
+            // construct the message
+            let message = 'SFTP PROCESSING ERRORS:\n\n'
+            let auditIdNotificationArray = []
+            for (let errorMessage of auditErrors) {
+                auditIdNotificationArray.push( errorMessage.auditId )
+                message += `** [errorMessage - auditId:${errorMessage.auditId}] ***********************************************\n\n`
+                message += `    effectiveDate (UTC):{ ${errorMessage.effectiveDate} }\n`
+                message += `    category:${errorMessage.category} level:${errorMessage.level} correlationId:${errorMessage.correlationId} effectedEntityId:${errorMessage.effectedEntityId.trim()} \n`
+                message += `    message:{ ${errorMessage.message} }\n`
+                message += `\n\n`
+            }
+    
+            // send email notification
+            let emailSent
+            if(ENABLE_EMAIL_NOTIFICATION){
+                let subject = 'SFTP PROCESSING ERRORS'
+                emailSent = await baas.notification.sendEmailNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, subject, message, correlationId: CORRELATION_ID })
+            } else {
+                emailSent = true;
+            }
+
+            let teamsSent
+            if(ENABLE_TEAMS_NOTIFICATION){
+                // send teams notification
+                teamsSent = await baas.notification.sendTeamsNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
+            } else {
+                teamsSent = true
+            }
+
+            let slackSent
+            if(ENABLE_SLACK_NOTIFICATION){
+                // send slack notification
+                slackSent = await baas.notification.sendSlackNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
+            } else {
+                slackSent = true
+            }
+
+    
+            if(emailSent && teamsSent && slackSent) {
+                //set the Error Audit messages [isNotificationSent] = 1
+                for(let auditId of auditIdNotificationArray){
+                    // set the audit to notified
+                    await baas.sql.audit.setNotificationSent({ entityId: auditId, contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID })
+                }
+            }
+        }
+    }
+
+    if(ENABLE_REPORT_PROCESSING) {
+        await baas.audit.log({ baas, logger, level: 'info', message: `REPORT Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID })
+        await baas.audit.log({ baas, logger, level: 'warn', message: `** REPORT FLAG PROCESSING ENABLED - ALL OTHER PROCESSING DISABLED (ONLY PROCESSING REPORTS - NO SFTP, etc. on this job.) ** [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID })
+        await platformReports.parsePlatformReports({baas, contextOrganizationId: CONFIG.contextOrganizationId, reportOrganizationId: CONFIG.fromOrganizationId, correlationId: CORRELATION_ID})
+        await baas.audit.log({baas, logger, level: 'info', message: `REPORT Processing ended for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID})
+        return
+    }
+
     if(ENABLE_INBOUND_EMAIL_PROCESSING){
-        let inboundEmailsStatus = await getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID } )
+        let inboundEmailsStatus = await getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID, PROCESSING_DATE } )
     }
 
     if(ENABLE_FTP_PULL){
@@ -125,6 +209,14 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     // ******************************************
     if(ENABLE_NOTIFICATION){
         let effectedOrganizationId = baas.processing.EFFECTED_ORGANIZATION_ID
+
+        let processingErrorFiles = await baas.sql.file.getProcessingErrorFiles({ contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId })
+        if(processingErrorFiles.length > 0){
+            for(let errFile of processingErrorFiles ){
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: baas.sql.file.getProcessingErrorFiles() [${ENVIRONMENT}] File Needs to be [isRejected] == 1 to stop alerting! The errorProcessingFile:[${ JSON.stringify( errFile ) }]!`, correlationId: CORRELATION_ID, effectedOrganizationId: baas.processing.EFFECTED_ORGANIZATION_ID, effectedEntityId: errFile.entityId  })
+            }
+        }
+
         let auditErrors = await baas.sql.audit.getUnprocessedErrors({ effectedOrganizationId, contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID })
     
         if(auditErrors.length > 0) {
@@ -141,15 +233,30 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
             }
     
             // send email notification
-            let subject = 'SFTP PROCESSING ERRORS'
-            let emailSent = await baas.notification.sendEmailNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, subject, message, correlationId: CORRELATION_ID })
+            let emailSent
+            if(ENABLE_EMAIL_NOTIFICATION){
+                let subject = 'SFTP PROCESSING ERRORS'
+                emailSent = await baas.notification.sendEmailNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, subject, message, correlationId: CORRELATION_ID })
+            } else {
+                emailSent = true;
+            }
 
-            // send teams notification
-            let teamsSent = await baas.notification.sendTeamsNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
-    
-            // send slack notification
-            let slackSent = await baas.notification.sendSlackNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
-    
+            let teamsSent
+            if(ENABLE_TEAMS_NOTIFICATION){
+                // send teams notification
+                teamsSent = await baas.notification.sendTeamsNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
+            } else {
+                teamsSent = true
+            }
+
+            let slackSent
+            if(ENABLE_SLACK_NOTIFICATION){
+                // send slack notification
+                slackSent = await baas.notification.sendSlackNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
+            } else {
+                slackSent = true
+            }
+
             if(emailSent && teamsSent && slackSent) {
                 //set the Error Audit messages [isNotificationSent] = 1
                 for(let auditId of auditIdNotificationArray){
@@ -290,6 +397,10 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
                 if(hasSuffixGPG) {
                     await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath})
                     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was decrypted locally for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
+                    
+                    if(fullFilePath.split('.').pop().toLowerCase() == 'pgp') {
+                        fullFilePath = fullFilePath.substring(0, fullFilePath.indexOf('.pgp')) + '.gpg'
+                    }
                     await deleteBufferFile( fullFilePath ) // delete the original encrypted file locally
 
                     // set this to the decrypted file name without the .gpg suffix. Refactor later.
@@ -425,7 +536,7 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
     return output
 }
 
-async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId }) {
+async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId, PROCESSING_DATE }) {
     if(!baas) throw ('processing.getInboundEmailFiles() requires [baas]!')
     if(!config) throw ('processing.getInboundEmailFiles() requires [config]!')
     if(!VENDOR_NAME) VENDOR_NAME = config.vendor
@@ -453,8 +564,11 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
 
         // get the mail and filter for the CONFIG items listed
         // store the files in the database
+        let mainFoldername = 'Inbox'
+        let mailFolders = await baas.email.readMailFolders({ client, displayName: mainFoldername, includeChildren: true })
+
         let processFoldername = 'processed'
-        let mailFolders = await baas.email.readMailFolders({ client, displayName: processFoldername, includeChildren: true })
+        mailFolders = mailFolders.concat( await baas.email.readMailFolders({ client, displayName: processFoldername, includeChildren: true }) )
         if(DEBUG) console.log(mailFolders)
 
         // process this folder too until fully migrated
@@ -522,7 +636,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
                     let email = mailInFolder[j]
 
                     try{
-                        await perEmailInboundProcessing({ baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId })
+                        await perEmailInboundProcessing({ baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId, PROCESSING_DATE })
                     } catch (perEmailProcessingError) {
                         let errorMessage = {}
                         errorMessage.message = perEmailProcessingError.toString()
@@ -531,7 +645,6 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
                         }
                         if(!KEEP_PROCESSING_ON_ERROR) throw(perEmailProcessingError)
                     }
-                    
                 }
             } // WHILE LOOP END
         }
@@ -567,7 +680,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
     return output
 }
 
-async function perEmailInboundProcessing({baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId}){
+async function perEmailInboundProcessing({baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId, PROCESSING_DATE}){
     let output = {}
     output.file = {}
     output.attachments = []
@@ -655,6 +768,8 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     let emailAttachmentsArray = await baas.email.downloadMsGraphAttachments({ client, messageId: email.id, destinationPath: path.resolve( workingDirectory ), baas })
     output.attachments = output.attachments.concat(emailAttachmentsArray.emailAttachmentsArray)
 
+    let errorOnEmailWithAllBadAttachments = true
+
     let processedAttachementsCount = 0
     if (emailAttachmentsArray.emailAttachmentsArray.length) {
         for (let attachment of emailAttachmentsArray.emailAttachmentsArray){
@@ -663,6 +778,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
             let isApprovedAttachment = await baas.email.approvedAttachmentCheck(attachment.fileName, config)
         
             if(isApprovedAttachment) {
+                errorOnEmailWithAllBadAttachments = false
                 // console.log('Message UID:', msgUID, `Writing the attachment [${attachment.filename}]... `)
                 // let fileName = attachmentPath.destination + '\\' + EMAIL_DATE + '_' + attachment.filename
                 // let fileWriter = fs.createWriteStream( fileName )
@@ -721,7 +837,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                     /// ******************************
 
                     let fileTypeId
-                    let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId } )
+                    let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId, PROCESSING_DATE } )
                     if( determinedFileTypeId.fileTypeId ) {
                         inputFileObj.fileTypeId = determinedFileTypeId.fileTypeId;
                         fileTypeId = determinedFileTypeId.fileTypeId;
@@ -745,7 +861,8 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
 
                 } catch (err) {
                     if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
-                    throw(err);
+                        err.message += ' >> error writing file to DB. Check baas.input.file() function.'
+                        throw(err);
                     }
                     let existingEntityId = await baas.sql.file.exists( sha256, true )
                     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS [baas.processing.perEmailInboundProcessing()] - file [${attachment.fileName}] for environment [${ENVIRONMENT}] file already exists in the database with SHA256: [${sha256}]`, effectedEntityId: existingEntityId, correlationId  })
@@ -871,6 +988,20 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                 if(processedAttachementsCount == emailAttachmentsArray.emailAttachmentsArray.length) {
                     // Only move the message when it is the last message in the attachments array
                     if(DEBUG) console.log(`[baas.processing.perEmailInboundProcessing()]: Moving the email to Folder (End of Array): [${moveToFolder[0].displayName}]`)
+
+                    if(errorOnEmailWithAllBadAttachments) {
+                        let filenames = ''
+                    
+                        for (attachment of emailAttachmentsArray.emailAttachmentsArray) {
+                            if (attachment.fileName){
+                                filenames += attachment.fileName + ", ";
+                            }
+                        }
+
+                        // send an alert if there were no valid attachments on this email
+                        await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: [baas.processing.perEmailInboundProcessing()] EMAIL REJECTED!!!! Attachments:[${filenames}] for environment [${ENVIRONMENT}]`, correlationId })
+                    }
+         
                     let moveStatus = await baas.email.moveMailFolder({ client, messageId: email.id, destinationFolderId: moveToFolder[0].id })
                 }    
             }
@@ -888,7 +1019,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     return output
 }
 
-async function determineInputFileTypeId({baas, inputFileObj, contextOrganizationId, config, correlationId}) {
+async function determineInputFileTypeId({baas, inputFileObj, contextOrganizationId, config, correlationId, PROCESSING_DATE}) {
     // refactor the complex logic here to determine the file type
     // we will likely have to inspect content, email body, or other facts
 
@@ -985,6 +1116,9 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     try{
         output.isFedWire = await baas.wire.isFedWireCheck( { inputFile: inputFileObj.inputFile }) // false; // WIRE_INBOUND
         output.isFedWireConfirmation = false;
+        
+        // this cannot be both... reset the isCSV to false
+        if(output.isFedWire) output.isCSV = false
 
         if(`${config.vendor}.${config.environment}:/${config.vendor}.${config.environment}.trace` == inputFileObj.destination) {
             output.isFedWireConfirmation = true
@@ -998,7 +1132,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         output.isFedWireConfirmation = false;
     }
 
-    if(output.isFedWire && !output.isFedWireConfirmation) {
+    if(output.isFedWire && !output.isFedWireConfirmation && inputFileObj.isOutbound == false) {
         FILE_TYPE_MATCH = 'WIRE_INBOUND'
         extensionOverride = 'txt'
     }
@@ -1055,19 +1189,50 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
             if (fileTypeId.length == 1) {
                 // okay... we did not match the CSV definitions above BUT... we only have1 option. Let's set it and go on.
                 output.fileTypeId = fileTypeId[0].entityId.trim()
+                FILE_TYPE_MATCH = 'CSV' // ???
+
+                output.fileNameOutbound = PROCESSING_DATE + '_' + output.fileName
 
                 return output
             }
         }
 
-        output.fileTypeId = matchedFileType.entityId.trim()
+        if (FILE_TYPE_MATCH == 'UNMATCHED'){
+            // STILL UNMATCHED???
+            if (fileTypeId.length > 1) {
+                // okay... we did not match the CSV definitions above... and we have multiple
+                for(let fileType of fileTypeId){
+                    if(fileType.fileTypeMatch == 'DEFAULT' || fileType.fileTypeMatch == '') {
+                        output.fileTypeId = fileType.entityId.trim()
+                        FILE_TYPE_MATCH = 'CSV'
+
+                        output.fileNameOutbound = PROCESSING_DATE + '_' + output.fileName
+                    }
+                }
+
+                return output
+            }
+        }
+
+        if (matchedFileType.entityId) output.fileTypeId = matchedFileType.entityId.trim()
         
         if(output.fileTypeId) {
             output.fileNameFormat = matchedFileType.fileNameFormat
 
             if(matchedFileType.fileNameFormat == '%'){
                 // splat match provided, just pass the name outbound
-                output.fileNameOutbound = output.fileName
+                output.fileNameOutbound = PROCESSING_DATE + '_' + output.fileName
+                if(extensionOverride) {
+                    // set the extention override here for downstream.
+                    output.overrideExtension = extensionOverride
+
+                    // go ahead and change the file name extension if it does not match the override
+                    const currentExtension = path.extname( output.fileNameOutbound ).toLowerCase()
+                    if(currentExtension !== `.${extensionOverride}`) {
+                        await baas.audit.log({baas, logger:baas.logger, level: 'warn', message: `${VENDOR_NAME}: Override Extension - determineInputFileTypeId() [${output.fileNameOutbound}] extension was changed to: [${extensionOverride}]`, correlationId })
+                        output.fileNameOutbound.replace(currentExtension, `.${extensionOverride}`)
+                    }
+                }
                 return output
             }
             
@@ -1344,7 +1509,8 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
                                 // only split files that are inbound from the FRB
                                 let splitAchCheck = await baas.ach.splitReturnACH( achProcessing.achJSON, new Date(), workingDirectory, file.fileName, false)
 
-                                if ( splitAchCheck.payments && splitAchCheck.returns || splitAchCheck.iat_payments ) {
+                                if(!DISABLE_INBOUND_FILE_SPLIT){  // feature flag for file split
+                                    if ( splitAchCheck.payments && splitAchCheck.returns || splitAchCheck.iat_payments ) {
                                         // we have both Payments & Returns... need to split out into multifile
                                         output.isMultifile = true
                                         await baas.sql.file.setMultifileParent({ entityId: file.entityId, contextOrganizationId, correlationId })
@@ -1359,6 +1525,7 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
 
                                         // add the newEntries to the existing unprocessedFiles array... probably a bad idea, but want to process in context.
                                         unprocessedFiles.push.apply(unprocessedFiles, newEntries);
+                                    }
                                 }
                             }
                         }
@@ -1382,28 +1549,79 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
 
                         let parsedWire = await baas.wire.parse( fullFilePath )
                         
+                        // add the OMAD or IMAD to File entry
                         let quickBalanceJSON = {
                             totalCredits: 0,
                             totalDebits: 0,
                             creditCount: 0,
                             debitCount: 0,
                         }
+
+                        if (parsedWire.hasMultipleWires == false){
+                            if(parsedWire.OMAD){
+                                quickBalanceJSON.OMAD = parsedWire.OMAD
+                                await baas.sql.file.setOMAD({ entityId: file.entityId, contextOrganizationId, OMAD: parsedWire.OMAD, correlationId })
+                            }
+                            if(parsedWire.IMAD){
+                                quickBalanceJSON.IMAD = parsedWire.IMAD
+                                await baas.sql.file.setIMAD({ entityId: file.entityId, contextOrganizationId, IMAD: parsedWire.IMAD, correlationId })
+                            }
+                        }
+
+                        if (parsedWire.hasMultipleWires == true){
+                            quickBalanceJSON.OMAD = 'MULTIPLE';
+                            await baas.sql.file.setOMAD({ entityId: file.entityId, contextOrganizationId, OMAD: 'MULTIPLE', correlationId })
+
+                            quickBalanceJSON.IMAD = 'MULTIPLE';
+                            await baas.sql.file.setIMAD({ entityId: file.entityId, contextOrganizationId, IMAD: 'MULTIPLE', correlationId })
+
+                            if(!DISABLE_FILE_SPLIT_WIRES){ // feature flag for file split wires
+                                // we have multiple wires... need to split out into multifile
+                                output.isMultifile = true
+                                await baas.sql.file.setMultifileParent({ entityId: file.entityId, contextOrganizationId, correlationId })
+                                await baas.audit.log( {baas, logger: baas.logger, level: 'info', message: `Updated the file to set the [isMultifile] and [isMultifileParent] flags to TRUE because of multiple WIRE files`, correlationId, effectedEntityId: file.entityId } )
+
+                                // Write out the new files and add them to the DB
+                                await splitOutMultifileWIRE({ baas, logger: baas.logger, VENDOR_NAME, ENVIRONMENT, PROCESSING_DATE, workingDirectory, fullFilePath, parentFile: file, wiresArray: parsedWire.wiresArray, config, correlationId })
+
+                                // we added new files... we should add them to the current processing array :thinking:
+                                let updatedUnprocessedFiles = await baas.sql.file.getUnprocessedFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
+                                let newEntries = updatedUnprocessedFiles.filter(({ entityId: id1 }) => !unprocessedFiles.some(({ entityId: id2 }) => id2 === id1)); 
+
+                                // add the newEntries to the existing unprocessedFiles array... probably a bad idea, but want to process in context.
+                                unprocessedFiles.push.apply(unprocessedFiles, newEntries);
+                            } 
+                        }
                         
                         if(file.isOutboundToFed) {
                             quickBalanceJSON.totalDebits = parsedWire.totalAmount
                             quickBalanceJSON.debitCount = parsedWire.wires.length
+
+                            if (parsedWire.hasMultipleWires == true){
+                                // do nothing... send the consolidated file
+                                // ensure the child files are marked processed in the splitOutMultifileWIRE code
+                            }
                         }
 
                         if(file.isInboundFromFed) {
                             quickBalanceJSON.totalCredits = parsedWire.totalAmount
                             quickBalanceJSON.creditCount = parsedWire.wires.length
+
+                            if (parsedWire.hasMultipleWires == true){
+                                if(!DISABLE_FILE_SPLIT_WIRES){ // feature flag for file split wires 
+                                    // prevent the processing of the Parent file, let the Child files be processed instead
+                                    await baas.sql.file.setIsReceiptProcessed( {entityId: file.entityId, contextOrganizationId, isReceiptProcessed: 1, correlationId} )
+                                    await baas.sql.file.setIsSentToDepositOperations( {entityId: file.entityId, contextOrganizationId, isSentToDepositOperations: 1, correlationId} )
+                                    await baas.sql.file.setIsSentViaSFTP( {entityId: file.entityId, contextOrganizationId, isSentViaSFTP: 1, correlationId} )
+                                    await baas.sql.file.setIsEmailAdviceSent( {entityId: file.entityId, contextOrganizationId, isEmailAdviceSent: 1, correlationId} )
+                                }
+                            }
                         }
 
                         await baas.audit.log( {baas, logger: baas.logger, level: 'debug', message: `parsed wire quickBalanceJSON: ${JSON.stringify(quickBalanceJSON)}`, correlationId} )
 
                         let updateJSONSQL = await baas.sql.file.updateJSON({ entityId: file.entityId, quickBalanceJSON: quickBalanceJSON, contextOrganizationId, correlationId })
 
-                        
                         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: processed FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}].`, correlationId, effectedEntityId: file.entityId })
                     } catch (fedWireError) {
                         // await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INNER ERROR processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${fedWireError}]`, correlationId, effectedEntityId: file.entityId })
@@ -1446,6 +1664,234 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
     }
 
     return 
+}
+
+async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, PROCESSING_DATE, workingDirectory, fullFilePath, parentFile, config, wiresArray, correlationId }) {
+
+    // ******************************************
+    // ******************************************
+    // *****                                 ****
+    // *****      SPLIT MULTILFILE WIRE      ****
+    // *****                                 ****
+    // ******************************************
+    // ******************************************
+
+    let output = {}
+
+    let parentEntityId = parentFile.entityId;
+
+    // CALL THE FUNCTION TO SPLIT THE FILES
+    // Process for each split out file
+    let fileName = path.parse( fullFilePath ).name
+    let fileExt = path.parse( fullFilePath ).ext
+
+    // run for each child wire file
+    let loopCount = 0
+    for (let childFileData of wiresArray) {
+        loopCount++
+
+        let childFilePath = path.resolve(workingDirectory, `${fileName}_child_${loopCount}${fileExt}`);
+        fs.writeFileSync(childFilePath, childFileData);
+        let childFileName = path.basename( childFilePath )
+
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - SPLIT FILE NAME [${path.basename( fullFilePath )}] for environment [${ENVIRONMENT}] the new child file is called [${childFileName}]`, effectedEntityId: parentEntityId, correlationId })
+
+        //// ********************************************************* ////
+        //// **** BEGIN -- FILE TO THE DATABASE AND VALIDATION
+        //// *********************************************************
+
+        let sha256 = await baas.sql.file.generateSHA256( childFilePath )
+        var fileEntityId = await baas.sql.file.exists( sha256, true )
+
+        // the file does not exist... let's create a new ID to tie the audit entries to before creation.
+        if(!fileEntityId) fileEntityId = await baas.id.generate()
+
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] calculated SHA256: [${sha256}]`, effectedEntityId: parentEntityId, correlationId })
+
+        // WRITE THE FILE TO THE DATABASE
+        // DOWNLOAD THE FILE TO BUFFER
+        // LOAD IT
+        // DELETE THE FILE FROM BUFFER
+        let inputFileOutput
+        let file = {}
+        file.filename = childFileName
+        file.entityId = fileEntityId
+
+        let audit = {}
+        audit.vendor = VENDOR_NAME
+        audit.filename = childFileName
+        audit.environment = ENVIRONMENT
+        audit.entityId = fileEntityId
+        audit.correlationId = correlationId 
+
+        let effectiveDate = new Date(parentFile.effectiveDate).toISOString().slice(0, 19).replace('T', ' ');
+
+        try{
+            let inputFileObj = {
+                baas, 
+                vendor: VENDOR_NAME,
+                sql: baas.sql, 
+                contextOrganizationId: parentFile.contextOrganizationId, 
+                fromOrganizationId: parentFile.fromOrganizationId, 
+                toOrganizationId: parentFile.toOrganizationId, 
+                inputFile: childFilePath, 
+                isOutbound: parentFile.isOutboundToFed,
+                effectiveDate: effectiveDate,
+                overrideExtension: 'txt',
+                source: 'lineage:/' + `${VENDOR_NAME}.${ENVIRONMENT}.multifile:${parentEntityId.trim()}`,
+                destination: parentFile.destination,
+            }
+            
+            /// ******************************
+            /// ** DETERMINE THE FILE TYPE **    <----
+            /// ******************************
+
+            let fileTypeId
+            let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId, PROCESSING_DATE } )
+            if( determinedFileTypeId.fileTypeId ) {
+                inputFileObj.fileTypeId = parentFile.fileTypeId || determinedFileTypeId.fileTypeId;
+
+                // default it to the parent type
+                fileTypeId = parentFile.fileTypeId || determinedFileTypeId.fileTypeId;
+                inputFileObj.fileNameOutbound = determinedFileTypeId.fileNameOutbound
+                inputFileObj.overrideExtension = determinedFileTypeId.overrideExtension
+            } else {
+                fileTypeId = parentFile.fileTypeId
+                inputFileObj.fileTypeId = parentFile.fileTypeId
+            }
+
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] detected a valid File Type [${ JSON.stringify(determinedFileTypeId) }]`, effectedEntityId: parentEntityId, correlationId })
+            // this is a multipart file, act like it.
+            inputFileObj.isMultifile = 1
+            inputFileObj.isMultifileParent = 1
+            inputFileObj.parentEntityId = parentEntityId
+            inputFileObj.correlationId = correlationId
+            inputFileObj.fileEntityId = fileEntityId
+
+            // ***********************************
+            // *** WRITE THE FILE TO THE DB ****
+            // ***********************************
+            if(parentFile.isOutboundToFed) {
+                // Only process the parent and do not allow the split files to be processed individually
+                inputFileObj.isReceiptProcessed = 1
+                inputFileObj.isSentToDepositOperations = 1
+
+                // this is outbound... set this flag to false
+                inputFileObj.isSentViaSFTP = 0
+                inputFileObj.isEmailAdviceSent = 1
+            }
+        
+            if(parentFile.isInboundFromFed) {
+                // allow the split files to be processed individually
+                // await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] ONE TIME PROCESSING - CHILD FILE MARKED AS PROCESSED AND SENT. Receipt, Sent To Deposit Ops, Sent SFTP, and Email advice all marked true.]`, effectedEntityId: parentEntityId, correlationId })
+                // console.warn('** REMOVE THIS AFTER 1 TIME PROCESSING **');
+                inputFileObj.isReceiptProcessed = 0
+                inputFileObj.isSentToDepositOperations = 0
+                inputFileObj.isSentViaSFTP = 0
+                inputFileObj.isEmailAdviceSent = 0
+            }
+
+            inputFileOutput = await baas.input.file( inputFileObj )
+            fileEntityId = inputFileOutput.fileEntityId
+            if(!file.entityId) file.entityId = fileEntityId;
+            audit.entityId = fileEntityId
+
+        } catch (err) {
+            if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] Failed to split properly!`, effectedEntityId: parentEntityId, correlationId  })
+                throw(err);
+            }
+            let existingEntityId = await baas.sql.file.exists( sha256, true )
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] for environment [${ENVIRONMENT}] file already exists in the database with SHA256: [${sha256}]`, effectedEntityId: parentEntityId, correlationId  })
+        }
+
+        // encrypt the file with Lineage GPG keys prior to vaulting
+        let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, childFilePath, childFilePath + '.gpg' )          
+
+        if(!fileEntityId) {
+            // check db if sha256 exists
+            fileEntityId = await baas.sql.file.exists( sha256, true )
+            audit.entityId = fileEntityId
+            if(!file.entityId) file.entityId = fileEntityId;
+        }
+
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] was encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: parentEntityId, correlationId })
+
+        // (vault the file as PGP armored text)
+        let fileVaultExists = await baas.sql.fileVault.exists( '', fileEntityId )
+
+        // this is the same for now. Hard code this and move on.
+        let fileVaultId = fileEntityId
+
+        if(!fileVaultExists) {
+            if(DEBUG) console.log(`[baas.processing.splitOutMultifileWIRE()]: loading NEW file to the fileVault: ${childFileName}`)
+            await baas.input.fileVault({baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId: config.contextOrganizationId, fileEntityId, pgpSignature: 'lineage', filePath: childFilePath + '.gpg', fileVaultEntityId: fileEntityId, correlationId })
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] was loaded into the File Vault encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: parentEntityId, correlationId  })
+
+            await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, fileVaultId})
+        } else {
+            await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, fileVaultId})
+        }
+        await deleteBufferFile( childFilePath + '.gpg' ) // remove the local file now it is uploaded
+        
+        // download the file to validate it ( check the SHA256 Hash )
+        let fileVaultObj = {
+            baas: baas,
+            VENDOR: VENDOR_NAME,
+            contextOrganizationId: config.contextOrganizationId,
+            sql: baas.sql, 
+            entityId: '', 
+            fileEntityId: fileEntityId, 
+            destinationPath: childFilePath + '.gpg'
+        }
+        
+        await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+        await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: childFilePath + '.gpg', destinationFilePath: childFilePath + '.VALIDATION' })
+
+        await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: parentEntityId, correlationId })
+        let sha256_VALIDATION = await baas.sql.file.generateSHA256( childFilePath + '.VALIDATION' )
+
+        // check if Win32 and update the EOL because windows... /facepalm
+        if(os.platform == 'win32'){
+            if((sha256 != sha256_VALIDATION)){
+                const removeCLRF = fs.readFileSync( path.resolve( childFilePath + '.VALIDATION' )).toString()
+                fs.writeFileSync( path.resolve( childFilePath + '.VALIDATION' ), eol.split(removeCLRF).join(eol.lf) ) 
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: [baas.processing.splitOutMultifileWIRE())] WIN32 Detected Remove CRLF on Validation before SHA256 check [${childFilePath + '.VALIDATION'}] for environment [${ENVIRONMENT}] with SHA256 Hash [${sha256_VALIDATION}].`, effectedEntityId: parentEntityId, correlationId })
+            }
+        }
+
+        sha256_VALIDATION = await baas.sql.file.generateSHA256( childFilePath + '.VALIDATION' )
+
+        if (sha256 == sha256_VALIDATION) {
+            // okay... we are 100% validated. We pulled the file, 
+            // decrypted it, encrypted with our key, wrote it to 
+            // the DB, downloaded it, decrypted it 
+            // and validated the sha256 hash.
+
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: [baas.processing.splitOutMultifileWIRE()] SFTP file [${childFilePath}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: parentEntityId, correlationId })
+
+            await baas.sql.file.setIsVaultValidated({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, correlationId})
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: [baas.processing.splitOutMultifileWIRE()] SFTP file [${childFilePath}] for environment [${ENVIRONMENT}] with SHA256 Hash [${sha256_VALIDATION}] set the baas.files.isVaultValidated flag to true`, effectedEntityId: parentEntityId, correlationId })
+            
+            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( childFilePath + '.VALIDATION' )
+        } else {
+            await baas.sql.file.setFileRejected({entityId: fileEntityId,  contextOrganizationId: config.contextOrganizationId, rejectedReason: '[baas.processing.splitOutMultifileWIRE()] SHA256 failed to match - file corrupt', correlationId })
+            await baas.sql.file.setFileHasErrorProcessing({entityId: fileEntityId,  contextOrganizationId: config.contextOrganizationId, correlationId })
+            throw(`[baas.processing.splitOutMultifileWIRE()]: Error: The SHA256 Validation Failed. This is not expected to happen. This file ${childFileName} is bogus. SourceHASH:[${sha256}] DatabaseHASH:[${sha256_VALIDATION}]`)
+        }
+
+        // buffer cleanup
+        fileEntityId = null
+        fileVaultId = null
+        inputFileOutput = null
+        audit.entityId = null
+
+        if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( childFilePath )
+        if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( childFilePath + '.gpg' )
+
+    }
+
+    return output
 }
 
 async function splitOutMultifileACH({ baas, logger, VENDOR_NAME, ENVIRONMENT, PROCESSING_DATE, workingDirectory, fullFilePath, parentFile, config, correlationId }) {
@@ -1537,7 +1983,7 @@ async function splitOutMultifileACH({ baas, logger, VENDOR_NAME, ENVIRONMENT, PR
             /// ******************************
 
             let fileTypeId
-            let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId } )
+            let determinedFileTypeId = await determineInputFileTypeId( { baas, inputFileObj, contextOrganizationId: config.contextOrganizationId, config, correlationId, PROCESSING_DATE } )
             if( determinedFileTypeId.fileTypeId ) {
                 inputFileObj.fileTypeId = determinedFileTypeId.fileTypeId;
                 fileTypeId = determinedFileTypeId.fileTypeId;
@@ -1563,7 +2009,8 @@ async function splitOutMultifileACH({ baas, logger, VENDOR_NAME, ENVIRONMENT, PR
 
         } catch (err) {
             if(err.errorcode != 'E_FIIDA') {  // file already exists ... continue processing.
-            throw(err);
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - file [${splitFileName}] for environment [${ENVIRONMENT}] Failed to split properly. Error in the splitReturn.js processing.`, effectedEntityId: parentEntityId, correlationId  })
+                throw(err);
             }
             let existingEntityId = await baas.sql.file.exists( sha256, true )
             await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - file [${splitFileName}] for environment [${ENVIRONMENT}] file already exists in the database with SHA256: [${sha256}]`, effectedEntityId: parentEntityId, correlationId  })

@@ -23,7 +23,7 @@ const wasmBuffer = fs.readFileSync( wasmPath );
 async function parse ( inputfile ) {
     const EXECUTE_MOOV_WASM = true
 
-    if(!inputfile) inputfile = './src/baas/wire/wire_fed_20220623132146_0.txt'
+    if(!inputfile) throw ('baas.wire.parse is missing an inputfile')
     // if(!inputfile) inputfile = './src/baas/wire/sample_wire.txt'
 
     let input = await inputFileToString( inputfile )
@@ -38,6 +38,7 @@ async function parse ( inputfile ) {
             go.run(wasm.instance)
 
             let output = {}
+            output.wiresArray = []
             output.isOutbound = false
             output.isInbound = false
 
@@ -47,6 +48,8 @@ async function parse ( inputfile ) {
             let parsed = ''
             let linenumber = 0
             for(let line of input){
+                output.wiresArray.push( line );
+
                 let skipLine = false
                 linenumber ++
                 let spaces = '                                                                                                    '
@@ -212,12 +215,22 @@ async function parse ( inputfile ) {
             
             try{
                 output.rawParsed = parsed
+                output.wiresArray.push( parsed );
                 let wire = await globalThis.parseContents(parsed)
                 wire = JSON.parse(wire); 
                 wire = wire.fedWireMessage;
 
                 output.wires.push( wire )
                 output.totalAmount = parseInt(wire.amount.amount)
+                output.hasMultipleWires = false
+
+                if(wire.inputMessageAccountabilityData){
+                    output.IMAD = `${wire.inputMessageAccountabilityData.inputCycleDate}${wire.inputMessageAccountabilityData.inputSource}${wire.inputMessageAccountabilityData.inputSequenceNumber}`
+                }
+
+                if(wire.outputMessageAccountabilityData){
+                    console.warn('add wire entry for MOOV parse to JSON of OMAD')
+                }
 
                 return output
 
@@ -266,6 +279,14 @@ async function parseWireFile( inputfile ) {
 
     output.totalAmount = 0
 
+    output.wiresArray = [];
+
+    // 1520 - IMAD [Input Message Accountability Data]( Unique ID for originated Wire )
+    output.IMAD = ''
+
+    // 1120 - OMAD [Output Message Accountability Data]( Returned from FED )
+    output.OMAD = ''
+
     try {
       const rl = readline.createInterface({
         input: fs.createReadStream( inputfile ),
@@ -278,6 +299,9 @@ async function parseWireFile( inputfile ) {
 
         // it will be easier to deal with an array versus reacting to events
         output.parsedFileArray.push(line);
+
+        // todo: validate if there is an entire wire on the line
+        output.wiresArray.push( line );
       });
   
       await events.once(rl, 'close');
@@ -365,6 +389,14 @@ async function parseWireFile( inputfile ) {
             // single wire file - set the initial total to zero
             if (currentWireJSON.hasOwnProperty("'{2000}'") && !currentWireJSON.totalAmount && output.hasMultipleWires == false) {
                 currentWireJSON.totalAmount = 0
+            }
+
+            if (currentWireJSON.hasOwnProperty("'{1520}'")) {
+                output.IMAD = currentWireJSON["'{1520}'"]
+            }
+
+            if (currentWireJSON.hasOwnProperty("'{1120}'")) {
+                output.OMAD = currentWireJSON["'{1120}'"]
             }
 
             // multiple wires - pull total

@@ -33,6 +33,18 @@ brew tap tinygo-org/tools
 brew install tinygo
 ```
 
+
+## FedWire Processing
+
+### IMAD
+<img width="566" alt="Screen Shot 2023-01-06 at 6 10 43 AM" src="https://user-images.githubusercontent.com/2130829/211011226-94fcfc65-02e1-4493-b4bd-85b1fd50837b.png">
+<img width="569" alt="Screen Shot 2023-01-06 at 6 11 10 AM" src="https://user-images.githubusercontent.com/2130829/211011280-b52b370c-64b8-4656-bf21-8138b2c34847.png">
+
+### OMAD
+<img width="569" alt="Screen Shot 2023-01-06 at 6 10 17 AM" src="https://user-images.githubusercontent.com/2130829/211011315-1e8a61cc-95fa-4308-b93d-6dc3732e3a0b.png">
+<img width="559" alt="Screen Shot 2023-01-06 at 6 11 25 AM" src="https://user-images.githubusercontent.com/2130829/211011337-42180e1d-9780-4fb3-adba-8c53fea9b142.png">
+
+
 ### Export the WASM
 Here are the steps to update this export this module:
 
@@ -58,13 +70,16 @@ Note: You must comment the function in the Go source code that you want exported
 
 bash:
 ```
+git fetch --all --tags
+git checkout tags/v1.26.0 -b v1.26.0
 cd /ach/cmd/achcli
-GOOS=windows GOARCH=amd64 go build -o bin/achcli-1-19-3.exe main.go diff.go reformat.go describe.go
-GOOS=darwin GOARCH=amd64 go build -o bin/achcli-1-19-3 main.go diff.go reformat.go describe.go
+GOOS=windows GOARCH=amd64 go build -o bin/achcli-1-26-0.exe main.go diff.go reformat.go describe.go
+GOOS=darwin GOARCH=amd64 go build -o bin/achcli-1-26-0 main.go diff.go reformat.go describe.go
 ```
 1. copy these files into the `tools` directory
 1. update the ach processing code to reference these new versions
 
+<<<<<<< HEAD
 ### SharePoint MS Graph
 
 How to get the {site-id}:
@@ -136,3 +151,120 @@ OR
 ```
 https://graph.microsoft.com/v1.0/sites/lineagefn.sharepoint.com,7a28ea89-bac8-4244-b9f0-90ca1ac2cd24,0ba516fa-3d5d-4600-b9d7-31916a4d72bd/drive/items/012NVLJIID6DZNV2EAMVFK4ANGV4XTI43E:/content
 ```
+=======
+
+### Invoice processing
+
+1. Connect to the SQL server [sqlserver9ed7a961.database.windows.net] using the credentials in 1Password
+
+1. Set up the new invoices in the database in **baas.invoices** for the processing range and ensure it is unlocked.
+
+1. Run the invoicing for each environment, execute the baas.processing.invoicing.invoiceprocessing()
+    - this parses the transactions and breaks out return data / additional metadata needed for unvoicing
+    - This is a LONG RUNNING process because it accesses the LOB space to read the dataJSON from the largest table in the database
+
+1. There are a couple of views that will help export the data for invoicing:
+    - v_InvoiceFiles - List the files that are included in the invoices
+    - v_InvoiceTransactions - List the transactions that are included in the invoices
+
+1. The views can be executed and used to export the results in Excel using Azure Data Studio:
+
+Transaction:
+```
+SELECT [invoiceNumber]
+      ,[invoicedOrganizationId]
+      ,[organizationNumber]
+      ,[organizationName]
+      ,[invoiceBeginDate]
+      ,[fileReceivedDate]
+      ,[invoiceEndDate]
+      ,[internalNote]
+      ,[invoiceNote]
+      ,[sha256]
+      ,[fileName]
+      ,[fileNameOutbound]
+      ,[fileTypeName]
+      ,[isOutboundToFed]
+      ,[isInboundFromFed]
+      ,[quickBalanceJSON]
+      ,[isProcessed]
+      ,[isRejected]
+      ,[hasProcessingErrors]
+      ,[transactionEntityId]
+      ,[transactionId]
+      ,[batchId]
+      ,[originationDate]
+      ,[effectiveDate]
+      ,[paymentRelatedInformation]
+      ,[transactionType]
+      ,[tracenumber]
+      ,[transactionCredit]
+      ,[transactionDebit]
+      ,[mutatedBy]
+      ,[mutatedDate]
+      ,[isACH]
+      ,[isWire]
+      ,[isReturn]
+      ,[returnType]
+      ,[OMAD]
+      ,[IMAD]
+      ,[RDFI]
+      ,[DFIaccount]
+      ,[isIAT]
+      ,[isJsonParsed]
+  FROM [dbo].[v_InvoiceTransactions]
+ -- Order By [invoiceNumber], [mutatedDate]
+```
+
+Files:
+```
+SELECT [invoiceNumber]
+      ,[invoicedOrganizationId]
+      ,[organizationNumber]
+      ,[organizationName]
+      ,[invoiceBeginDate]
+      ,[fileReceivedDate]
+      ,[invoiceEndDate]
+      ,[internalNote]
+      ,[invoiceNote]
+      ,[sha256]
+      ,[fileName]
+      ,[fileNameOutbound]
+      ,[fileTypeName]
+      ,[isACH]
+      ,[isFedWire]
+      ,[isOutboundToFed]
+      ,[isInboundFromFed]
+      ,[quickBalanceJSON]
+      ,[isProcessed]
+      ,[isRejected]
+      ,[rejectedReason]
+      ,[hasProcessingErrors]
+      ,[originationFileCharge]
+  FROM [dbo].[v_InvoiceFiles]
+  Order By
+  [invoiceNumber], [fileReceivedDate]
+```
+
+Export this data and provide it to Jennifer D.
+
+How to split large files*:
+
+```
+awk -v nums="726980" '
+BEGIN {        
+    c=split(nums,b)
+    for(i=1; i<=c; i++) a[b[i]]
+    j=1; out = "file_split_1.csv"
+} 
+{ print > out }
+NR in a {
+    close(out)
+    out = "file_split_" ++j ".csv"
+}' Results.csv
+```
+
+_*Note: Copy the file header to the split CSV file_
+
+1. Copy the files into SharePoint: (Invoicing)[https://lineagefn.sharepoint.com/:f:/s/LineageBank/EmPHqjPMEzZOiuYNhpQbfe4BR5aW365igzpN7A6jDjW1qA?e=bgaruN]
+>>>>>>> origin

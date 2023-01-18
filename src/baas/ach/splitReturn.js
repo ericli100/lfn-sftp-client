@@ -47,7 +47,7 @@ let is_entry_return = function (entry_json) {
 
     for (let x = 0; x < addendas.length; x++) {
         let addenda_content = entry_json[addendas[x]];
-        if (addenda_content['returnCode'] || addenda_content['changeCode']) { return true }
+        if (addenda_content['returnCode'] || addenda_content['changeCode'] || addenda_content['dishonoredReturnReasonCode']) { return true }
     }
 
     return false
@@ -58,11 +58,11 @@ let render_dynamic_length = function (value, max_length) {
     return value;
 }
 let render_file = function (lines, file_type, date, working_directory, file_name, index) {
-    if(!lines) return null
-    
+    if (!lines) return null
+
     return new Promise((resolve, reject) => {
         let date_format = `${date.getFullYear()}${date.getMonth() + 1}${date.getDate()}${date.getHours()}${date.getMinutes()}${date.getSeconds()}`
-        
+
         if (!file_name) {
             file_name = path.resolve(working_directory, `${file_type}_${date_format}_${index}.ach`)
         } else {
@@ -149,16 +149,43 @@ let recalculateJSON = function (json_content) {
             let total_key = get_settlement_direction(json_content['batches'][x]['entryDetails'][y]) === 'credit' ? 'totalCredit' : 'totalDebit';
             entry_sequence_number = parseInt(json_content['batches'][x]['entryDetails'][y]['traceNumber'].slice(8));
 
-            // Addenda - Type
-            let addenda_count = 0, addenda_keys = get_addendas(json_content['batches'][x]['entryDetails'][y]);
-            for (let z = 0; z < addenda_keys.length; z++) {
-                // Addenda - Line Item
-                let addendas = json_content['batches'][x]['entryDetails'][y][addenda_keys[z]];
-                if (!Array.isArray(addendas)) { addendas = [addendas] }
+            let addenda_count = 0
 
-                for (let a = 0; a < addendas.length; a++) {
-                    addendas[a]['entryDetailSequenceNumber'] = entry_sequence_number;
-                    addenda_count += 1;
+            if (json_content['batches'][x].batchHeader.standardEntryClassCode === 'IAT') {
+                // Addenda - Type IAT
+                let addenda_keys = get_addendas(json_content['batches'][x]['entryDetails'][y]);
+                for (let z = 0; z < addenda_keys.length; z++) {
+                    // Addenda - Line Item
+                    let keyName = addenda_keys[z];
+                    if(keyName === 'addendaRecords') continue
+                    let addendas = json_content['batches'][x]['entryDetails'][y][keyName];
+                    if (!Array.isArray(addendas)) { addendas = [addendas] }
+
+                    try {
+                        for (let a = 0; a < addendas.length; a++) {
+                            addendas[a]['entryDetailSequenceNumber'] = entry_sequence_number;
+                            addenda_count += 1;
+                        }
+                    } catch (addendaErr) {
+                        throw addendaErr
+                    }
+                }
+            } else {
+                // Addenda - Type
+                let addenda_keys = get_addendas(json_content['batches'][x]['entryDetails'][y]);
+                for (let z = 0; z < addenda_keys.length; z++) {
+                    // Addenda - Line Item
+                    let addendas = json_content['batches'][x]['entryDetails'][y][addenda_keys[z]];
+                    if (!Array.isArray(addendas)) { addendas = [addendas] }
+
+                    try {
+                        for (let a = 0; a < addendas.length; a++) {
+                            addendas[a]['entryDetailSequenceNumber'] = entry_sequence_number;
+                            addenda_count += 1;
+                        }
+                    } catch (addendaErr) {
+                        throw addendaErr
+                    }
                 }
             }
 
@@ -453,7 +480,7 @@ let renderFileHeaderFromJSON = function (file_header_json_content) {
     return file_header
 }
 let renderIATFileContentFromJSON = function (json_content) {
-    if(!json_content) return null
+    if (!json_content) return null
     let lines = Array();
 
     // File Header
@@ -504,7 +531,7 @@ let renderIATFileContentFromJSON = function (json_content) {
     return lines
 }
 let renderFileContentFromJSON = function (json_content) {
-    if(!json_content) return null
+    if (!json_content) return null
     let lines = Array();
 
     // File Header
@@ -517,6 +544,10 @@ let renderFileContentFromJSON = function (json_content) {
 
         // Entries
         for (let y = 0; y < json_content['batches'][x]['entryDetails'].length; y++) {
+            // use this to find specific error transactions for debugging.
+            if (json_content['batches'][x]['entryDetails'][y].traceNumber == '063106149617305') {
+                console.log('Broken Return Entry: 063106149617305')
+            }
             // Entry Record
             let is_return = is_entry_return(json_content['batches'][x]['entryDetails'][y])
             lines.push(renderEntryRecordFromJSON(json_content['batches'][x]['entryDetails'][y]));
@@ -722,13 +753,13 @@ async function split_from_json(json_content, date, working_directory, file_name,
         'iat_returns': split_iat_json_content['returns'] ? recalculateJSON(split_iat_json_content['returns']) : null,
     };
     // - Integrity Check
-    if ((!split_json_content['payments'] && !split_iat_json_content['payments']) || (!split_json_content['returns'] &&  !split_iat_json_content['payments'])) { console.error('Split operation returned no ACH payment or return files!') }
-        // - Validate
-        validateSplitFiles(
-            content_integrity,
-            split_json_content['payments'] ? split_json_content['payments']['fileControl'] : null,
-            split_json_content['returns'] ? split_json_content['returns']['fileControl'] : null
-        );
+    if ((!split_json_content['payments'] && !split_iat_json_content['payments']) || (!split_json_content['returns'] && !split_iat_json_content['payments'])) { console.error('Split operation returned no ACH payment or return files!') }
+    // - Validate
+    validateSplitFiles(
+        content_integrity,
+        split_json_content['payments'] ? split_json_content['payments']['fileControl'] : null,
+        split_json_content['returns'] ? split_json_content['returns']['fileControl'] : null
+    );
     if (json_content.IATBatches) {
         validateSplitFiles(
             content_integrity_iat,

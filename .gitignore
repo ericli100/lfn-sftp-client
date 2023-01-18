@@ -9,6 +9,10 @@
 !.vscode/tasks.json
 !.vscode/extensions.json
 
+.VSCodeCounter/
+
+.vscode/launch.json
+
 .DS_Store
 
 # ignore the contents of the logging folder
