@@ -229,8 +229,7 @@ function Handler() {
 
     Handler.uploadSharePoint = async function uploadSharePoint ({ client, filePath, sharePointDestinationFolder }) {
         const fileName = path.basename( filePath );
-        // const file = fss.readFileSync(`${filePath}`);
-
+        
         const stats = fss.statSync(`${filePath}`);
         const totalSize = stats.size;
         const fileSizeInMegabytes = totalSize / (1024*1024);
@@ -282,10 +281,13 @@ function Handler() {
         drive_id = drive_id.value.filter(drive => drive.name == 'Documents');
         drive_id = drive_id[0]
 
-        const item_id = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drive/root:${sharePointDestinationFolder}`).get() // refers to the ID for a target folder
-
-        
-
+        let item_id 
+        try{
+            item_id = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drive/root:${sharePointDestinationFolder}`).get() // refers to the ID for a target folder
+        } catch (error) {
+            throw(`baas.sharepoint.uploadSharePoint failed to write the file because the destination folder path did not exist: [${sharePointDestinationFolder}]`)
+        }
+    
         // let uploadSession = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drive/items/${ item_id.id }/createUploadSession`).put()
 
         //const uploadSession = await new LargeFileUploadTask.createUploadSession(client, requestUrl, payload);
@@ -320,16 +322,16 @@ function Handler() {
             // const uploadResult = await task.upload();
             return uploadResult;
         } else {
+            const fileContents = fss.readFileSync(`${filePath}`);
             // use the small file upload method
             let requestUrl = `https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drives/${ drive_id.id }/items/${ item_id.id }:/${ fileName }:/content`
-            const uploadResult = await client.api( requestUrl ).put(readStream)
-throw(`BROKEN ( ENCODING IS WRONG )`)
+            const uploadResult = await client.api( requestUrl ).put(fileContents)
             return uploadResult;
         }       
     }
 
     Handler.test_function = async function test_function (client) {
-        let filePath = path.join(__dirname, 'data', 'test_file.txt')
+        let filePath = path.join(__dirname, 'data', 'test_large_sdn.xml')
         let sharePointDestinationFolder = '/BaaS/Synapse/Inbound SFTP Files/prd'
 
         let results = await Handler.uploadSharePoint( { client, filePath, sharePointDestinationFolder } )
