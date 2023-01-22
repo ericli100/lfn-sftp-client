@@ -394,6 +394,81 @@ function Handler(mssql) {
         return output
     }
 
+    Handler.getUnprocessedSharepointFiles = async function getUnprocessedSharepointFiles({contextOrganizationId, fromOrganizationId, toOrganizationId}){
+        let output = {}
+
+        let tenantId = process.env.PRIMAY_TENANT_ID
+    
+        let sqlStatement = `
+        SELECT f.[entityId]
+            ,t.[fromOrganizationId]
+            ,t.[toOrganizationId]
+            ,f.[fileTypeId]
+            ,f.[fileName]
+            ,f.[fileURI]
+            ,f.[sizeInBytes]
+            ,f.[sha256]
+            ,f.[source]
+            ,f.[destination]
+            ,f.[isProcessed]
+            ,f.[hasProcessingErrors]
+            ,f.[isReceiptProcessed]
+            ,t.[isOutboundToFed]
+            ,t.[isInboundFromFed]
+            ,t.[fileExtension]
+            ,t.[fileTypeName]
+            ,t.[fileNameFormat]
+            ,t.[columnNames]
+            ,t.[accountId]
+            ,t.[accountNumber_TEMP] AS [accountNumber]
+            ,t.[accountDescription_TEMP] AS [accountDescription]
+            ,t.isACH
+            ,t.isFedWire
+            ,t.[emailAdviceTo]
+            ,t.[emailProcessingTo]
+            ,t.[emailReplyTo]
+            ,f.[fileVaultId]
+            ,f.[quickBalanceJSON]
+            ,f.[effectiveDate]
+            ,f.[contextOrganizationId]
+            ,f.[isMultifile]
+            ,f.[isMultifileParent]
+            ,f.[parentEntityId]
+            ,f.[isTrace]
+            ,f.[isSharePointSynced]
+            ,f.[sharePointSyncDate]
+            ,t.[sharePointSync]
+            ,t.[sharePointSyncPath]
+            ,f.[IMAD]
+            ,f.[OMAD]
+        FROM [baas].[files] f
+        INNER JOIN [baas].[fileTypes] t
+        ON f.[fileTypeId] = t.entityId AND f.[tenantId] = t.[tenantId] AND f.contextOrganizationId = t.contextOrganizationId
+        WHERE f.tenantId = '${tenantId}'
+        AND f.contextOrganizationId = '${contextOrganizationId}'
+        AND (t.[fromOrganizationId] = '${fromOrganizationId}' OR t.[toOrganizationId] = '${fromOrganizationId}')
+        AND f.[isProcessed] = 1
+        AND f.[hasProcessingErrors] = 0
+        AND f.[isSharePointSynced] = 0
+        AND t.[sharePointSync] = 1
+        AND f.[isMultifileParent] = 0
+        AND f.isRejected = 0;`
+    
+        let param = {}
+        param.params = []
+        param.tsql = sqlStatement
+        
+        try {
+            let results = await mssql.sqlQuery(param);
+            output = results.data
+        } catch (err) {
+            console.error(err)
+            throw err
+        }
+
+        return output
+    }
+
     Handler.getProcessingErrorFiles = async function getProcessingErrorFiles({contextOrganizationId, fromOrganizationId, toOrganizationId}){
         let output = {}
 
@@ -542,6 +617,38 @@ function Handler(mssql) {
         }
 
         return output
+    }
+
+    Handler.setIsSharePointProcessed = async function setIsSharePointProcessed( {entityId, contextOrganizationId, correlationId} ){
+        let output = {}
+
+        let mutatedBy = 'SYSTEM'
+
+        if (!entityId) throw ('entityId required')
+        let tenantId = process.env.PRIMAY_TENANT_ID
+        if (!contextOrganizationId) throw ('contextOrganizationId required')
+
+        let sqlStatement = `
+            UPDATE [baas].[files]
+            SET [isSharePointSynced] = 1
+                ,[sharePointSyncDate] = (SELECT getutcdate())
+            WHERE [entityId] = '${entityId}' 
+            AND [tenantId] = '${tenantId}'
+            AND [contextOrganizationId] = '${contextOrganizationId}';`
+
+            let param = {}
+            param.params = []
+            param.tsql = sqlStatement
+            
+            try {
+                let results = await mssql.sqlQuery(param);
+                output = results.data
+            } catch (err) {
+                console.error(err)
+                throw err
+            }
+    
+            return output
     }
 
     Handler.setFileProcessed = async function setFileProcessed( {entityId, contextOrganizationId, correlationId} ){

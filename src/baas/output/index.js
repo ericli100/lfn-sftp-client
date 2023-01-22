@@ -509,6 +509,10 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
             ,t.[emailAdviceTo]
 			,t.[emailProcessingTo]
 			,t.[emailReplyTo]
+            ,f.[isSharePointSynced]
+            ,f.[sharePointSyncDate]
+            ,t.[sharePointSync]
+            ,t.[sharePointSyncPath]
         FROM [baas].[files] f
         INNER JOIN [baas].[fileTypes] t
             ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
@@ -690,6 +694,44 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                             body: { contentType: 'Text', content: achAdvice + footer },
                             replyTo: replyToAddress,
                             toRecipients: recipientsAdviceTo,
+                        }
+
+                        if(tooLargeAttachment) {
+                            // // deliver this via SharePoint
+                            // try {
+                            //     // save the files to SharePoint
+                            //     let client = await baas.sharepoint.getClient()
+
+                            //     let fieldMetaData = {};
+
+                            //     let quickBalanceJSON = JSON.parse(file.quickBalanceJSON)
+
+                            //     fieldMetaData.entityId = file.entityId.trim();
+                            //     fieldMetaData.CREDIT = quickBalanceJSON.totalCredits || 0
+                            //     fieldMetaData.DEBIT = quickBalanceJSON.totalDebits || 0
+                            //     fieldMetaData.FILE_NAME_TRANSLATED = file.fileNameOutbound || ''
+                            //     // fieldMetaData.SHA256 = file.sha256.trim()
+
+                            //     // we have a wire, pull the IMAD/OMAD metadata
+                            //     if (file.isFedWire) {
+                            //         fieldMetaData = {
+                            //             IMAD: file.IMAD || '',
+                            //             OMAD: file.OMAD || ''
+                            //         }
+                            //     }
+
+                            //     let sharePointDestinationFolder = file.sharePointSyncPath;
+
+                            //     let results = await baas.sharepoint.uploadSharePoint( { client, filePath: fullFilePath, sharePointDestinationFolder, fieldMetaData } )
+                            //     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SHAREPOINT file uploaded [${file.fileName}] for environment [${ENVIRONMENT}] to path [${sharePointDestinationFolder}].`, correlationId, effectedEntityId: file.entityId  })
+                            //     await baas.sql.file.setIsSharePointProcessed( {entityId: file.entityId, contextOrganizationId, correlationId} )
+
+                            //     // send email receipt
+
+
+                            // } catch (errorSharepoint){
+                            //     tooLargeAttachment = true
+                            // }
                         }
 
                         if(tooLargeAttachment) { achAdviceMessage = `!! FILE ATTACHEMENT TOO LARGE !! \n\n Contact BaaS IT Support for Processing.\n\n` + achAdviceMessage }

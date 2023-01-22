@@ -10,7 +10,6 @@ const fss = require('fs');
 
 const { MicrosoftGraph } = require("@microsoft/microsoft-graph-client");
 const { Client } = require("@microsoft/microsoft-graph-client");
-//const { SharePointClient } = require('@microsoft/microsoft-graph-client');
 const { LargeFileUploadTask } = require("@microsoft/microsoft-graph-client");
 const { StreamUpload } =  require("@microsoft/microsoft-graph-client");
 
@@ -152,94 +151,21 @@ function Handler() {
         return client
     }
     
-    // Handler.readEmails = async function readEmails({ client, folderId, nextPageLink }) {
-    //     if(!client) throw ('A valid [client] object is required, please call getClient() and pass it into this function.')
+    // https://learn.microsoft.com/en-us/answers/questions/730575/how-to-find-site-id-and-drive-id-for-graph-api
+    // https://graph.microsoft.com/v1.0/sites/lineagefn.sharepoint.com:/sites/<sitename>
+    // https://stackoverflow.com/questions/70386637/create-upload-session-to-sharepoint-site-folder-on-office-365-using-microsoft-gr <<<
 
-    //     let output = {}
-    //     output.responses = []
-    //     output.emails = []
-        
-    //     let email = {} // current email batch being processed
-
-    //     // does not have a folder specified
-    //     if(!folderId && !nextPageLink){
-    //         if(DEBUG) console.log(`baas.email.readEmails: Fetching the first 10 emails without a folder...`)
-    //         email = await client
-    //         .api('/me/messages')
-    //         .orderby('receivedDateTime desc')
-    //         .top(10)
-    //         .get();
-    //         output.responses.push(email)
-    //         output.emails = output.emails.concat(email.value)
-    //     } 
-        
-    //     // has a folder specified
-    //     if(folderId && !nextPageLink){
-    //         if(DEBUG) console.log(`baas.email.readEmails: Fetching the first 10 emails with a folder...`)
-    //         email = await client
-    //         .api(`/me/mailFolders/${folderId}/messages`)
-    //         .orderby('receivedDateTime desc')
-    //         .top(10)
-    //         .get();
-    //         output.responses.push(email)
-    //         output.emails = output.emails.concat(email.value)
-    //     }
-
-    //     // call the next query that was provided
-    //     if(nextPageLink) {
-    //         if(DEBUG) console.log(`baas.email.readEmails: Fetching the next 10 emails...`)
-    //         email = await client.api( nextPageLink ).get();
-    //         output.responses.push(email)
-    //         output.emails = output.emails.concat(email.value)
-    //     }
-
-    //     // should we keep going on this n+1 journey?
-    //     if(email.hasOwnProperty('@odata.nextLink')){
-    //         output.nextPageLink = email['@odata.nextLink']
-    //     } else {
-    //         output.nextPageLink = false
-    //     }
-    
-    //     output.responses = []
-    //     return output
-    // }
-    
-    // Handler.createMsGraphAttachments = async function createMsGraphAttachments ( inputFile, existingArray ) {
-    //     if(!inputFile) throw ('inputFile is required to createAttachment for msal-msgraph!')
-    //     let output = existingArray || []
-    
-    //     let filename = path.basename(inputFile)
-    //     let base64 = await fs.readFile( inputFile, {encoding: 'base64' });
-    
-    //     let attachment = {
-    //         "@odata.type": "#microsoft.graph.fileAttachment",
-    //         "contentBytes": base64,
-    //         "name": filename
-    //     }
-    
-    //     output.push( attachment )
-    
-    //     return output
-    // }
-
-
-    // https://elischei.com/upload-files-to-sharepoint-with-javascript-using-microsoft-graph/
-    // https://github.com/microsoftgraph/msgraph-sdk-javascript/blob/dev/docs/tasks/LargeFileUploadTask.md
-    // https://www.youtube.com/watch?v=YYMFP8xcNOQ
-
-    Handler.uploadSharePoint = async function uploadSharePoint ({ client, filePath, sharePointDestinationFolder }) {
+    Handler.uploadSharePoint = async function uploadSharePoint ({ client, filePath, sharePointDestinationFolder, fieldMetaData }) {
         const fileName = path.basename( filePath );
-        
         const stats = fss.statSync(`${filePath}`);
         const totalSize = stats.size;
         const fileSizeInMegabytes = totalSize / (1024*1024);
         const readStream = fss.createReadStream( filePath );
         const fileObject = new StreamUpload( readStream, fileName, totalSize );
+        if(!fieldMetaData) fieldMetaData = {};
 
         const progress = (range, extraCallbackParam) => {
-            // Implement the progress callback here
-            console.log("uploading range: ", range);
-            // console.log(extraCallbackParam);
+            console.log(`baas.sharepoint.uploadSharePoint uploading file [${ fileName }] range: `, range);
         };
 
         const uploadEventHandlers = {
@@ -252,30 +178,12 @@ function Handler() {
             uploadEventHandlers,
         };
 
-        // Create upload session for SharePoint Upload"
-        // const payload = {
-        //     item: {
-        //         "@microsoft.graph.conflictBehavior": "rename",
-        //     },
-        // };
-
-        // const payload = {
-        //     "@microsoft.graph.conflictBehavior": "rename",
-        //     "fileSize": totalSize,
-        //     "name": file
-        // }
-
-
-
-        // https://learn.microsoft.com/en-us/answers/questions/730575/how-to-find-site-id-and-drive-id-for-graph-api
-        // https://graph.microsoft.com/v1.0/sites/lineagefn.sharepoint.com:/sites/<sitename>
-        // https://stackoverflow.com/questions/70386637/create-upload-session-to-sharepoint-site-folder-on-office-365-using-microsoft-gr <<<
-
         let site = process.env.MSAL_SP_SITE;
         let siteName = process.env.MSAL_SP_SITENAME;
         let site_id = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site }.sharepoint.com:/sites/${ siteName }?$select=id`).get()
-        // /sites/{siteId}/drives
-        let drive_id = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drives`).get() // refers to the site specific drive that would sync
+        
+        // refers to the site specific drive we want to write to
+        let drive_id = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drives`).get() 
         
         // only provide the DriveId for the default document store
         drive_id = drive_id.value.filter(drive => drive.name == 'Documents');
@@ -283,29 +191,19 @@ function Handler() {
 
         let item_id 
         try{
-            item_id = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drive/root:${sharePointDestinationFolder}`).get() // refers to the ID for a target folder
+            // refers to the ID for a target folder
+            item_id = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drive/root:${ sharePointDestinationFolder }`).get() 
         } catch (error) {
-            throw(`baas.sharepoint.uploadSharePoint failed to write the file because the destination folder path did not exist: [${sharePointDestinationFolder}]`)
+            throw(`baas.sharepoint.uploadSharePoint failed to write the file because the destination folder path did not exist: [${ sharePointDestinationFolder }]`)
         }
     
-        // let uploadSession = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drive/items/${ item_id.id }/createUploadSession`).put()
-
-        //const uploadSession = await new LargeFileUploadTask.createUploadSession(client, requestUrl, payload);
-        // const fileObject = new StreamUpload(file, fileName, totalSize);
-
-        // const fileObject = {
-        //     content: file,
-        //     description: "description",
-        //     name: fileName,
-        //     size: totalSize
-        // };
-
+        let uploadResult
         if (fileSizeInMegabytes > 4){
             let requestUrl = `https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drives/${ drive_id.id }/items/${ item_id.id }:/${ fileName }:/createuploadsession`
 
             const payload = {
                 item: {
-                    "@microsoft.graph.conflictBehavior": "fail",
+                    "@microsoft.graph.conflictBehavior": "replace",
                     name: fileName,
                 },
             };
@@ -315,115 +213,55 @@ function Handler() {
         
             // here usually results in (node:0) UnhandledPromiseRejectionWarning: Error: Invalid request
             const uploadTask = new LargeFileUploadTask( client, fileObject, uploadSession, options );
-            const uploadResult = await uploadTask.upload();
-    
-            // // create an object from a custom implementation of the FileObject interface
-            // const task = new LargeFileUploadTask(client, fileObject, uploadSession);
-            // const uploadResult = await task.upload();
-            return uploadResult;
+            uploadResult = await uploadTask.upload();
         } else {
             const fileContents = fss.readFileSync(`${filePath}`);
             // use the small file upload method
             let requestUrl = `https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drives/${ drive_id.id }/items/${ item_id.id }:/${ fileName }:/content`
-            const uploadResult = await client.api( requestUrl ).put(fileContents)
-            return uploadResult;
-        }       
+            uploadResult = await client.api( requestUrl ).put( fileContents )
+        }
+        
+        // let's update the field meta data
+        uploadResult
+
+        let list_id = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site_id.id }/lists`).get();
+        // only provide the ListId for the default document store
+        list_id = list_id.value.filter(list => list.displayName == 'Documents' && list.name == 'Shared Documents');
+        list_id = list_id[0]
+
+        // https://mmsharepoint.wordpress.com/2021/01/11/use-microsoft-graph-to-query-sharepoint-items/
+        // let list_items = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site_id.id }/lists`).get();
+        
+        let fileListItemId = uploadResult._responseBody || uploadResult;
+        // https://morgantechspace.com/2019/07/get-drive-item-and-list-item-by-file-name-path-id.html
+        // get the list item from the drive item that we just created using the ID from the Upload results
+        let listItem = await client.api(`https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drive/items/${ fileListItemId.id }/listItem`).get();
+
+        let fieldUpdateURL = `https://graph.microsoft.com/v1.0/sites/${ site_id.id }/lists/${ list_id.id }/items/${ listItem.id }/fields`
+        let fieldUpateResult = await client.api( fieldUpdateURL )
+	     .update( JSON.stringify(fieldMetaData) );
+
+        // return the UploadResults
+        //return uploadResult._responseBody;
+
+        // return the list item
+        return listItem
     }
 
     Handler.test_function = async function test_function (client) {
         let filePath = path.join(__dirname, 'data', 'test_large_sdn.xml')
-        let sharePointDestinationFolder = '/BaaS/Synapse/Inbound SFTP Files/prd'
+        let sharePointDestinationFolder = '/BaaS/SFTP/Synapse/Inbound/prd'
 
-        let results = await Handler.uploadSharePoint( { client, filePath, sharePointDestinationFolder } )
+        let fieldMetaData = {
+            IMAD: 'SAMPLE_1110000',
+            OMAD: 'SAMPLE_55550003'
+        }
+        
+        // https://learn.microsoft.com/en-us/graph/api/listitem-update?view=graph-rest-1.0&tabs=javascript
+        let results = await Handler.uploadSharePoint( { client, filePath, sharePointDestinationFolder, fieldMetaData } )
     }
     
     return Handler
 }
 
 module.exports = Handler;
-
-
-
-// async function upload() {
-	
-//     }
-
-//     upload()
-//         .then((uploadResult) => console.log(uploadResult))
-//         .catch((error) => console.log(error));
-
-
-
-// // *****************************************************************************
-
-//      /* @azure/msal-node upload large file to sharepoint online */
-//      var { AuthenticationParameters, Configuration, LogLevel, Logger, UserAgentApplication } = msal;
-        
-//      var config = {
-//      auth: {
-//          clientId: '<clientId>',
-//          authority: 'https://login.microsoftonline.com/<tenantId>',
-//          redirectUri: 'http://localhost:3000/auth/callback'
-//      },
-//      sharepoint: {
-//          siteUrl: 'https://<tenant>.sharepoint.com/sites/<site>',
-//          listName: '<listName>',
-//          fileName: '<fileName>'
-//      }
-//      };
-//      var authConfig = {
-//      auth: {
-//          clientId: config.auth.clientId,
-//          authority: config.auth.authority,
-//          redirectUri: config.auth.redirectUri
-//      },
-//      cache: {
-//          cacheLocation: 'localStorage',
-//          storeAuthStateInCookie: true
-//      }
-//      };
-//      var authParams = {
-//      scopes: ['user.read', 'files.readwrite.all']
-//      };
-//      var authContext = new UserAgentApplication(authConfig);
-//      var authCallback = (errorDesc, token, error, tokenType) => {
-//      if (error) {
-//          console.log(error);
-//      } else {
-//          console.log(token);
-//          console.log(tokenType);
-//          var client = SharePointClient.init({
-//          authProvider: (done) => {
-//              done(null, token);
-//          }
-//          });
-//          var filePath = '<filePath>';
-//          var fileName = config.sharepoint.fileName;
-//          var fileSize = fss.statSync(filePath).size;
-//          var fileStream = fss.createReadStream(filePath);
-//          var fileBuffer = Buffer.alloc(fileSize);
-//          fileStream.on('data', (chunk) => {
-//          fileBuffer.write(chunk);
-//          });
-//          fileStream.on('end', () => {
-//          var fileContent = fileBuffer.toString('base64');
-//          var fileMetadata = {
-//              name: fileName,
-//              file: {
-//              content: fileContent
-//              }
-//          };
-//          client
-//              .api(`/sites/${config.sharepoint.siteUrl}/lists/${config.sharepoint.listName}/root/children`)
-//              .post(fileMetadata)
-//              .then((res) => {
-//              console.log(res);
-//              })
-//              .catch((err) => {
-//              console.log(err);
-//              });
-//          });
-//      }
-//      };
-//      authContext.handleRedirectCallback(authCallback);
-//      authContext.loginRedirect(authParams);
