@@ -1736,10 +1736,10 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
                 await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: There was an issue pulling the file from the File Vault for SHAREPOINT, file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( errorMessage )}]`, correlationId, effectedEntityId: file.entityId })
                 throw (fileVaultError)
             }
-
+            let client 
             try{
                 // save the files to SharePoint
-                let client = await baas.sharepoint.getClient()
+                client = await baas.sharepoint.getClient()
 
                 let fieldMetaData = {};
 
@@ -1749,14 +1749,20 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
                 fieldMetaData.CREDIT = quickBalanceJSON.totalCredits || 0
                 fieldMetaData.DEBIT = quickBalanceJSON.totalDebits || 0
                 fieldMetaData.FILE_NAME_TRANSLATED = file.fileNameOutbound || ''
-               // fieldMetaData.SHA256 = file.sha256.trim()
+                //fieldMetaData.SHA256 = file.sha256.trim()
+
+               if (fieldMetaData.CREDIT > 0) {
+                fieldMetaData.CREDIT = fieldMetaData.CREDIT * 0.01
+               }
+
+               if (fieldMetaData.DEBIT > 0) {
+                fieldMetaData.DEBIT = fieldMetaData.DEBIT * 0.01
+               }
 
                 // we have a wire, pull the IMAD/OMAD metadata
-                if (file.isFedWire) {
-                    fieldMetaData = {
-                        IMAD: file.IMAD || '',
-                        OMAD: file.OMAD || ''
-                    }
+                if (file.isFedWire) {       
+                    fieldMetaData.IMAD = file.IMAD || ''
+                    fieldMetaData.OMAD = file.OMAD || ''
                 }
 
                 let sharePointDestinationFolder = file.sharePointSyncPath;
@@ -1766,7 +1772,7 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
                 await baas.sql.file.setIsSharePointProcessed( {entityId: file.entityId, contextOrganizationId, correlationId} )
 
             } catch (processingError) {
-                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: ERROR processing SHAREPOINT file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( processingError ) }]`, correlationId, effectedEntityId: file.entityId })
+                await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: ERROR processing SHAREPOINT file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( processingError ) }]`, correlationId, effectedEntityId: file.entityId })
                 if(!KEEP_PROCESSING_ON_ERROR) throw (processingError)
             }
 

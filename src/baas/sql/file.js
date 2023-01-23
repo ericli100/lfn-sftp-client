@@ -405,6 +405,7 @@ function Handler(mssql) {
             ,t.[toOrganizationId]
             ,f.[fileTypeId]
             ,f.[fileName]
+            ,f.[fileNameOutbound]
             ,f.[fileURI]
             ,f.[sizeInBytes]
             ,f.[sha256]
