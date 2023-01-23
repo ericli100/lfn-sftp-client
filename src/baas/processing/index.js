@@ -34,6 +34,7 @@ var ENABLE_REPORT_PROCESSING = false
 var ENABLE_TEAMS_NOTIFICATION = false
 var ENABLE_SLACK_NOTIFICATION = true
 var ENABLE_EMAIL_NOTIFICATION = true
+var ENABLE_SHAREPOINT_PROCESSING = false
 
 var DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
 var KEEP_PROCESSING_ON_ERROR = true
@@ -67,8 +68,8 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     ENABLE_NOTIFICATION = CONFIG.processing.ENABLE_NOTIFICATIONS
     if (CONFIG.processing.DISABLE_INBOUND_FILE_SPLIT == true) { DISABLE_INBOUND_FILE_SPLIT = true }
     if (CONFIG.processing.DISABLE_FILE_SPLIT_WIRES == true) { DISABLE_FILE_SPLIT_WIRES = true }
-
-    if(CONFIG.processing.ENABLE_REPORT_PROCESSING == true) { ENABLE_REPORT_PROCESSING = true }
+    if (CONFIG.processing.ENABLE_SHAREPOINT_PROCESSING == true) { ENABLE_SHAREPOINT_PROCESSING = true}
+    if (CONFIG.processing.ENABLE_REPORT_PROCESSING == true) { ENABLE_REPORT_PROCESSING = true }
 
     baas.logger = logger;
 
@@ -125,7 +126,6 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
                 slackSent = true
             }
 
-    
             if(emailSent && teamsSent && slackSent) {
                 //set the Error Audit messages [isNotificationSent] = 1
                 for(let auditId of auditIdNotificationArray){
@@ -265,6 +265,13 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
                 }
             }
         }
+    }
+
+    // ********************************************
+    // **   SharePoint Processing               ***
+    // ********************************************
+    if(ENABLE_SHAREPOINT_PROCESSING){
+        let sharepointProcessingResults = await processFilesFromDBToSharePoint({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, PROCESSING_DATE, correlationId: CORRELATION_ID })
     }
 
     return
@@ -1662,6 +1669,123 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
         // we will likely need to process these again, because we added new files.
         return output
     }
+
+    return 
+}
+
+async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIRONMENT, config, PROCESSING_DATE, correlationId } ) {
+
+    // *********************************** //         
+    // ** PERFORM SHAREPOINT PROCESSING ** //
+    // *********************************** //  
+
+
+    await baas.audit.log({baas, logger, level: 'info', message: `SHAREPOINT Processing started from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId})
+
+    let DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
+    let KEEP_PROCESSING_ON_ERROR = true
+
+    var output = {}
+
+    let contextOrganizationId = config.contextOrganizationId
+      , fromOrganizationId = config.fromOrganizationId
+      , toOrganizationId = config.toOrganizationId
+
+    let input = baas.input
+
+    // get unprocessed SHAREPOINT files from the DB
+    let unprocessedFiles = await baas.sql.file.getUnprocessedSharepointFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
+    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SHAREPOINT - Pulled a list of unprocessed SHAREPOINT files from the database for environment [${ENVIRONMENT}].`, correlationId })
+    
+    // - Loop through files
+    // switch case based on type [ach, fis, wire, transactions]
+    if(unprocessedFiles.length > 0) {
+        // we have unprocessed files, continue processing
+        let workingDirectory = await createWorkingDirectory(baas, VENDOR_NAME, ENVIRONMENT, logger)
+
+        // get the file from database (one file at a time)
+        for (let file of unprocessedFiles) {
+            let fullFilePath = path.resolve(workingDirectory + '/' + file.fileName )
+            let relativePath = workingDirectory.replace(process.cwd(), '.')
+
+            let audit = {}
+            audit.vendor = VENDOR_NAME
+            audit.filename = file.fileName
+            audit.environment = ENVIRONMENT
+            audit.entityId = file.entityId
+            audit.correlationId = correlationId
+
+            let fileVaultObj = {
+                baas: baas,
+                VENDOR: VENDOR_NAME,
+                contextOrganizationId: config.contextOrganizationId,
+                sql: baas.sql, 
+                entityId: '', 
+                fileEntityId: file.entityId, 
+                destinationPath: fullFilePath + '.gpg'
+            }
+
+            try{
+                await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+                await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath })
+                if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
+            } catch (fileVaultError) {
+                let errorMessage = {}
+                errorMessage.message = fileVaultError.toString()
+
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: SHAREPOINT - There was an issue pulling the file from the File Vault for SHAREPOINT, file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( errorMessage )}]`, correlationId, effectedEntityId: file.entityId })
+                throw (fileVaultError)
+            }
+            let client 
+            try{
+                // save the files to SharePoint
+                client = await baas.sharepoint.getClient()
+
+                let fieldMetaData = {};
+
+                let quickBalanceJSON = JSON.parse(file.quickBalanceJSON)
+
+                fieldMetaData.entityId = file.entityId.trim();
+                fieldMetaData.CREDIT = quickBalanceJSON.totalCredits || 0
+                fieldMetaData.DEBIT = quickBalanceJSON.totalDebits || 0
+                fieldMetaData.FILE_NAME_TRANSLATED = file.fileNameOutbound || ''
+                //fieldMetaData.SHA256 = file.sha256.trim()
+
+               if (fieldMetaData.CREDIT > 0) {
+                fieldMetaData.CREDIT = fieldMetaData.CREDIT * 0.01
+               }
+
+               if (fieldMetaData.DEBIT > 0) {
+                fieldMetaData.DEBIT = fieldMetaData.DEBIT * 0.01
+               }
+
+                // we have a wire, pull the IMAD/OMAD metadata
+                if (file.isFedWire) {       
+                    fieldMetaData.IMAD = file.IMAD || ''
+                    fieldMetaData.OMAD = file.OMAD || ''
+                }
+
+                let sharePointDestinationFolder = file.sharePointSyncPath;
+
+                let results = await baas.sharepoint.uploadSharePoint( { client, filePath: fullFilePath, sharePointDestinationFolder, fieldMetaData } )
+                await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SHAREPOINT file uploaded [${file.fileName}] for environment [${ENVIRONMENT}] to path [${sharePointDestinationFolder}].`, correlationId, effectedEntityId: file.entityId  })
+                await baas.sql.file.setIsSharePointProcessed( {entityId: file.entityId, contextOrganizationId, correlationId} )
+
+            } catch (processingError) {
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: SHAREPOINT ERROR processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( processingError ) }]`, correlationId, effectedEntityId: file.entityId })
+                if(!KEEP_PROCESSING_ON_ERROR) throw (processingError)
+            }
+
+            // ** CLEANUP BUFFER ** //
+            if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath )
+        }
+
+        // clean up the working directory
+        if (DELETE_WORKING_DIRECTORY) await deleteWorkingDirectory(workingDirectory)
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SHAREPOINT The working cache directory [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server for SHAREPOINT. Data is secure.`, correlationId })
+    }
+
+    await baas.audit.log({baas, logger, level: 'info', message: `SHAREPOINT Processing ended from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId})
 
     return 
 }

@@ -79,118 +79,74 @@ GOOS=darwin GOARCH=amd64 go build -o bin/achcli-1-26-0 main.go diff.go reformat.
 1. copy these files into the `tools` directory
 1. update the ach processing code to reference these new versions
 
+### SharePoint MS Graph
 
-### Invoice processing
+How to get the {site-id}:
+https://graph.microsoft.com/v1.0/sites/lineagefn.sharepoint.com:/sites/LineageBank?$select=id
 
-1. Connect to the SQL server [sqlserver9ed7a961.database.windows.net] using the credentials in 1Password
-
-1. Set up the new invoices in the database in **baas.invoices** for the processing range and ensure it is unlocked.
-
-1. Run the invoicing for each environment, execute the baas.processing.invoicing.invoiceprocessing()
-    - this parses the transactions and breaks out return data / additional metadata needed for unvoicing
-    - This is a LONG RUNNING process because it accesses the LOB space to read the dataJSON from the largest table in the database
-
-1. There are a couple of views that will help export the data for invoicing:
-    - v_InvoiceFiles - List the files that are included in the invoices
-    - v_InvoiceTransactions - List the transactions that are included in the invoices
-
-1. The views can be executed and used to export the results in Excel using Azure Data Studio:
-
-Transaction:
+Returns:
 ```
-SELECT [invoiceNumber]
-      ,[invoicedOrganizationId]
-      ,[organizationNumber]
-      ,[organizationName]
-      ,[invoiceBeginDate]
-      ,[fileReceivedDate]
-      ,[invoiceEndDate]
-      ,[internalNote]
-      ,[invoiceNote]
-      ,[sha256]
-      ,[fileName]
-      ,[fileNameOutbound]
-      ,[fileTypeName]
-      ,[isOutboundToFed]
-      ,[isInboundFromFed]
-      ,[quickBalanceJSON]
-      ,[isProcessed]
-      ,[isRejected]
-      ,[hasProcessingErrors]
-      ,[transactionEntityId]
-      ,[transactionId]
-      ,[batchId]
-      ,[originationDate]
-      ,[effectiveDate]
-      ,[paymentRelatedInformation]
-      ,[transactionType]
-      ,[tracenumber]
-      ,[transactionCredit]
-      ,[transactionDebit]
-      ,[mutatedBy]
-      ,[mutatedDate]
-      ,[isACH]
-      ,[isWire]
-      ,[isReturn]
-      ,[returnType]
-      ,[OMAD]
-      ,[IMAD]
-      ,[RDFI]
-      ,[DFIaccount]
-      ,[isIAT]
-      ,[isJsonParsed]
-  FROM [dbo].[v_InvoiceTransactions]
- -- Order By [invoiceNumber], [mutatedDate]
+{
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#sites(id)/$entity",
+    "id": "lineagefn.sharepoint.com,7a28ea89-bac8-4244-b9f0-90ca1ac2cd24,0ba516fa-3d5d-4600-b9d7-31916a4d72bd"
+}
 ```
 
-Files:
+How to get the {parent-id} of a folder:
+https://graph.microsoft.com/v1.0/sites/lineagefn.sharepoint.com,7a28ea89-bac8-4244-b9f0-90ca1ac2cd24,0ba516fa-3d5d-4600-b9d7-31916a4d72bd/drive/root:/BaaS/Synapse/Inbound%20SFTP%20Files/prd
+
+Note: put the URL safe path to the desired folder after the `root:` to look up the ID.
+
+This would be the parent-id: `012NVLJIID6DZNV2EAMVFK4ANGV4XTI43E`
+
+Returns:
 ```
-SELECT [invoiceNumber]
-      ,[invoicedOrganizationId]
-      ,[organizationNumber]
-      ,[organizationName]
-      ,[invoiceBeginDate]
-      ,[fileReceivedDate]
-      ,[invoiceEndDate]
-      ,[internalNote]
-      ,[invoiceNote]
-      ,[sha256]
-      ,[fileName]
-      ,[fileNameOutbound]
-      ,[fileTypeName]
-      ,[isACH]
-      ,[isFedWire]
-      ,[isOutboundToFed]
-      ,[isInboundFromFed]
-      ,[quickBalanceJSON]
-      ,[isProcessed]
-      ,[isRejected]
-      ,[rejectedReason]
-      ,[hasProcessingErrors]
-      ,[originationFileCharge]
-  FROM [dbo].[v_InvoiceFiles]
-  Order By
-  [invoiceNumber], [fileReceivedDate]
+{
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#sites('lineagefn.sharepoint.com%2C7a28ea89-bac8-4244-b9f0-90ca1ac2cd24%2C0ba516fa-3d5d-4600-b9d7-31916a4d72bd')/drive/root/$entity",
+    "createdDateTime": "2022-10-03T19:27:54Z",
+    "eTag": "\"{DAF2F003-80E8-4A65-AE01-A6AF2F347364},1\"",
+    "id": "012NVLJIID6DZNV2EAMVFK4ANGV4XTI43E",
+    "lastModifiedDateTime": "2022-10-03T19:27:54Z",
+    "name": "prd",
+    "webUrl": "https://lineagefn.sharepoint.com/sites/LineageBank/Shared%20Documents/BaaS/Synapse/Inbound%20SFTP%20Files/prd",
+    "cTag": "\"c:{DAF2F003-80E8-4A65-AE01-A6AF2F347364},0\"",
+    "size": 0,
+    "createdBy": {
+        "user": {
+            "email": "brandon.hedge@lineagebank.com",
+            "id": "8efd25a4-e09f-4c1b-b078-b152098712f1",
+            "displayName": "Brandon Hedge"
+        }
+    },
+    "lastModifiedBy": {
+        "user": {
+            "email": "brandon.hedge@lineagebank.com",
+            "id": "8efd25a4-e09f-4c1b-b078-b152098712f1",
+            "displayName": "Brandon Hedge"
+        }
+    },
+    "parentReference": {
+        "driveType": "documentLibrary",
+        "driveId": "b!ieooesi6REK58JDKGsLNJPoWpQtdPQBGudcxkWpNcr1xTjTlRpnaSpI1XNL8nkBF",
+        "id": "012NVLJIPIW7MHABUFF5GK4U5MSYBAYTIO",
+        "path": "/drive/root:/BaaS/Synapse/Inbound SFTP Files"
+    },
+    "fileSystemInfo": {
+        "createdDateTime": "2022-10-03T19:27:54Z",
+        "lastModifiedDateTime": "2022-10-03T19:27:54Z"
+    },
+    "folder": {
+        "childCount": 0
+    }
+}
 ```
 
-Export this data and provide it to Jennifer D.
+The command to upload a file that is under 4MB would be:
 
-How to split large files*:
+`PUT /sites/{site-id}/drive/items/{parent-id}:/{filename}:/content`
+
+OR
 
 ```
-awk -v nums="726980" '
-BEGIN {        
-    c=split(nums,b)
-    for(i=1; i<=c; i++) a[b[i]]
-    j=1; out = "file_split_1.csv"
-} 
-{ print > out }
-NR in a {
-    close(out)
-    out = "file_split_" ++j ".csv"
-}' Results.csv
+https://graph.microsoft.com/v1.0/sites/lineagefn.sharepoint.com,7a28ea89-bac8-4244-b9f0-90ca1ac2cd24,0ba516fa-3d5d-4600-b9d7-31916a4d72bd/drive/items/012NVLJIID6DZNV2EAMVFK4ANGV4XTI43E:/content
 ```
-
-_*Note: Copy the file header to the split CSV file_
-
-1. Copy the files into SharePoint: (Invoicing)[https://lineagefn.sharepoint.com/:f:/s/LineageBank/EmPHqjPMEzZOiuYNhpQbfe4BR5aW365igzpN7A6jDjW1qA?e=bgaruN]

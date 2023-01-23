@@ -243,6 +243,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.processing.DISABLE_INBOUND_FILE_SPLIT = false
     config.processing.DISABLE_FILE_SPLIT_WIRES = false
     config.processing.ENABLE_REPORT_PROCESSING = false
+    config.processing.ENABLE_SHAREPOINT_PROCESSING = true
 
     return config
 }
