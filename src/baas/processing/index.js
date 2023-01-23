@@ -1695,7 +1695,7 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
 
     // get unprocessed SHAREPOINT files from the DB
     let unprocessedFiles = await baas.sql.file.getUnprocessedSharepointFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
-    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: Pulled a list of unprocessed SHAREPOINT files from the database for environment [${ENVIRONMENT}].`, correlationId })
+    await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SHAREPOINT - Pulled a list of unprocessed SHAREPOINT files from the database for environment [${ENVIRONMENT}].`, correlationId })
     
     // - Loop through files
     // switch case based on type [ach, fis, wire, transactions]
@@ -1733,7 +1733,7 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
                 let errorMessage = {}
                 errorMessage.message = fileVaultError.toString()
 
-                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: There was an issue pulling the file from the File Vault for SHAREPOINT, file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( errorMessage )}]`, correlationId, effectedEntityId: file.entityId })
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: SHAREPOINT - There was an issue pulling the file from the File Vault for SHAREPOINT, file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( errorMessage )}]`, correlationId, effectedEntityId: file.entityId })
                 throw (fileVaultError)
             }
             let client 
@@ -1772,7 +1772,7 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
                 await baas.sql.file.setIsSharePointProcessed( {entityId: file.entityId, contextOrganizationId, correlationId} )
 
             } catch (processingError) {
-                await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: ERROR processing SHAREPOINT file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( processingError ) }]`, correlationId, effectedEntityId: file.entityId })
+                await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: SHAREPOINT ERROR processing file [${file.fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( processingError ) }]`, correlationId, effectedEntityId: file.entityId })
                 if(!KEEP_PROCESSING_ON_ERROR) throw (processingError)
             }
 
@@ -1782,7 +1782,7 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
 
         // clean up the working directory
         if (DELETE_WORKING_DIRECTORY) await deleteWorkingDirectory(workingDirectory)
-            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: The working cache directory [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server for SHAREPOINT. Data is secure.`, correlationId })
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SHAREPOINT The working cache directory [${workingDirectory}] for environment [${ENVIRONMENT}] was removed on the processing server for SHAREPOINT. Data is secure.`, correlationId })
     }
 
     await baas.audit.log({baas, logger, level: 'info', message: `SHAREPOINT Processing ended from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId})
