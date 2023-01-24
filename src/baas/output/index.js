@@ -748,7 +748,14 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
 
                 let isFileDelivery = !file.isFedWire && !file.isACH | false
 
-                if(isFileDelivery){
+                // check the size of file, send to sharepoint if over 4MB
+                const stats = fs.statSync(`${fullFilePath}`);
+                const totalSize = stats.size;
+                const fileSizeInMegabytes = totalSize / (1024*1024);
+                const over4MB = (fileSizeInMegabytes > 4) || false
+
+
+                if(isFileDelivery && over4MB === false){
                     // Not a Wire or ACH but likely a report to be delivered... let's process it.
                     // filename: fullFilePath
                     let fileDeliveryBody = ``
@@ -784,6 +791,61 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                     if(file.isSentToDepositOperations == false) {
                         try{
                             let sendFileDelivery = await baas.email.sendEmail({ client, message: fileDeliveryMessage })
+
+                            await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
+
+                            // Set Status In DB
+                            await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
+                            await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                        } catch (fileDeliveryError) {
+                            await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
+                        }
+                    }
+                }
+
+                // is file deliver and is over 4MB, send it to SharePoint
+                if(isFileDelivery && over4MB){
+                                    // Not a Wire or ACH but likely a report to be delivered... let's process it.
+                    // filename: fullFilePath
+                    let fileDeliveryBody = ``
+                    fileDeliveryBody += `******************************\n`
+                    fileDeliveryBody += `**       FILE DELIVERY\n`
+                    fileDeliveryBody += `******************************\n\n`
+                    fileDeliveryBody += `  note: *** File was over 4MB and is being delivered to SharePoint *** \n`
+                    fileDeliveryBody += `  name: ${file.fileName}\n`
+                    fileDeliveryBody += `  size in bytes: ${file.sizeInBytes}\n`
+                    fileDeliveryBody += `  source: ${file.source}\n`
+                    fileDeliveryBody += `  hasProcessingErrors: ${file.hasProcessingErrors}\n`
+                    fileDeliveryBody += `  isForceOverrideProcessingErrors: ${file.isForceOverrideProcessingErrors}\n`
+                    fileDeliveryBody += `  fileId: ${file.entityId.trim()}\n`
+
+                    const clientEmail = await baas.email.getClient();
+                    const clientSharepoint = await baas.sharepoint.getClient();
+                    const fieldMetaData = {
+                        entityId: file.entityId.trim()
+                    }
+                    
+                    const sharepointUploadResults = await baas.sharepoint.uploadSharePoint({client: clientSharepoint, filePath: fullFilePath, sharePointDestinationFolder: file.sharePointSyncPath, fieldMetaData })
+                    fileDeliveryBody += `  sharepointLink: ${sharepointUploadResults.webUrl}\n`
+
+                    let footer = `\n`
+                    footer += `*************************************************************************************************************************\n`
+                    footer += `  file SHA256: [${file.sha256}]      \n`
+
+                    let replyToAddress = await baas.email.parseEmails( file.emailProcessingTo ) || `${CONFIG.vendor}.${CONFIG.environment}@lineagebank.com`
+
+                    let notes = '>>> NOTE: This file was delivered using the File Delivery processing for this file type. Contact the admin for more information. <<<\n\n'
+                    let recipientsProcessingTo = await baas.email.parseEmails( file.emailProcessingTo )
+                    let fileDeliveryMessage = {
+                        subject: `BaaS: File Delivery - [${CONFIG.vendor}.${CONFIG.environment}] ${file.fileName.trim()} ENCRYPT:`,
+                        body: { contentType: 'Text', content: notes + fileDeliveryBody + footer },
+                        replyTo: replyToAddress,
+                        toRecipients: recipientsProcessingTo
+                    }
+                    
+                    if(file.isSentToDepositOperations == false) {
+                        try{
+                            let sendFileDelivery = await baas.email.sendEmail({ client: clientEmail, message: fileDeliveryMessage })
 
                             await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
 
