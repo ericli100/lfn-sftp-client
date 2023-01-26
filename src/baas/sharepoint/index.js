@@ -217,7 +217,8 @@ function Handler() {
         } else {
             const fileContents = fss.readFileSync(`${filePath}`);
             // use the small file upload method
-            let requestUrl = `https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drives/${ drive_id.id }/items/${ item_id.id }:/${ fileName }:/content`
+            // need to URI encode the filename being passed in to the safe: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
+            let requestUrl = `https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drives/${ drive_id.id }/items/${ item_id.id }:/${ encodeURIComponent(fileName) }:/content`
             uploadResult = await client.api( requestUrl ).put( fileContents )
         }
         
