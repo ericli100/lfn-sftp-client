@@ -17,7 +17,7 @@ var path = require('path');
 const fs = require('fs');
 
 const moment = require('moment')
-let PROCESSING_DATE = moment().format('YYYYMMDD') + 'T' + moment().format('HHMMSS')
+let PROCESSING_DATE = moment().utc().format('YYYYMMDD') + 'T' + moment().utc().format('HHMMSS')
 
 const { transports, createLogger, format } = require('winston');
 

@@ -13,7 +13,7 @@ const mv = util.promisify(mvCallback);
 
 const { mainModule } = require('process');
 const moment = require('moment')
-let PROCESSING_DATE = moment().format('YYYYMMDD') + 'T' + moment().format('HHMMSS')
+let PROCESSING_DATE = moment().utc().format('YYYYMMDD') + 'T' + moment().utc().format('HHMMSS')
 let VENDOR_NAME = 'built'
 let DISABLE_WEBHOOKS = false
 let DISABLE_SMTP = false

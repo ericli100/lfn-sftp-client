@@ -15,7 +15,7 @@ const mv = util.promisify(mvCallback);
 
 const { mainModule } = require('process');
 const moment = require('moment')
-let PROCESSING_DATE = moment().format('YYYYMMDD') + 'T' + moment().format('HHMMSS')
+let PROCESSING_DATE = moment().utc().format('YYYYMMDD') + 'T' + moment().utc().format('HHMMSS')
 let VENDOR_NAME = 'synapse'
 let DISABLE_WEBHOOKS = true
 let DISABLE_SMTP = true
