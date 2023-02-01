@@ -61,7 +61,7 @@ let render_file = function (lines, file_type, date, working_directory, file_name
     if (!lines) return null
 
     return new Promise((resolve, reject) => {
-        let date_format = `${date.getFullYear()}${date.getMonth() + 1}${date.getDate()}${date.getHours()}${date.getMinutes()}${date.getSeconds()}`
+        let date_format = `${date.getUTCFullYear()}${date.getUTCMonth() + 1}${date.getUTCDate()}${date.getUTCHours()}${date.getUTCMinutes()}${date.getUTCSeconds()}`
 
         if (!file_name) {
             file_name = path.resolve(working_directory, `${file_type}_${date_format}_${index}.ach`)

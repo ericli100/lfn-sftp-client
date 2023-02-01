@@ -1245,18 +1245,18 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
             
             output.fileNameFormat = matchedFileType.fileNameFormat
             let newName = matchedFileType.fileNameFormat
-            let fileDate = new Date( inputFileObj.effectiveDate ) || new Date().toUTCString()
+            let fileDate = new Date( inputFileObj.effectiveDate ) || new Date()
 
             function pad2(n) {  // always returns a string
                 return (n < 10 ? '0' : '') + n;
             }
 
             newName = newName.replace('YYYY', fileDate.getFullYear() )
-            newName = newName.replace('MM', pad2(fileDate.getMonth() + 1 ) )
-            newName = newName.replace('DD', pad2(fileDate.getDate()) )
-            newName = newName.replace('HH', pad2(fileDate.getHours()) )
-            newName = newName.replace('MM', pad2(fileDate.getMinutes()) )
-            newName = newName.replace('SS', pad2(fileDate.getSeconds()) )
+            newName = newName.replace('MM', pad2(fileDate.getUTCMonth() + 1 ) )
+            newName = newName.replace('DD', pad2(fileDate.getUTCDate()) )
+            newName = newName.replace('HH', pad2(fileDate.getUTCHours()) )
+            newName = newName.replace('MM', pad2(fileDate.getUTCMinutes()) )
+            newName = newName.replace('SS', pad2(fileDate.getUTCSeconds()) )
 
             let fileIndex = -1
             let tempNameCheck
