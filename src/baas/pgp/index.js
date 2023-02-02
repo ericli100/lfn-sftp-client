@@ -7,6 +7,7 @@ const openpgp = require('openpgp');
 const fs = require('fs');
 const path = require('path');
 const eol = require('eol')
+const getStream = require('get-stream');
 
 const  { detectFileMime, detectBufferMime } = require('mime-detect');
 const os = require('node:os');
@@ -46,7 +47,21 @@ async function getKeys(VENDOR, ENVIRONMENT) {
 async function encrypt(VENDOR, ENVIRONMENT, message) {
     let encrypted = false;
     let keys = await getKeys(VENDOR, ENVIRONMENT)
-    console.log('Binay File Check before encryption needed!')
+
+
+    if(typeof(message) === 'object'){
+        console.log('Binay File Check before encryption needed!')
+
+        encrypted = await openpgp.encrypt({
+            message: await openpgp.createMessage({ binary: message }), // input as Message object
+            encryptionKeys: keys.vendor.publicKey,
+            signingKeys: keys.lineage.privateKey, // optional but we are choosing to sign the file
+            // format: 'binary'  // remove this and hope to get an Armored Message
+        });
+
+       return encrypted
+    }
+
     encrypted = await openpgp.encrypt({
         message: await openpgp.createMessage({ text: message }), // input as Message object
         encryptionKeys: keys.vendor.publicKey,
@@ -57,7 +72,7 @@ async function encrypt(VENDOR, ENVIRONMENT, message) {
     return encrypted
 }
 
-async function decrypt(VENDOR, ENVIRONMENT, encrypted) {
+async function decrypt(VENDOR, ENVIRONMENT, encrypted, isBinary) {
     let keys = await getKeys(VENDOR, ENVIRONMENT)
 
     let message
@@ -68,14 +83,28 @@ async function decrypt(VENDOR, ENVIRONMENT, encrypted) {
             armoredMessage: encrypted // parse armored message
         });
 
-        decrypted = await openpgp.decrypt({
-            message: message,
-            verificationKeys: keys.lineage.publicKey, // optional
-            decryptionKeys: keys.lineage.privateKey
-        });
+        if(!isBinary){
+            decrypted = await openpgp.decrypt({
+                message: message,
+                verificationKeys: keys.lineage.publicKey, // optional
+                decryptionKeys: keys.lineage.privateKey
+            });
+    
+           // console.log('decrypted:', decrypted)
+            return decrypted.data
+        }
 
-       // console.log('decrypted:', decrypted)
-        return decrypted.data
+        if(isBinary){
+            decrypted = await openpgp.decrypt({
+                message: message,
+                verificationKeys: keys.lineage.publicKey, // optional
+                decryptionKeys: keys.lineage.privateKey,
+                format: 'binary',
+            });
+
+            return decrypted.data;
+        }
+
     } catch (error) {
         if(error.message != 'Misformed armored text') {
             throw (error.message)
@@ -86,6 +115,7 @@ async function decrypt(VENDOR, ENVIRONMENT, encrypted) {
 }
 
 async function decryptBinary(VENDOR, ENVIRONMENT, sourceFilePath) {
+    // this is for binary encrypted PGP messages versus ASCII Armored
     let keys = await getKeys(VENDOR, ENVIRONMENT)
 
     let binaryMessage = fs.readFileSync(sourceFilePath)
@@ -103,18 +133,37 @@ async function decryptBinary(VENDOR, ENVIRONMENT, sourceFilePath) {
     return decrypted
 }
 
-async function encryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath) {
+async function encryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath, baas) {
     if (!destinationFilePath) destinationFilePath = sourceFilePath + '.gpg'
+
+    // detect mime type
+    let mimeType = await baas.mime.getMimeTypeThisOS( sourceFilePath )
+
+    if(mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'){
+        // just write the binary
+        // Uint8Array or stream
+
+        const sourceFile = fs.readFileSync(sourceFilePath, null).buffer;
+
+        let encryptedFile = await encrypt(VENDOR, ENVIRONMENT, new Uint8Array(sourceFile))
+        fs.writeFileSync(destinationFilePath, encryptedFile, {flag:'w'})
+
+        return {isBinary: true}
+    }
+
+    // default writer, handle as text
     let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
     let encryptedFile = await encrypt(VENDOR, ENVIRONMENT, eol.split(sourceFile).join(eol.lf))
     fs.writeFileSync(destinationFilePath, encryptedFile, {encoding:'utf8', flag:'w'})
-    return true
+    
+    return {isBinary: false}
 }
 
-async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath, baas, audit}) {
+async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath, baas, audit, isBinary}) {
     let ALLOW_AUDIT_ENTRIES = false
     let logger
     let correlationId
+    if(!isBinary) isBinary = false
 
     if (baas && audit) {
         logger = baas.logger
@@ -173,9 +222,31 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
         let isArmoredFile = await isArmoredCheck(sourceFilePath)
         if (isArmoredFile) {
             if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'verbose', message: `${audit.vendor}: file [${audit.filename}] is ASCII Armored PGP for environment [${audit.environment}].`, effectedEntityId: audit.entityId, correlationId  })
-            let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
-            let decryptedFile = await decrypt(VENDOR, ENVIRONMENT, sourceFile)
-            fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
+            
+            let mimeTypeAfterDecryption
+            //  we need to detect if the file is a binary
+
+            if(!isBinary){
+                let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
+                let decryptedFile = await decrypt(VENDOR, ENVIRONMENT, sourceFile, isBinary)
+                fs.writeFileSync(destinationFilePath, decryptedFile, {encoding:'utf8', flag:'w'})
+
+                try{
+                    mimeTypeAfterDecryption = await baas.mime.getMimeTypeThisOS( destinationFilePath )
+                } catch (mimeTypeCheckError) {
+                    isBinary = true
+                } 
+            }
+
+            if(isBinary){
+                let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
+                let decryptedFile = await decrypt(VENDOR, ENVIRONMENT, sourceFile, isBinary)
+                fs.writeFileSync(destinationFilePath, decryptedFile, {flag:'w'})
+
+
+                mimeTypeAfterDecryption = await baas.mime.getMimeTypeThisOS( destinationFilePath )
+
+            }
 
             // capture the mime type of the decrypted file
             await baas.mime.getMimeTypeThisOS( destinationFilePath )
@@ -279,12 +350,12 @@ module.exports.decryptBinary = (VENDOR, ENVIRONMENT, binaryMessage) => {
     return decrypt(VENDOR, ENVIRONMENT, binaryMessage)
 }
 
-module.exports.encryptFile = (VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath = null) => {
-    return encryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath)
+module.exports.encryptFile = (VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath = null, baas) => {
+    return encryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath, baas)
 }
 
-module.exports.decryptFile = ( {VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath, baas, audit }) => {
-    return decryptFile({ VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath, baas, audit })
+module.exports.decryptFile = ( {VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath, baas, audit, isBinary }) => {
+    return decryptFile({ VENDOR, ENVIRONMENT, sourceFilePath, destinationFilePath, baas, audit, isBinary })
 }
 
 module.exports.isArmoredCheck = (sourceFilePath) => {

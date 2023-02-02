@@ -435,7 +435,7 @@ async function createUpdateFileJsonSQL( { sql, contextOrganizationId, fileEntity
     return output
 }
 
-async function createFileVaultSQL( { sql, entityId, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId } ) {
+async function createFileVaultSQL( { sql, entityId, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId, isBinary } ) {
     let output = {}
 
     let fileVaultData = {}
@@ -445,6 +445,7 @@ async function createFileVaultSQL( { sql, entityId, contextOrganizationId, fileE
     fileVaultData.pgpSignature = pgpSignature;
     fileVaultData.filePath = filePath;
     fileVaultData.correlationId = correlationId;
+    fileVaultData.isBinary = isBinary;
 
     let sql1 = await sql.fileVault.insert( fileVaultData )
 
@@ -1012,7 +1013,7 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
     return output
 }
 
-async function fileVault({ baas, VENDOR, sql, contextOrganizationId, fileEntityId, pgpSignature, filePath, fileVaultEntityId, correlationId }) {
+async function fileVault({ baas, VENDOR, sql, contextOrganizationId, fileEntityId, pgpSignature, filePath, fileVaultEntityId, correlationId, isBinary }) {
     if(!baas) throw('baas.input.fileVault: baas module is required!')
     if(!sql) throw('baas.input.fileVault: sql module is required!')
     if(!fileEntityId) throw('baas.input.fileVault: fileEntityId module is required!')
@@ -1021,11 +1022,12 @@ async function fileVault({ baas, VENDOR, sql, contextOrganizationId, fileEntityI
     if(!filePath) throw('baas.input.fileVault: toOrganizationId module is required!')
     if(!correlationId) correlationId = fileVaultEntityId
     if(!fileVaultEntityId) fileVaultEntityId = fileEntityId
+    if(!isBinary) isBinary = false
 
     let output = {};
     let sqlStatements = []
 
-    let fileVaultEntitySQL = await createFileVaultSQL( { sql, entityId: fileEntityId, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId } )
+    let fileVaultEntitySQL = await createFileVaultSQL( { sql, entityId: fileEntityId, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId, isBinary } )
     sqlStatements.push( fileVaultEntitySQL.param )
 
     output.results = await sql.execute( sqlStatements )
@@ -1056,9 +1058,18 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
 
     let output = {};
 
+    let file_organizationId
+    if(contextOrganizationId !== toOrganizationId){
+        file_organizationId = toOrganizationId
+    }
+
+    if(contextOrganizationId !== fromOrganizationId){
+        file_organizationId = fromOrganizationId
+    }
+
     // check db if sha256 exists
     let sha256 = await sql.file.generateSHA256( inputFile )
-    let fileExistsInDB = await sql.file.exists( sha256 )
+    let fileExistsInDB = await sql.file.exists( sha256, false, file_organizationId )
 
     // if not sha256 parse the file input
     if (!fileExistsInDB) {

@@ -215,7 +215,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                 fileEntityId = inputFileStatus.fileEntityId;
 
                 // encrypt it
-                let outencrypted = await baas.pgp.encryptFile('lineage', CONFIG.environment, inputFile, inputFile + '.gpg')
+                let outencrypted = await baas.pgp.encryptFile('lineage', CONFIG.environment, inputFile, inputFile + '.gpg', baas)
 
                 // vault it
                 fileVaultResult = await baas.input.fileVault({ baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId, fileEntityId, pgpSignature: 'lineage', filePath: inputFile + '.gpg', fileVaultEntityId: fileEntityId, correlationId })
@@ -255,7 +255,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
                 // send SFTP
                 // SFTP TO ORGANIZATION
-                let outencrypted = await baas.pgp.encryptFile(CONFIG.vendor, CONFIG.environment, inputFile, inputFile + '.gpg')
+                let outencrypted = await baas.pgp.encryptFile(CONFIG.vendor, CONFIG.environment, inputFile, inputFile + '.gpg', baas)
                 let encryptedFileStream = fs.createReadStream(inputFile + '.gpg')
 
                 // let's write these bits on the remote SFTP server
@@ -452,11 +452,11 @@ async function fileVault({ baas, VENDOR, sql, entityId, contextOrganizationId, f
         // write the encrypted File (slap a '.gpg' on the file name)
         let fileVaultObj = output.results[0].recordsets[0][0];
         fs.writeFileSync(path.resolve(destinationPath), fileVaultObj.vaultedFile)
+
+        return {isBinary: fileVaultObj.isBinary}
     } else {
         throw (`Error: baas.sql.output.fileVault the requested file id was not present in the database! With filVault entityId: [${entityId} ${fileEntityId}]`)
     }
-
-    return true
 }
 
 async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, correlationId }) {
@@ -564,9 +564,9 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                 destinationPath: fullFilePath + '.gpg'
             }
 
-            await baas.output.fileVault(fileVaultObj) // pull the encrypted file down
+            let {isBinary} = await baas.output.fileVault(fileVaultObj) // pull the encrypted file down
             // decrypt the files
-            await baas.pgp.decryptFile({ baas, audit, VENDOR: CONFIG.vendor, ENVIRONMENT: CONFIG.environment, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath })
+            await baas.pgp.decryptFile({ baas, audit, VENDOR: CONFIG.vendor, ENVIRONMENT: CONFIG.environment, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath, isBinary })
             await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - file [${outFileName}] was downloaded from the File Vault and Decrypted for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
 
             let sha256_VALIDATION = await baas.sql.file.generateSHA256(fullFilePath)
@@ -950,9 +950,9 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
                 destinationPath: fullFilePath + '.gpg'
             }
 
-            await baas.output.fileVault(fileVaultObj) // pull the encrypted file down
+            let {isBinary} = await baas.output.fileVault(fileVaultObj) // pull the encrypted file down
             // decrypt the files
-            await baas.pgp.decryptFile({ baas, audit, VENDOR: CONFIG.vendor, ENVIRONMENT: CONFIG.environment, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath })
+            await baas.pgp.decryptFile({ baas, audit, VENDOR: CONFIG.vendor, ENVIRONMENT: CONFIG.environment, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath, isBinary })
             await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was downloaded from the File Vault and Decrypted for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
 
             let sha256_VALIDATION = await baas.sql.file.generateSHA256(fullFilePath)
@@ -964,7 +964,7 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
 
             if (ENABLE_SFTP_PUT) {
                 // SFTP TO ORGANIZATION
-                let outencrypted = await baas.pgp.encryptFile(CONFIG.vendor, CONFIG.environment, fullFilePath, fullFilePath + '.gpg')
+                let outencrypted = await baas.pgp.encryptFile(CONFIG.vendor, CONFIG.environment, fullFilePath, fullFilePath + '.gpg', baas)
                 let encryptedFileStream = fs.createReadStream(fullFilePath + '.gpg')
 
                 // where are we supposed to put this? Check the config.

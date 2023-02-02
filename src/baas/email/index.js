@@ -276,6 +276,10 @@ function Handler() {
     
             let fileName = attachment.name
             let fileBase64 = attachment.contentBytes
+
+            if(path.extname(fileName).toLowerCase() === 'xlsx'){
+                console.log('We have an Excel file...')
+            }
     
             try {
                 await fs.writeFile( path.resolve( destinationPath, fileName ), new Buffer.from( fileBase64, 'base64' ) )
