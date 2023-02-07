@@ -41,7 +41,11 @@ function Handler(mssql) {
         if (!fileEntityId) throw ('fileEntityId required')
         if (!correlationId) correlationId = 'SYSTEM'
         if (!filePath) throw ('filePath required')
-        if (!isBinary) isBinary = '0'
+        if (!isBinary) {
+            isBinary = '0'
+        } else {
+            isBinary = '1'
+        }
 
         let vaultedFileBuffer = fs.readFileSync(filePath);
     
