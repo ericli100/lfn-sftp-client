@@ -520,7 +520,11 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
                 await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: file.entityId, correlationId })
                 await baas.sql.file.setIsVaultValidated({entityId: file.entityId, contextOrganizationId: config.contextOrganizationId, correlationId})
                 await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] with SHA256 Hash [${sha256_VALIDATION}] set the baas.files.isVaultValidated flag to true`, effectedEntityId: file.entityId, correlationId })
+            } else {
+                await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] with SHA256 Hash [${sha256_VALIDATION}] FAILED the SHA256 validation for the vaulted file!`, effectedEntityId: file.entityId, correlationId })
             }
+
+            // TODO: EOL processing for EOL standardization?
 
             // buffer cleanup
             fileEntityId = null
