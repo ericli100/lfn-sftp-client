@@ -50,8 +50,6 @@ async function encrypt(VENDOR, ENVIRONMENT, message) {
 
 
     if(typeof(message) === 'object'){
-        console.log('Binay File Check before encryption needed!')
-
         encrypted = await openpgp.encrypt({
             message: await openpgp.createMessage({ binary: message }), // input as Message object
             encryptionKeys: keys.vendor.publicKey,
