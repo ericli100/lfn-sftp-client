@@ -35,12 +35,17 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fileEntityId, pgpSignature, filePath, correlationId, isBinary}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileEntityId) throw ('fileEntityId required')
         if (!correlationId) correlationId = 'SYSTEM'
         if (!filePath) throw ('filePath required')
+        if (!isBinary) {
+            isBinary = '0'
+        } else {
+            isBinary = '1'
+        }
 
         let vaultedFileBuffer = fs.readFileSync(filePath);
     
@@ -53,7 +58,8 @@ function Handler(mssql) {
             ,[fileEntityId]
             ,[pgpSignature]
             ,[vaultedFile]
-            ,[correlationId])
+            ,[correlationId]
+            ,[isBinary])
         VALUES
             ('${entityId}'
             ,'${tenantId}'
@@ -61,7 +67,8 @@ function Handler(mssql) {
             ,'${fileEntityId}'
             ,'${pgpSignature}'
             ,'${vaultedFileBuffer}'
-            ,'${correlationId}');
+            ,'${correlationId}'
+            ,${isBinary});
             `
 
         sqlStatement += `
@@ -69,7 +76,7 @@ function Handler(mssql) {
          SET [fileVaultId] = '${entityId}'
         WHERE [entityId] = '${fileEntityId}';
         `
-    
+
         return sqlStatement
     }
 
@@ -91,6 +98,7 @@ function Handler(mssql) {
             ,v.[versionNumber]
             ,v.[mutatedBy]
             ,v.[mutatedDate]
+            ,v.[isBinary]
         FROM [baas].[fileVault] v
         INNER JOIN [baas].[files] f
         ON f.entityId = v.[fileEntityId]

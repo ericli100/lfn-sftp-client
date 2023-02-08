@@ -458,7 +458,7 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
             }
     
             // encrypt the file with Lineage GPG keys prior to vaulting
-            let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, fullFilePath, fullFilePath + '.gpg' )
+            let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, fullFilePath, fullFilePath + '.gpg', baas )
             
 
             if(!fileEntityId) {
@@ -497,8 +497,8 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
                 destinationPath: fullFilePath + '.gpg'
             }
             
-            await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
-            await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath + '.VALIDATION' })
+            let {isBinary} = await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+            await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath + '.VALIDATION', isBinary })
 
             await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
 
@@ -520,7 +520,11 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
                 await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: file.entityId, correlationId })
                 await baas.sql.file.setIsVaultValidated({entityId: file.entityId, contextOrganizationId: config.contextOrganizationId, correlationId})
                 await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] with SHA256 Hash [${sha256_VALIDATION}] set the baas.files.isVaultValidated flag to true`, effectedEntityId: file.entityId, correlationId })
+            } else {
+                await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] with SHA256 Hash [${sha256_VALIDATION}] FAILED the SHA256 validation for the vaulted file!`, effectedEntityId: file.entityId, correlationId })
             }
+
+            // TODO: EOL processing for EOL standardization?
 
             // buffer cleanup
             fileEntityId = null
@@ -717,6 +721,8 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     
     let emailApprovedSenders = config.email.inbound.emailApprovedSenders
 
+    let file_organizationId
+
     // VALID SENDER CHECKS
     if (isAchApprovedRecipient){
         if (isAchApprovedSender){
@@ -863,6 +869,16 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                     // ***********************************
                     // *** WRITE THE FILE TO THE DB ****
                     // ***********************************
+
+                    // determine the organization the file is processed for
+                    if(inputFileObj.contextOrganizationId !== inputFileObj.toOrganizationId){
+                        file_organizationId = inputFileObj.toOrganizationId
+                    }
+
+                    if(inputFileObj.contextOrganizationId !== inputFileObj.fromOrganizationId){
+                        file_organizationId = inputFileObj.fromOrganizationId
+                    }
+
                     inputFileOutput = await baas.input.file( inputFileObj )
                     fileEntityId = inputFileOutput.fileEntityId
                     if(!file.entityId) file.entityId = fileEntityId;
@@ -873,16 +889,16 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                         err.message += ' >> error writing file to DB. Check baas.input.file() function.'
                         throw(err);
                     }
-                    let existingEntityId = await baas.sql.file.exists( sha256, true )
+                    let existingEntityId = await baas.sql.file.exists( sha256, true, file_organizationId )
                     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS [baas.processing.perEmailInboundProcessing()] - file [${attachment.fileName}] for environment [${ENVIRONMENT}] file already exists in the database with SHA256: [${sha256}]`, effectedEntityId: existingEntityId, correlationId  })
                 }
         
                 // encrypt the file with Lineage GPG keys prior to vaulting
-                let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, fullFilePath, fullFilePath + '.gpg' )          
+                let { isBinary }  = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, fullFilePath, fullFilePath + '.gpg', baas )          
     
                 if(!fileEntityId) {
                     // check db if sha256 exists
-                    fileEntityId = await baas.sql.file.exists( sha256, true )
+                    fileEntityId = await baas.sql.file.exists( sha256, true, file_organizationId)
                     audit.entityId = fileEntityId
                     if(!file.entityId) file.entityId = fileEntityId;
                 }
@@ -897,7 +913,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
     
                 if(!fileVaultExists) {
                     if(DEBUG) console.log(`[baas.processing.perEmailInboundProcessing()]: loading NEW file to the fileVault: ${attachment.fileName}`)
-                    await baas.input.fileVault({baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId: config.contextOrganizationId, fileEntityId, pgpSignature: 'lineage', filePath: fullFilePath + '.gpg', fileVaultEntityId: fileEntityId, correlationId })
+                    await baas.input.fileVault({baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId: config.contextOrganizationId, fileEntityId, pgpSignature: 'lineage', filePath: fullFilePath + '.gpg', fileVaultEntityId: fileEntityId, correlationId, isBinary })
                     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS [baas.processing.perEmailInboundProcessing()] - file [${attachment.fileName}] was loaded into the File Vault encrypted with the Lineage PGP Public Key for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId  })
     
                     await baas.sql.file.updateFileVaultId({entityId: fileEntityId, contextOrganizationId: config.contextOrganizationId, fileVaultId})
@@ -918,7 +934,7 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
                 }
                 
                 await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
-                await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath + '.VALIDATION' })
+                await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath + '.VALIDATION', isBinary})
     
                 await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: INBOUND EMAILS [baas.processing.perEmailInboundProcessing()] - file [${file.filename}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId })
                 let sha256_VALIDATION = await baas.sql.file.generateSHA256( fullFilePath + '.VALIDATION' )
@@ -1032,6 +1048,9 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
     // refactor the complex logic here to determine the file type
     // we will likely have to inspect content, email body, or other facts
 
+
+    // there are logical dragons in this code... proceed with caution.
+
     /// ******************************
     /// ** DETERMINE THE FILE TYPE **    <----
     /// ******************************
@@ -1049,6 +1068,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         output.isACH = await baas.ach.isACH( inputFileObj.inputFile )
         output.isAchReturn = false // ACH_RETURN https://moov-io.github.io/ach/returns/
         output.isAchInbound = false;
+        output.isReconReport = false; // these files are used as a source of truth for recon and settlement
 
         if(output.isACH === false) {
             try{
@@ -1129,7 +1149,8 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         // this cannot be both... reset the isCSV to false
         if(output.isFedWire) output.isCSV = false
 
-        if(`${config.vendor}.${config.environment}:/${config.vendor}.${config.environment}.trace` == inputFileObj.destination) {
+        // validate that the provided file is a valid wire trace ( if not, it is likely an FRB report for recon )
+        if(output.isFedWire && `${config.vendor}.${config.environment}:/${config.vendor}.${config.environment}.trace` == inputFileObj.destination) {
             output.isFedWireConfirmation = true
         }
     } catch (isFedWireCheckError) {
@@ -1153,6 +1174,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
 
     output.extensionOverride = extensionOverride 
     output.fileExtension = extensionOverride || path.extname( inputFileObj.inputFile ).substring(1, path.extname( inputFileObj.inputFile ).length)
+    output.fileExtension = output.fileExtension.toLowerCase()
 
     fileSelect.fileExtension = output.fileExtension
     fileSelect.contextOrganizationId = contextOrganizationId
@@ -1168,11 +1190,13 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         fileTypeId = await baas.sql.executeTSQL( fileTypeSQL )
         fileTypeId = fileTypeId[0].recordsets[0]
 
+        let matchedHeadersCSV = false;
         if(output.isCSV) {
             // Check for valid headers
             let csvHeaders = await isCSVcheck( { inputFile: inputFileObj.inputFile, returnHeaders: true } )
             if(DEBUG) console.log(csvHeaders)
 
+            // CHECK TO SEE IF THE CSV MATCHES THE COLUMN HEADERS IN THE FILETYPE
             for(let fileType of fileTypeId){
                 // loop through the FileTypes and match the columnNames array
                 let columnNamesArray = fileType.columnNames.toLowerCase().split(',')
@@ -1183,13 +1207,61 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
 
                 if(intersection.length == columnNamesArray.length) {
                     // this is a good enough match -- all the required columns were matched.
-                    if(fileType.fileTypeMatch == 'CSV_BALANCES') output.isCsvAccountBalances = true
-                    if(fileType.fileTypeMatch == 'CSV_FILEACTIVITY') output.isCsvFileActivity = true
+                    if(fileType.fileTypeMatch == 'CSV_BALANCES') {
+                        output.isCsvAccountBalances = true
+                        matchedHeadersCSV = true
 
-                    FILE_TYPE_MATCH = fileType.fileTypeMatch
+                        FILE_TYPE_MATCH = fileType.fileTypeMatch
+                    }
+                    if(fileType.fileTypeMatch == 'CSV_FILEACTIVITY') {
+                        output.isCsvFileActivity = true
+                        matchedHeadersCSV = true
+
+                        FILE_TYPE_MATCH = fileType.fileTypeMatch
+                    }
                 }         
             }
         }
+
+        // ****************************************************************
+        // ** This section if for sending Fed reports for Recon purposes ** 
+        // ****************************************************************
+        if(!output.isFedWireConfirmation && !output.isFedWire && !output.isACH && !output.isAchConfirmation && matchedHeadersCSV === false) {
+            // check this gate and set the flag
+            if(`${config.vendor}.${config.environment}:/${config.vendor}.${config.environment}.trace` == inputFileObj.destination) {
+                output.isReconReport = true
+            }
+    
+            // process the FRB Recon Reports
+            if(output.isReconReport && output.isCSV === false) {
+                console.warn('FRB RECON REPORT - ')
+                FILE_TYPE_MATCH = 'TXT_FRB_RECON'
+            }
+    
+            if(output.isReconReport && output.isCSV && matchedHeadersCSV) {
+                console.warn('FRB RECON REPORT - ')
+                FILE_TYPE_MATCH = 'CSV_FRB_RECON'
+            }
+
+            if(output.isReconReport && output.isCSV && !matchedHeadersCSV && output.fileExtension === 'txt') {
+                // we did not find a CSV header match, send it as TEXT
+                console.warn('FRB RECON REPORT - ')
+                FILE_TYPE_MATCH = 'TXT_FRB_RECON'
+            }
+
+            if(output.isReconReport && output.isCSV && !matchedHeadersCSV && output.fileExtension === 'csv') {
+                // we did not find a CSV header match, send it as TEXT
+                console.warn('FRB RECON REPORT - ')
+                FILE_TYPE_MATCH = 'CSV_FRB_RECON'
+            }
+
+            if(output.isReconReport && matchedHeadersCSV === false && output.fileExtension === 'xlsx') {
+                console.warn('FRB RECON REPORT - ')
+                FILE_TYPE_MATCH = 'XLSX_FRB_RECON'
+            }
+        }
+
+
 
         // Return the fileTypeId that maps to fileTypeMatch == FILE_TYPE_MATCH
         const matchedFileType = fileTypeId.find(obj => obj.fileTypeMatch === FILE_TYPE_MATCH);
@@ -1460,8 +1532,8 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
             }
 
             try{
-                await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
-                await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath })
+                let {isBinary} = await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+                await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath, isBinary })
                 if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
             } catch (fileVaultError) {
                 let errorMessage = {}
@@ -1728,8 +1800,8 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
             }
 
             try{
-                await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
-                await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath })
+                let {isBinary} = await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+                await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: fullFilePath + '.gpg', destinationFilePath: fullFilePath, isBinary })
                 if (DELETE_WORKING_DIRECTORY) await deleteBufferFile( fullFilePath + '.gpg' )
             } catch (fileVaultError) {
                 let errorMessage = {}
@@ -1932,7 +2004,7 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
         }
 
         // encrypt the file with Lineage GPG keys prior to vaulting
-        let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, childFilePath, childFilePath + '.gpg' )          
+        let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, childFilePath, childFilePath + '.gpg', baas )          
 
         if(!fileEntityId) {
             // check db if sha256 exists
@@ -1971,8 +2043,8 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
             destinationPath: childFilePath + '.gpg'
         }
         
-        await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
-        await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: childFilePath + '.gpg', destinationFilePath: childFilePath + '.VALIDATION' })
+        let {isBinary} = await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+        await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: childFilePath + '.gpg', destinationFilePath: childFilePath + '.VALIDATION', isBinary })
 
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE WIRE [baas.processing.splitOutMultifileWIRE()] - file [${childFileName}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: parentEntityId, correlationId })
         let sha256_VALIDATION = await baas.sql.file.generateSHA256( childFilePath + '.VALIDATION' )
@@ -2143,7 +2215,7 @@ async function splitOutMultifileACH({ baas, logger, VENDOR_NAME, ENVIRONMENT, PR
         }
 
         // encrypt the file with Lineage GPG keys prior to vaulting
-        let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, splitFilePath, splitFilePath + '.gpg' )          
+        let encryptOutput = await baas.pgp.encryptFile( 'lineage', ENVIRONMENT, splitFilePath, splitFilePath + '.gpg', baas )          
 
         if(!fileEntityId) {
             // check db if sha256 exists
@@ -2182,8 +2254,8 @@ async function splitOutMultifileACH({ baas, logger, VENDOR_NAME, ENVIRONMENT, PR
             destinationPath: splitFilePath + '.gpg'
         }
         
-        await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
-        await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: splitFilePath + '.gpg', destinationFilePath: splitFilePath + '.VALIDATION' })
+        let {isBinary} = await baas.output.fileVault( fileVaultObj ) // pull the encrypted file down for validation
+        await baas.pgp.decryptFile({ baas, audit, VENDOR: VENDOR_NAME, ENVIRONMENT, sourceFilePath: splitFilePath + '.gpg', destinationFilePath: splitFilePath + '.VALIDATION', isBinary })
 
         await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SPLIT MULTIFILE ACH [baas.processing.splitOutMultifileACH()] - file [${splitFileName}] was downloaded from the File Vault and Decrypted for validation for environment [${ENVIRONMENT}].`, effectedEntityId: parentEntityId, correlationId })
         let sha256_VALIDATION = await baas.sql.file.generateSHA256( splitFilePath + '.VALIDATION' )

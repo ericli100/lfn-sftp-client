@@ -7,14 +7,24 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 function Handler(mssql) {
-    Handler.exists = async function exists(sha256, returnId = false) {
+    Handler.exists = async function exists(sha256, returnId = false, toOrganizationId = undefined) {
         if (!sha256) throw ('sha256 required')
         let tenantId = process.env.PRIMAY_TENANT_ID
     
-        let sqlStatement = `SELECT [entityId]
-        FROM [baas].[files]
-        WHERE [sha256] = '${sha256}'
-        AND [tenantId] = '${tenantId}'`
+        let sqlStatement
+
+        if(toOrganizationId){
+            sqlStatement = `SELECT [entityId]
+            FROM [baas].[files]
+            WHERE [sha256] = '${sha256}'
+            AND ( [fromOrganizationId] = '${toOrganizationId}' OR [toOrganizationId] = '${toOrganizationId}' )
+            AND [tenantId] = '${tenantId}';`
+        } else {
+            sqlStatement = `SELECT [entityId]
+            FROM [baas].[files]
+            WHERE [sha256] = '${sha256}'
+            AND [tenantId] = '${tenantId}';`
+        }
     
         let param = {}
         param.params = []

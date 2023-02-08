@@ -21,6 +21,7 @@
     "dotenv": "^10.0.0",
     "eol": "^0.9.1",
     "flake-idgen": "^1.4.0",
+    "get-stream": "^6.0.1",
     "imapflow": "^1.0.78",
     "is-json": "^2.0.1",
     "isomorphic-fetch": "^3.0.0",
