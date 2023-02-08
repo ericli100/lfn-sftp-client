@@ -729,14 +729,16 @@ async function perEmailInboundProcessing({baas, logger, config, client, workingD
             if(DEBUG)  console.log('Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Approved ACH Sender.')
         } else {
             console.error('Message UID:', msgUID, '[baas.processing.perEmailInboundProcessing()] Not an Approved ACH Sender!!!')
-            await baas.email.achSenderError(from, config)
+            await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: INBOUND EMAIL PROCESSING [baas.processing.perEmailInboundProcessing()] - [baas.processing.perEmailInboundProcessing()] NOT an approved ACH Sender from [${from}] for environment [${ENVIRONMENT}]!`, effectedEntityId: undefined, correlationId })
+            // await baas.email.achSenderError(from, config)
             // await moveMessage(imap, msgUID, "rejected")
-
 
             // THIS SHOULD BE PROCESSED IN THE ACH PROCESSING SECTION :thinking:
             // let messageBody = `ACH Inbound Email Sent TO:[${JSON.stringify(to)}] \n FROM:[${from}] \n\n But this user is not in the ALLOWED ACH SENDERS: [${achApprovedSenders}]`
             // await sendSMTP(transporter, "baas.ach.advice@lineagebank.com", "BaaS: ACH Inbound - REJECTED!", messageBody)
             // continue;
+
+            throw(`[baas.processing.perEmailInboundProcessing()] NOT an approved ACH Sender from [${from}] for environment [${ENVIRONMENT}]!`)
         }
     }
 
