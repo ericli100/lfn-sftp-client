@@ -1226,7 +1226,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
         // ****************************************************************
         // ** This section if for sending Fed reports for Recon purposes ** 
         // ****************************************************************
-        if(!output.isFedWireConfirmation && !output.isFedWire && !output.isACH && !output.isAchConfirmation && matchedHeadersCSV === false) {
+        if(!output.isFedWireConfirmation && !output.isFedWire && !output.isACH && !output.isAchConfirmation && matchedHeadersCSV === false && FILE_TYPE_MATCH !== 'CSV_BALANCES' && FILE_TYPE_MATCH !== 'CSV_FILEACTIVITY') {
             // check this gate and set the flag
             if(`${config.vendor}.${config.environment}:/${config.vendor}.${config.environment}.trace` == inputFileObj.destination) {
                 output.isReconReport = true
