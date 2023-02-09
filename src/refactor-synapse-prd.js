@@ -157,6 +157,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         "tabetha.sweeney@lineagebank.com",
         "candace.mercer@lineagebank.com",
         "dana.kirkpatrick@lineagebank.com",
+        "jennifer.delaneuville@lineagefn.com",
         "depositoperations.outbound.processing@lineagebank.com",
     ]
     

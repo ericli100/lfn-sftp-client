@@ -166,6 +166,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         "candace.mercer@lineagebank.com",
         "dana.kirkpatrick@lineagebank.com",
         "depositoperations.outbound.processing@lineagebank.com",
+        "jennifer.delaneuville@lineagefn.com",
     ]
     
     config.email.inbound.achApprovedSenders = [
