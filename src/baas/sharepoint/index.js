@@ -157,6 +157,14 @@ function Handler() {
 
     Handler.uploadSharePoint = async function uploadSharePoint ({ client, filePath, sharePointDestinationFolder, fieldMetaData }) {
         const fileName = path.basename( filePath );
+
+        let fileNameRename = fileName
+
+        if(path.extname(fileNameRename).toLocaleLowerCase() === '.ach'){
+            // we have an ACH file, let's add a .txt extension to allow indexing and preview abilities in SharePoint
+            fileNameRename = fileNameRename + '.txt';
+        }
+
         const stats = fss.statSync(`${filePath}`);
         const totalSize = stats.size;
         const fileSizeInMegabytes = totalSize / (1024*1024);
@@ -199,12 +207,12 @@ function Handler() {
     
         let uploadResult
         if (fileSizeInMegabytes > 4){
-            let requestUrl = `https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drives/${ drive_id.id }/items/${ item_id.id }:/${ fileName }:/createuploadsession`
+            let requestUrl = `https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drives/${ drive_id.id }/items/${ item_id.id }:/${ fileNameRename }:/createuploadsession`
 
             const payload = {
                 item: {
                     "@microsoft.graph.conflictBehavior": "replace",
-                    name: fileName,
+                    name: fileNameRename,
                 },
             };
 
@@ -218,7 +226,7 @@ function Handler() {
             const fileContents = fss.readFileSync(`${filePath}`);
             // use the small file upload method
             // need to URI encode the filename being passed in to the safe: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
-            let requestUrl = `https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drives/${ drive_id.id }/items/${ item_id.id }:/${ encodeURIComponent(fileName) }:/content`
+            let requestUrl = `https://graph.microsoft.com/v1.0/sites/${ site_id.id }/drives/${ drive_id.id }/items/${ item_id.id }:/${ encodeURIComponent(fileNameRename) }:/content`
             uploadResult = await client.api( requestUrl ).put( fileContents )
         }
         
