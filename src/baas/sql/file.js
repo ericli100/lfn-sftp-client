@@ -387,7 +387,8 @@ function Handler(mssql) {
         AND (t.[fromOrganizationId] = '${fromOrganizationId}' OR t.[toOrganizationId] = '${fromOrganizationId}')
         AND f.[isProcessed] = 0
         AND f.[hasProcessingErrors] = 0
-        AND f.isRejected = 0;`
+        AND f.isRejected = 0
+        AND f.[status] <> 'rejected';`
     
         let param = {}
         param.params = []
@@ -463,7 +464,8 @@ function Handler(mssql) {
         AND f.[isSharePointSynced] = 0
         AND t.[sharePointSync] = 1
         AND f.[isMultifileParent] = 0
-        AND f.isRejected = 0;`
+        AND f.isRejected = 0
+        AND f.[status] <> 'rejected';`
     
         let param = {}
         param.params = []
@@ -502,7 +504,8 @@ function Handler(mssql) {
         AND (t.[fromOrganizationId] = '${fromOrganizationId}' OR t.[toOrganizationId] = '${toOrganizationId}')
         AND f.[hasProcessingErrors] = 1
         AND f.isProcessed = 0
-        AND f.isRejected = 0;`
+        AND f.isRejected = 0
+        AND f.[status] <> 'rejected';`
     
         let param = {}
         param.params = []
@@ -544,7 +547,8 @@ function Handler(mssql) {
         AND f.[hasProcessingErrors] = 0
         AND f.isProcessed = 1
         AND t.isACH = 1
-        AND f.isRejected = 0;`
+        AND f.isRejected = 0
+        AND f.[status] <> 'rejected';`
     
         let param = {}
         param.params = []
@@ -607,6 +611,7 @@ function Handler(mssql) {
                 AND f.contextOrganizationId = t.contextOrganizationId
             WHERE f.[tenantId] = '${tenantId}'
             AND f.isRejected = 0
+            AND f.[status] <> 'rejected'
             AND f.[contextOrganizationId] = '${contextOrganizationId}'
             AND t.[fromOrganizationId] = '${fromOrganizationId}'
             AND t.[toOrganizationId] = '${toOrganizationId}'
@@ -1091,6 +1096,7 @@ function Handler(mssql) {
         let sqlStatement = `
             UPDATE [baas].[files]
             SET [isRejected] = 1,
+                [status] = 'rejected',
                 [rejectedReason] = '${rejectedReason}'
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'

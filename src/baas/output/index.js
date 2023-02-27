@@ -82,7 +82,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
     AND f.isRejected = 0
     AND f.[isTrace] = 0
     AND f.[isReceiptProcessed] = 0
-    AND f.[isRejected] = 0
+    AND f.[status] <> 'rejected'
     AND f.[isMultifileParent] = 0
     AND f.[contextOrganizationId] = '${contextOrganizationId}'
     AND ( t.[toOrganizationId] = '${toOrganizationId}' OR t.[fromOrganizationId] = '${fromOrganizationId}' )
@@ -518,6 +518,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
             ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
         WHERE f.[tenantId] = '${tenantId}'
         AND f.[isRejected] = 0
+        AND f.[status] <> 'rejected'
         AND f.[contextOrganizationId] = '${contextOrganizationId}'
         AND t.[fromOrganizationId] = '${fromOrganizationId}'
         AND t.[toOrganizationId] = '${toOrganizationId}'
