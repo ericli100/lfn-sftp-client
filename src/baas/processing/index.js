@@ -1823,6 +1823,13 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
                 fieldMetaData.CREDIT = quickBalanceJSON.totalCredits || 0
                 fieldMetaData.DEBIT = quickBalanceJSON.totalDebits || 0
                 fieldMetaData.FILE_NAME_TRANSLATED = file.fileNameOutbound || ''
+
+                if(file.hasIAT === true) {
+                    fieldMetaData.hasIAT = true
+                } else {
+                    fieldMetaData.hasIAT = false
+                }
+
                 //fieldMetaData.SHA256 = file.sha256.trim()
 
                if (fieldMetaData.CREDIT > 0) {
