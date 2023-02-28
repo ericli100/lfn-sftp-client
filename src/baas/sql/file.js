@@ -453,6 +453,7 @@ function Handler(mssql) {
             ,t.[sharePointSyncPath]
             ,f.[IMAD]
             ,f.[OMAD]
+            ,f.[hasIAT]
         FROM [baas].[files] f
         INNER JOIN [baas].[fileTypes] t
         ON f.[fileTypeId] = t.entityId AND f.[tenantId] = t.[tenantId] AND f.contextOrganizationId = t.contextOrganizationId

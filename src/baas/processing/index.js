@@ -1824,7 +1824,7 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
                 fieldMetaData.DEBIT = quickBalanceJSON.totalDebits || 0
                 fieldMetaData.FILE_NAME_TRANSLATED = file.fileNameOutbound || ''
 
-                if(file.hasIAT === 'true') {
+                if(file.hasIAT === true) {
                     fieldMetaData.hasIAT = true
                 } else {
                     fieldMetaData.hasIAT = false
