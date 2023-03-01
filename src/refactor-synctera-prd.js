@@ -124,13 +124,13 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.folderMappings.push({ type: 'get', source: '/encrypted/sfd/transaction', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
     config.folderMappings.push({ type: 'get', source: '/encrypted/sfd', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed' })
     config.folderMappings.push({ type: 'get', source: '/encrypted/sfd/miscellaneous', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed' })
-    config.folderMappings.push({ type: 'get', source: '/encrypted/wire/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.wire.outbound`, usePGP:true, actionAfterGet: 'processed' })
+    // ONHOLD NO AGREEMENT - config.folderMappings.push({ type: 'get', source: '/encrypted/wire/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.wire.outbound`, usePGP:true, actionAfterGet: 'processed' })
 
     // FTP put commands ( PUSH )
     config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.ach.inbound`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.ach` , destination: '/ach/inbound', usePGP:false })
     config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.fis`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.fis`, destination: '/fis', usePGP:false })
     config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`, destination: '/fis', usePGP:false, isOutbound:false })
-    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.wire`, destination: '/encrypted/wire/inbound', usePGP:true, isOutbound:false })
+    // ONHOLD NO AGREEMENT - config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.wire`, destination: '/encrypted/wire/inbound', usePGP:true, isOutbound:false })
 
     config.destinationFolders = ['/ach', '/ach/inbound', '/ach/outbound', '/ach/outbound/processed', '/ach/inbound/processed','/fis', '/samples', '/secure_file_delivery', '/test', '/samples']
     config.destinationFolders.push( '/encrypted' )
