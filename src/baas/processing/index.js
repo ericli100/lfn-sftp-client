@@ -1096,6 +1096,9 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
 
         if(typeof achJSON == 'string') parsedACH = JSON.parse( achJSON )
         if(typeof achJSON == 'object') parsedACH = achJSON
+
+        // set the file level extention override for ACH
+        extensionOverride = 'ach'
         
         if (config.ach.inbound.immediateDestination.includes( parsedACH.fileHeader.immediateDestination )) {
             if(parsedACH.ReturnEntries) {
@@ -1303,6 +1306,7 @@ async function determineInputFileTypeId({baas, inputFileObj, contextOrganization
             if(matchedFileType.fileNameFormat == '%'){
                 // splat match provided, just pass the name outbound
                 output.fileNameOutbound = PROCESSING_DATE + '_' + output.fileName
+                
                 if(extensionOverride) {
                     // set the extention override here for downstream.
                     output.overrideExtension = extensionOverride
