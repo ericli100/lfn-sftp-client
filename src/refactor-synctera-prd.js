@@ -177,6 +177,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         "jennifer.delaneuville@lineagefn.com",
         "depositoperations.outbound.processing@lineagebank.com",
         "jacquilyn.dowdy@lineagebank.com",
+        "chuck.black@lineagebank.com",
     ]
     
     config.email.inbound.achApprovedSenders = [
@@ -190,6 +191,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         "dana.kirkpatrick@lineagebank.com",
         "depositoperations.outbound.processing@lineagebank.com",
         "jacquilyn.dowdy@lineagebank.com",
+        "chuck.black@lineagebank.com",
     ]
 
     config.email.inbound.achApprovedRecipients = [
@@ -208,6 +210,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
         "dana.kirkpatrick@lineagebank.com",
         "depositoperations.outbound.processing@lineagebank.com",
         "jacquilyn.dowdy@lineagebank.com",
+        "chuck.black@lineagebank.com",
     ]
     
     config.email.inbound.wireApprovedRecipients = [
