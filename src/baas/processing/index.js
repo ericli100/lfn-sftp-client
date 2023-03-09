@@ -1785,8 +1785,11 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
 
     let input = baas.input
 
+    let isBulk = false;
+    if ( config.processing.ENABLE_BULK_PROCESSING == true) isBulk = true;
+
     // get unprocessed SHAREPOINT files from the DB
-    let unprocessedFiles = await baas.sql.file.getUnprocessedSharepointFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
+    let unprocessedFiles = await baas.sql.file.getUnprocessedSharepointFiles({contextOrganizationId, fromOrganizationId, toOrganizationId, isBulk})
     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SHAREPOINT - Pulled a list of unprocessed SHAREPOINT files from the database for environment [${ENVIRONMENT}].`, correlationId })
     
     // - Loop through files
