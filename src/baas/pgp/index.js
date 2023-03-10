@@ -311,7 +311,7 @@ async function decryptFile({VENDOR, ENVIRONMENT, sourceFilePath, destinationFile
         errorMessage.message = error.toString()
         if(ALLOW_AUDIT_ENTRIES) await baas.audit.log({baas, logger, level: 'error', message: `${audit.vendor}: file [${audit.filename}] error in baas.pgp.decryptFile error:[${ JSON.stringify( errorMessage )}]`, effectedEntityId: audit.entityId, correlationId  })
         console.error('ERROR:', error)
-        return false
+        throw(`${audit.vendor}: file [${audit.filename}] error in baas.pgp.decryptFile error:[${ JSON.stringify( errorMessage )}]`)
     }
 }
 

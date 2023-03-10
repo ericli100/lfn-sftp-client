@@ -4,7 +4,7 @@ let VENDOR_NAME = 'synapse'
 let ENVIRONMENT = 'prd'
 
 let DATACENTER = 10
-let WORKERID = 201
+let WORKERID = 249
 
 global.DEBUG = false;
 if(DEBUG) console.warn('** GLOBAL DEBUG == TRUE **')
@@ -123,14 +123,9 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     };
 
     config.folderMappings = []    // FTP file processing
-    config.folderMappings.push({ type: 'get', source: '/fromsynapse', destination: `${VENDOR_NAME}.${ENVIRONMENT}`, usePGP:true, actionAfterGet: 'processed', isOutbound:true })
-    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.ach`, destination: '/tosynapse', usePGP:true, isOutbound:false })
-    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.wire`, destination: '/tosynapse', usePGP:true, isOutbound:false })
-    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.trace`, destination: '/tosynapse', usePGP:true, isOutbound:false })
-    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.fis`, destination: '/tosynapse', usePGP:true, isOutbound:false })
-    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`, destination: '/tosynapse', usePGP:true, isOutbound:false })
-
-    config.destinationFolders = ['/fromsynapse', '/tosynapse', '/manual']
+    config.folderMappings.push({ type: 'get', source: '/fromsynapse-bulk', destination: `${VENDOR_NAME}.${ENVIRONMENT}`, usePGP:true, actionAfterGet: 'processed', isOutbound:true })
+    
+    config.destinationFolders = ['/fromsynapse-bulk']
 
     config.environment = ENVIRONMENT;
     config.vendor = VENDOR_NAME;
@@ -147,112 +142,46 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.email.inbound.toOrganizationId = FROM_ORGANIZATION_ID
 
     config.email.inbound.emailApprovedSenders = [
-        "brandon.hedge@lineagebank.com",
-        "jason.ezell@lineagefn.com",
-        "cheryl.lamberth@lineagefn.com",
-        "gloria.dodd@lineagebank.com",
-        "htc.reports@fisglobal.com",
-        "ellen.hartley@lineagefn.com",
-        "fritzi.bronson@lineagebank.com",
-        "tabetha.sweeney@lineagebank.com",
-        "candace.mercer@lineagebank.com",
-        "dana.kirkpatrick@lineagebank.com",
-        "jennifer.delaneuville@lineagefn.com",
-        "depositoperations.outbound.processing@lineagebank.com",
-        "jacquilyn.dowdy@lineagebank.com",
-        "chuck.black@lineagebank.com",
     ]
     
     config.email.inbound.achApprovedSenders = [
-        "cheryl.lamberth@lineagefn.com",
-        "gloria.dodd@lineagebank.com",
-        "ellen.hartley@lineagefn.com",
-        "paul.hignutt@lineagefn.com",
-        "fritzi.bronson@lineagebank.com",
-        "tabetha.sweeney@lineagebank.com",
-        "candace.mercer@lineagebank.com",
-        "dana.kirkpatrick@lineagebank.com",
-        "depositoperations.outbound.processing@lineagebank.com",
-        "jacquilyn.dowdy@lineagebank.com",
-        "chuck.black@lineagebank.com",
     ]
 
     config.email.inbound.achApprovedRecipients = [
-        `${config.vendor}.${config.environment}.ach@lineagebank.com`,
-        `${config.vendor}.ach@lineagebank.com`,
-        `${config.vendor}.${config.environment}.ach@lineagefn.com`
     ]
 
     config.email.inbound.wireApprovedSenders = [
-        "cheryl.lamberth@lineagefn.com",
-        "gloria.dodd@lineagebank.com",
-        "ellen.hartley@lineagefn.com",
-        "paul.hignutt@lineagefn.com",
-        "fritzi.bronson@lineagebank.com",
-        "tabetha.sweeney@lineagebank.com",
-        "candace.mercer@lineagebank.com",
-        "dana.kirkpatrick@lineagebank.com",
-        "depositoperations.outbound.processing@lineagebank.com",
-        "jacquilyn.dowdy@lineagebank.com",
-        "chuck.black@lineagebank.com",
     ]
     
     config.email.inbound.wireApprovedRecipients = [
-        `${config.vendor}.${config.environment}.wire@lineagebank.com`,
-        `${config.vendor}.wire@lineagebank.com`,
-        `${config.vendor}.${config.environment}.wire@lineagefn.com`,
-        `${config.vendor}.${config.environment}.trace@lineagebank.com`,
     ]
     
     config.email.inbound.approvedRecipients = [
-        `${config.vendor}.${config.environment}.fis@lineagebank.com`,
-        `${config.vendor}.fis@lineagebank.com`,
-        "baas.ach.advice@lineagebank.com",
-        "baas.wire.advice@lineagebank.com",
     ]
     
     config.email.inbound.approvedAttachmentExtensions = [
-        "csv",
-        "xls",
-        "xlsx",
-        "ach",
-        "txt",
     ]
     
     config.email.inbound.folderMappings = []
-    
-    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.ach@lineagebank.com`, destination: `${config.vendor}.${config.environment}.ach` })
-    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.ach@lineagefn.com`, destination: `${config.vendor}.${config.environment}.ach` })
-    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.wire@lineagebank.com`, destination: `${config.vendor}.${config.environment}.wire` })
-    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.wire@lineagefn.com`, destination: `${config.vendor}.${config.environment}.wire` })
-    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.fis@lineagebank.com`, destination: `${config.vendor}.${config.environment}.fis` })
-
-    // added to process wire trace file inbound
-    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.trace@lineagefn.com`, destination: `${config.vendor}.${config.environment}.trace` })
-    config.email.inbound.folderMappings.push({ to: `${config.vendor}.${config.environment}.trace@lineagebank.com`, destination: `${config.vendor}.${config.environment}.trace` })
-
-    config.email.inbound.folderMappings.push({ to: `${config.vendor}.ach@lineagebank.com`, destination: `${config.vendor}.uat.ach` })
-    config.email.inbound.folderMappings.push({ to: `${config.vendor}.wire@lineagebank.com`, destination: `${config.vendor}.uat.wire` })
-    config.email.inbound.folderMappings.push({ to: `${config.vendor}.fis@lineagebank.com`, destination: `${config.vendor}.uat.fis` })
 
     config.ach = {};
     config.ach.inbound = {}
-    config.ach.inbound.immediateDestination = ['064109565']
+    config.ach.inbound.immediateDestination = ['']
 
     // SET THE PROCESSING FLAGS
     config.processing = {}
     config.processing.ENABLE_FTP_PULL = true
-    config.processing.ENABLE_BULK_PROCESSING = false
-    config.processing.ENABLE_INBOUND_EMAIL_PROCESSING = true
+    config.processing.ENABLE_BULK_PROCESSING = true
+    config.processing.ENABLE_INBOUND_EMAIL_PROCESSING = false
     config.processing.ENABLE_INBOUND_PROCESSING_FROM_DB = true
-    config.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB = true
+    config.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB = false
     config.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING = true
-    config.processing.ENABLE_FILE_RECEIPT_PROCESSING = true
+    config.processing.ENABLE_FILE_RECEIPT_PROCESSING = false
     config.processing.ENABLE_REMOTE_DELETE = true
     config.processing.ENABLE_MANUAL_DB_DOWNLOAD = false
     config.processing.ENABLE_NOTIFICATIONS = true
-    config.processing.DISABLE_INBOUND_FILE_SPLIT = false
-    config.processing.DISABLE_FILE_SPLIT_WIRES = false
+    config.processing.DISABLE_INBOUND_FILE_SPLIT = true
+    config.processing.DISABLE_FILE_SPLIT_WIRES = true
     config.processing.ENABLE_REPORT_PROCESSING = false
     config.processing.ENABLE_SHAREPOINT_PROCESSING = true
 

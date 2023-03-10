@@ -4,7 +4,7 @@ let VENDOR_NAME = 'synctera'
 let ENVIRONMENT = 'prd'
 
 let DATACENTER = 10
-let WORKERID = 100
+let WORKERID = 184
 
 global.DEBUG = false;
 if(DEBUG) console.warn('** GLOBAL DEBUG == TRUE **')
@@ -116,32 +116,25 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.folderMappings = []    // FTP file processing
 
     // FTP get commands ( PULL )
-    config.folderMappings.push({ type: 'get', source: '/ach/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.ach.outbound`, usePGP:false, actionAfterGet: 'processed' })
-    config.folderMappings.push({ type: 'get', source: '/secure_file_delivery', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed'})
-    config.folderMappings.push({ type: 'get', source: '/encrypted/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
-    config.folderMappings.push({ type: 'get', source: '/encrypted', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
-    config.folderMappings.push({ type: 'get', source: '/encrypted/outbound/txns', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
-    config.folderMappings.push({ type: 'get', source: '/encrypted/sfd/transaction', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
-   // config.folderMappings.push({ type: 'get', source: '/encrypted/sfd', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed' })
-    config.folderMappings.push({ type: 'get', source: '/encrypted/sfd/miscellaneous', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed' })
+    // config.folderMappings.push({ type: 'get', source: '/secure_file_delivery', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed'})
+    // config.folderMappings.push({ type: 'get', source: '/encrypted/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
+    // config.folderMappings.push({ type: 'get', source: '/encrypted', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
+    // config.folderMappings.push({ type: 'get', source: '/encrypted/outbound/txns', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
+    // config.folderMappings.push({ type: 'get', source: '/encrypted/sfd/transaction', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
+    config.folderMappings.push({ type: 'get', source: '/encrypted/sfd', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed' })
+    // config.folderMappings.push({ type: 'get', source: '/encrypted/sfd/miscellaneous', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed' })
     // ONHOLD NO AGREEMENT - config.folderMappings.push({ type: 'get', source: '/encrypted/wire/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.wire.outbound`, usePGP:true, actionAfterGet: 'processed' })
 
-    // FTP put commands ( PUSH )
-    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.ach.inbound`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.ach` , destination: '/ach/inbound', usePGP:false })
-    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.fis`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.fis`, destination: '/fis', usePGP:false })
-    config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`, destination: '/fis', usePGP:false, isOutbound:false })
-    // ONHOLD NO AGREEMENT - config.folderMappings.push({ type: 'put', source: `${VENDOR_NAME}.${ENVIRONMENT}`, dbDestination: `${VENDOR_NAME}.${ENVIRONMENT}:/${VENDOR_NAME}.${ENVIRONMENT}.wire`, destination: '/encrypted/wire/inbound', usePGP:true, isOutbound:false })
-
-    config.destinationFolders = ['/ach', '/ach/inbound', '/ach/outbound', '/ach/outbound/processed', '/ach/inbound/processed','/fis', '/samples', '/secure_file_delivery', '/test', '/samples']
-    config.destinationFolders.push( '/encrypted' )
-    config.destinationFolders.push( '/encrypted/inbound' )
-    config.destinationFolders.push( '/encrypted/outbound' )
+    config.destinationFolders = [] // - '/ach', '/ach/inbound', '/ach/outbound', '/ach/outbound/processed', '/ach/inbound/processed','/fis', '/samples', '/secure_file_delivery', '/test', '/samples']
+    // config.destinationFolders.push( '/encrypted' )
+    // config.destinationFolders.push( '/encrypted/inbound' )
+    // config.destinationFolders.push( '/encrypted/outbound' )
     config.destinationFolders.push( '/encrypted/sfd' )
-    config.destinationFolders.push( '/encrypted/sfd/transaction' )
-    config.destinationFolders.push( '/encrypted/outbound/txns' )
-    config.destinationFolders.push( '/encrypted/sfd/miscellaneous')
-    config.destinationFolders.push( '/encrypted/wire/inbound')
-    config.destinationFolders.push( '/encrypted/wire/outbound')
+    // config.destinationFolders.push( '/encrypted/sfd/transaction' )
+    // config.destinationFolders.push( '/encrypted/outbound/txns' )
+    // config.destinationFolders.push( '/encrypted/sfd/miscellaneous')
+    // config.destinationFolders.push( '/encrypted/wire/inbound')
+    // config.destinationFolders.push( '/encrypted/wire/outbound')
     
     config.environment = ENVIRONMENT;
     config.vendor = VENDOR_NAME;
@@ -163,66 +156,21 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.email.inbound.toOrganizationId = FROM_ORGANIZATION_ID
 
     config.email.inbound.emailApprovedSenders = [
-        "brandon.hedge@lineagebank.com",
-        "jason.ezell@lineagefn.com",
-        "jason.ezell@lineagebank.com",
-        "cheryl.lamberth@lineagefn.com",
-        "gloria.dodd@lineagebank.com",
-        "htc.reports@fisglobal.com",
-        "ellen.hartley@lineagefn.com",
-        "fritzi.bronson@lineagebank.com",
-        "tabetha.sweeney@lineagebank.com",
-        "candace.mercer@lineagebank.com",
-        "dana.kirkpatrick@lineagebank.com",
-        "jennifer.delaneuville@lineagefn.com",
-        "depositoperations.outbound.processing@lineagebank.com",
-        "jacquilyn.dowdy@lineagebank.com",
-        "chuck.black@lineagebank.com",
     ]
     
     config.email.inbound.achApprovedSenders = [
-        "cheryl.lamberth@lineagefn.com",
-        "gloria.dodd@lineagebank.com",
-        "ellen.hartley@lineagefn.com",
-        "paul.hignutt@lineagefn.com",
-        "fritzi.bronson@lineagebank.com",
-        "tabetha.sweeney@lineagebank.com",
-        "candace.mercer@lineagebank.com",
-        "dana.kirkpatrick@lineagebank.com",
-        "depositoperations.outbound.processing@lineagebank.com",
-        "jacquilyn.dowdy@lineagebank.com",
-        "chuck.black@lineagebank.com",
     ]
 
     config.email.inbound.achApprovedRecipients = [
-        `${config.vendor}.${config.environment}.ach@lineagebank.com`,
-        `${config.vendor}.ach@lineagebank.com`,
     ]
 
     config.email.inbound.wireApprovedSenders = [
-        "cheryl.lamberth@lineagefn.com",
-        "gloria.dodd@lineagebank.com",
-        "ellen.hartley@lineagefn.com",
-        "paul.hignutt@lineagefn.com",
-        "fritzi.bronson@lineagebank.com",
-        "tabetha.sweeney@lineagebank.com",
-        "candace.mercer@lineagebank.com",
-        "dana.kirkpatrick@lineagebank.com",
-        "depositoperations.outbound.processing@lineagebank.com",
-        "jacquilyn.dowdy@lineagebank.com",
-        "chuck.black@lineagebank.com",
     ]
     
     config.email.inbound.wireApprovedRecipients = [
-        `${config.vendor}.${config.environment}.wire@lineagebank.com`,
-        `${config.vendor}.wire@lineagebank.com`,
     ]
     
     config.email.inbound.approvedRecipients = [
-        `${config.vendor}.${config.environment}.fis@lineagebank.com`,
-        `${config.vendor}.fis@lineagebank.com`,
-        "baas.ach.advice@lineagebank.com",
-        "baas.wire.advice@lineagebank.com",
     ]
     
     config.email.inbound.approvedAttachmentExtensions = [
@@ -252,10 +200,10 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     // SET THE PROCESSING FLAGS
     config.processing = {}
     config.processing.ENABLE_FTP_PULL = true
-    config.processing.ENABLE_BULK_PROCESSING = false
-    config.processing.ENABLE_INBOUND_EMAIL_PROCESSING = true
+    config.processing.ENABLE_BULK_PROCESSING = true
+    config.processing.ENABLE_INBOUND_EMAIL_PROCESSING = false
     config.processing.ENABLE_INBOUND_PROCESSING_FROM_DB = true
-    config.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB = true
+    config.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB = false
     config.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING = true
     config.processing.ENABLE_FILE_RECEIPT_PROCESSING = true
     config.processing.ENABLE_REMOTE_DELETE = true

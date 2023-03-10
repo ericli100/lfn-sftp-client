@@ -110,7 +110,7 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isMultifile, parentEntityId, dataJSON, quickBalanceJSON, fileNameOutbound, isTrace, OMAD, IMAD, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isMultifile, parentEntityId, dataJSON, quickBalanceJSON, fileNameOutbound, isTrace, OMAD, IMAD, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent, isBulk, correlationId}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
@@ -139,6 +139,9 @@ function Handler(mssql) {
             // there was a parentEntityId set... it is a multifile
             isMultifile = '1'
         }
+
+        if (!isBulk || isBulk == false) isBulk = '0'
+        if (isBulk) isBulk = '1'
 
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
@@ -170,7 +173,8 @@ function Handler(mssql) {
                ,[OMAD]
                ,[IMAD]
                ,[correlationId]
-               ,[isTrace])
+               ,[isTrace]
+               ,[isBulk])
          VALUES
                ('${entityId}'
                ,'${tenantId}'
@@ -200,6 +204,7 @@ function Handler(mssql) {
                ,'${IMAD}'
                ,'${correlationId}'
                ,'${isTrace}'
+               ,'${isBulk}'
                );`
 
         if(effectiveDate) {
@@ -276,6 +281,7 @@ function Handler(mssql) {
             ,f.[isTrace]
             ,f.[OMAD]
             ,f.[IMAD]
+            ,f.[isBulk]
         FROM [baas].[files] f
         INNER JOIN [baas].[fileTypes] t
         ON t.[entityId] = f.[fileTypeId] AND t.[contextOrganizationId] = f.[contextOrganizationId] AND t.[tenantId] = f.[tenantId]
@@ -338,8 +344,11 @@ function Handler(mssql) {
         return sha256
     }
 
-    Handler.getUnprocessedFiles = async function getUnprocessedFiles({contextOrganizationId, fromOrganizationId, toOrganizationId}){
+    Handler.getUnprocessedFiles = async function getUnprocessedFiles({contextOrganizationId, fromOrganizationId, toOrganizationId, isBulk}){
         let output = {}
+
+        if (!isBulk || isBulk == false) isBulk = '0'
+        if (isBulk) isBulk = '1'
 
         let tenantId = process.env.PRIMAY_TENANT_ID
     
@@ -388,6 +397,7 @@ function Handler(mssql) {
         AND f.[isProcessed] = 0
         AND f.[hasProcessingErrors] = 0
         AND f.isRejected = 0
+        AND f.isBulk = ${isBulk}
         AND (f.[status] <> 'rejected' or f.[status] IS NULL);`
     
         let param = {}
@@ -405,10 +415,13 @@ function Handler(mssql) {
         return output
     }
 
-    Handler.getUnprocessedSharepointFiles = async function getUnprocessedSharepointFiles({contextOrganizationId, fromOrganizationId, toOrganizationId}){
+    Handler.getUnprocessedSharepointFiles = async function getUnprocessedSharepointFiles({contextOrganizationId, fromOrganizationId, toOrganizationId, isBulk}){
         let output = {}
 
         let tenantId = process.env.PRIMAY_TENANT_ID
+
+        if (!isBulk || isBulk == false) isBulk = '0'
+        if (isBulk) isBulk = '1'
     
         let sqlStatement = `
         SELECT f.[entityId]
@@ -466,6 +479,7 @@ function Handler(mssql) {
         AND t.[sharePointSync] = 1
         AND f.[isMultifileParent] = 0
         AND f.isRejected = 0
+        AND f.isBulk = ${isBulk}
         AND (f.[status] <> 'rejected' or f.[status] IS NULL);`
     
         let param = {}
@@ -483,13 +497,16 @@ function Handler(mssql) {
         return output
     }
 
-    Handler.getProcessingErrorFiles = async function getProcessingErrorFiles({contextOrganizationId, fromOrganizationId, toOrganizationId}){
+    Handler.getProcessingErrorFiles = async function getProcessingErrorFiles({contextOrganizationId, fromOrganizationId, toOrganizationId, isBulk}){
         let output = {}
 
         let tenantId = process.env.PRIMAY_TENANT_ID
 
         // override this
         toOrganizationId = fromOrganizationId;
+
+        if (!isBulk || isBulk == false) isBulk = '0'
+        if (isBulk) isBulk = '1'
 
         let sqlStatement = `
         SELECT f.[entityId]
@@ -506,6 +523,7 @@ function Handler(mssql) {
         AND f.[hasProcessingErrors] = 1
         AND f.isProcessed = 0
         AND f.isRejected = 0
+        AND f.isBulk = ${isBulk}
         AND (f.[status] <> 'rejected' or f.[status] IS NULL);`
     
         let param = {}
@@ -566,7 +584,7 @@ function Handler(mssql) {
         return output
     }
 
-    Handler.getUnprocessedOutboundSftpFiles = async function getUnprocessedOutboundSftpFiles({contextOrganizationId, fromOrganizationId, toOrganizationId}){
+    Handler.getUnprocessedOutboundSftpFiles = async function getUnprocessedOutboundSftpFiles({contextOrganizationId, fromOrganizationId, toOrganizationId, isBulk}){
         let output = {}
 
         if(!contextOrganizationId) throw('baas.sql.file.getUnprocessedOutboundSftpFiles() needs a contextOrganizationId')
@@ -574,6 +592,9 @@ function Handler(mssql) {
         if(!toOrganizationId) throw('baas.sql.file.getUnprocessedOutboundSftpFiles() needs a toOrganizationId')
 
         let tenantId = process.env.PRIMAY_TENANT_ID
+
+        if (!isBulk || isBulk == false) isBulk = '0'
+        if (isBulk) isBulk = '1'
     
         let sqlStatement = `
             SELECT f.[entityId]
@@ -619,6 +640,7 @@ function Handler(mssql) {
             AND f.[isSentViaSFTP] = 0
             AND f.[isMultifileParent] = 0
             AND f.[isProcessed] = 1
+            AND f.isBulk = ${isBulk}
             AND f.[hasProcessingErrors] = 0;`
     
         let param = {}

@@ -252,6 +252,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     // SET THE PROCESSING FLAGS
     config.processing = {}
     config.processing.ENABLE_FTP_PULL = false
+    config.processing.ENABLE_BULK_PROCESSING = false
     config.processing.ENABLE_INBOUND_EMAIL_PROCESSING = true
     config.processing.ENABLE_INBOUND_PROCESSING_FROM_DB = true
     config.processing.ENABLE_OUTBOUND_PROCESSING_FROM_DB = true

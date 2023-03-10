@@ -35,6 +35,7 @@ var ENABLE_TEAMS_NOTIFICATION = false
 var ENABLE_SLACK_NOTIFICATION = true
 var ENABLE_EMAIL_NOTIFICATION = true
 var ENABLE_SHAREPOINT_PROCESSING = false
+var ENABLE_BULK_PROCESSING = false  // this is for large item processing... Reports etc. that is not related to direct money movements
 
 var DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
 var KEEP_PROCESSING_ON_ERROR = true
@@ -70,6 +71,7 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     if (CONFIG.processing.DISABLE_FILE_SPLIT_WIRES == true) { DISABLE_FILE_SPLIT_WIRES = true }
     if (CONFIG.processing.ENABLE_SHAREPOINT_PROCESSING == true) { ENABLE_SHAREPOINT_PROCESSING = true}
     if (CONFIG.processing.ENABLE_REPORT_PROCESSING == true) { ENABLE_REPORT_PROCESSING = true }
+    if (CONFIG.processing.ENABLE_BULK_PROCESSING == true) { ENABLE_BULK_PROCESSING = true }
 
     baas.logger = logger;
 
@@ -79,7 +81,10 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     if(ENABLE_NOTIFICATION){
         let effectedOrganizationId = baas.processing.EFFECTED_ORGANIZATION_ID
 
-        let processingErrorFiles = await baas.sql.file.getProcessingErrorFiles({ contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId })
+        let isBulk = false;
+        if ( CONFIG.processing.ENABLE_BULK_PROCESSING == true) isBulk = true;
+
+        let processingErrorFiles = await baas.sql.file.getProcessingErrorFiles({ contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId, isBulk })
         if(processingErrorFiles.length > 0){
             for(let errFile of processingErrorFiles ){
                 await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: baas.sql.file.getProcessingErrorFiles() [${ENVIRONMENT}] File Needs to be [isRejected] == 1 to stop alerting! The errorProcessingFile:[${ JSON.stringify( errFile ) }]!`, correlationId: CORRELATION_ID, effectedOrganizationId: baas.processing.EFFECTED_ORGANIZATION_ID, effectedEntityId: errFile.entityId  })
@@ -134,6 +139,10 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
                 }
             }
         }
+    }
+
+    if(ENABLE_BULK_PROCESSING) {
+        await baas.audit.log({ baas, logger, level: 'warn', message: `** BULK PROCESSING ENABLED (large reports and non-money movement files) ** [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID })
     }
 
     if(ENABLE_REPORT_PROCESSING) {
@@ -210,7 +219,10 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     if(ENABLE_NOTIFICATION){
         let effectedOrganizationId = baas.processing.EFFECTED_ORGANIZATION_ID
 
-        let processingErrorFiles = await baas.sql.file.getProcessingErrorFiles({ contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId })
+        let isBulk = false;
+        if ( CONFIG.processing.ENABLE_BULK_PROCESSING == true) isBulk = true;
+
+        let processingErrorFiles = await baas.sql.file.getProcessingErrorFiles({ contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId, isBulk })
         if(processingErrorFiles.length > 0){
             for(let errFile of processingErrorFiles ){
                 await baas.audit.log({baas, logger, level: 'error', message: `${VENDOR_NAME}: baas.sql.file.getProcessingErrorFiles() [${ENVIRONMENT}] File Needs to be [isRejected] == 1 to stop alerting! The errorProcessingFile:[${ JSON.stringify( errFile ) }]!`, correlationId: CORRELATION_ID, effectedOrganizationId: baas.processing.EFFECTED_ORGANIZATION_ID, effectedEntityId: errFile.entityId  })
@@ -359,6 +371,9 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
         }
     }
 
+    let isBulk = false;
+    if ( config.processing.ENABLE_BULK_PROCESSING == true) isBulk = true;
+
     var output = {}
     output.validatedRemoteFiles = []
 
@@ -386,6 +401,7 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
         // get the file from SFTP (one file at a time)
         for (let file of output.remoteFileList) {
             // get the raw file from the SFTP server
+            await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] calling SFTP GET... [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId  })
             await baas.sftp.getFile(file, workingDirectory, config)
             await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] pulled from the server for environment [${ENVIRONMENT}].`, effectedEntityId: file.entityId, correlationId  })
 
@@ -434,7 +450,8 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
                     fromOrganizationId: config.fromOrganizationId, 
                     toOrganizationId: config.toOrganizationId, 
                     inputFile: fullFilePath, 
-                    isOutbound: false, 
+                    isOutbound: false,
+                    isBulk: isBulk, 
                 }
 
                 if (inputFileObj.isOutbound == false) {
@@ -1500,11 +1517,14 @@ async function processInboundFilesFromDB( baas, logger, VENDOR_NAME, ENVIRONMENT
     let contextOrganizationId = config.contextOrganizationId
       , fromOrganizationId = config.fromOrganizationId
       , toOrganizationId = config.toOrganizationId
+    
+    let isBulk = false;
+    if ( config.processing.ENABLE_BULK_PROCESSING == true) isBulk = true;
 
     let input = baas.input
 
     // get unprocessed files from the DB
-    let unprocessedFiles = await baas.sql.file.getUnprocessedFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
+    let unprocessedFiles = await baas.sql.file.getUnprocessedFiles({contextOrganizationId, fromOrganizationId, toOrganizationId, isBulk})
     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: Pulled a list of unprocessed files from the database for environment [${ENVIRONMENT}].`, correlationId })
     
     // - Loop through files
@@ -1771,8 +1791,11 @@ async function processFilesFromDBToSharePoint( {baas, logger, VENDOR_NAME, ENVIR
 
     let input = baas.input
 
+    let isBulk = false;
+    if ( config.processing.ENABLE_BULK_PROCESSING == true) isBulk = true;
+
     // get unprocessed SHAREPOINT files from the DB
-    let unprocessedFiles = await baas.sql.file.getUnprocessedSharepointFiles({contextOrganizationId, fromOrganizationId, toOrganizationId})
+    let unprocessedFiles = await baas.sql.file.getUnprocessedSharepointFiles({contextOrganizationId, fromOrganizationId, toOrganizationId, isBulk})
     await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SHAREPOINT - Pulled a list of unprocessed SHAREPOINT files from the database for environment [${ENVIRONMENT}].`, correlationId })
     
     // - Loop through files
