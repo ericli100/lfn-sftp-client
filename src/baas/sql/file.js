@@ -497,13 +497,16 @@ function Handler(mssql) {
         return output
     }
 
-    Handler.getProcessingErrorFiles = async function getProcessingErrorFiles({contextOrganizationId, fromOrganizationId, toOrganizationId}){
+    Handler.getProcessingErrorFiles = async function getProcessingErrorFiles({contextOrganizationId, fromOrganizationId, toOrganizationId, isBulk}){
         let output = {}
 
         let tenantId = process.env.PRIMAY_TENANT_ID
 
         // override this
         toOrganizationId = fromOrganizationId;
+
+        if (!isBulk || isBulk == false) isBulk = '0'
+        if (isBulk) isBulk = '1'
 
         let sqlStatement = `
         SELECT f.[entityId]
@@ -520,6 +523,7 @@ function Handler(mssql) {
         AND f.[hasProcessingErrors] = 1
         AND f.isProcessed = 0
         AND f.isRejected = 0
+        AND f.isBulk = ${isBulk}
         AND (f.[status] <> 'rejected' or f.[status] IS NULL);`
     
         let param = {}
