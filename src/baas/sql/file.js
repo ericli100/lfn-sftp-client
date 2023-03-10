@@ -141,7 +141,7 @@ function Handler(mssql) {
         }
 
         if (!isBulk || isBulk == false) isBulk = '0'
-        if (isBulk) isBulk = '1'
+        if (isBulk === true) isBulk = '1'
 
         let tenantId = process.env.PRIMAY_TENANT_ID
         let sqlStatement = `
@@ -348,7 +348,7 @@ function Handler(mssql) {
         let output = {}
 
         if (!isBulk || isBulk == false) isBulk = '0'
-        if (isBulk) isBulk = '1'
+        if (isBulk === true) isBulk = '1'
 
         let tenantId = process.env.PRIMAY_TENANT_ID
     
@@ -421,7 +421,7 @@ function Handler(mssql) {
         let tenantId = process.env.PRIMAY_TENANT_ID
 
         if (!isBulk || isBulk == false) isBulk = '0'
-        if (isBulk) isBulk = '1'
+        if (isBulk === true) isBulk = '1'
     
         let sqlStatement = `
         SELECT f.[entityId]
@@ -506,7 +506,7 @@ function Handler(mssql) {
         toOrganizationId = fromOrganizationId;
 
         if (!isBulk || isBulk == false) isBulk = '0'
-        if (isBulk) isBulk = '1'
+        if (isBulk === true) isBulk = '1'
 
         let sqlStatement = `
         SELECT f.[entityId]
@@ -594,7 +594,7 @@ function Handler(mssql) {
         let tenantId = process.env.PRIMAY_TENANT_ID
 
         if (!isBulk || isBulk == false) isBulk = '0'
-        if (isBulk) isBulk = '1'
+        if (isBulk === true) isBulk = '1'
     
         let sqlStatement = `
             SELECT f.[entityId]
