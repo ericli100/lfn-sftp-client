@@ -170,11 +170,11 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
             let totalCount = 0;
             let remoteFilesSubList = [];
 
-            for(let remoteFile of remoteFiles ) {
+            for(let remoteFileInner of remoteFiles ) {
                 totalCount = totalCount + 1;
                 remoteFileListCounter = remoteFileListCounter + 1;
 
-                remoteFilesSubList.push(remoteFile)
+                remoteFilesSubList.push(remoteFileInner)
 
                 if(remoteFileListCounter == 50){
                     remoteFileListCounter = 0;
