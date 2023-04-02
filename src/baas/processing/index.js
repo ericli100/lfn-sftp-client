@@ -164,9 +164,37 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     
         // ** LIST FILE ON REMOTE SFTP
         let remoteFiles = await listRemoteSftpFiles(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG)
-        await baas.audit.log({baas, logger, level: 'info'
-        , message: `SFTP there are (${remoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] with details of [${JSON.stringify(remoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}].`, correlationId: CORRELATION_ID})
-        
+
+        if(remoteFiles.length > 50){
+            let remoteFileListCounter = 0;
+            let totalCount = 0;
+            let remoteFilesSubList = [];
+
+            for(let remoteFile of remoteFiles ) {
+                totalCount = totalCount + 1;
+                remoteFileListCounter = remoteFileListCounter + 1;
+
+                remoteFilesSubList.push(remoteFile)
+
+                if(remoteFileListCounter == 50){
+                    remoteFileListCounter = 0;
+                    await baas.audit.log({baas, logger, level: 'info'
+                    , message: `SFTP there are (${remoteFiles.length}) remote files ( 50 loop count ) for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] with details of [${JSON.stringify(remoteFilesSubList).replace(/[\/\(\)\']/g, "' + char(39) + '" )}].`, correlationId: CORRELATION_ID})  
+                    remoteFilesSubList = [];
+                }
+
+                if(totalCount === remoteFiles.length){
+                    // write the last of the files
+                    await baas.audit.log({baas, logger, level: 'info'
+                    , message: `SFTP there are (${remoteFiles.length}) remote files ( Remainder of 50 loop count )for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] with details of [${JSON.stringify(remoteFilesSubList).replace(/[\/\(\)\']/g, "' + char(39) + '" )}].`, correlationId: CORRELATION_ID})  
+                }
+
+            }
+        } else {
+            await baas.audit.log({baas, logger, level: 'info'
+            , message: `SFTP there are (${remoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] with details of [${JSON.stringify(remoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}].`, correlationId: CORRELATION_ID})  
+        }
+
         let remoteValidatedFiles = await getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, remoteFileList: remoteFiles, correlationId: CORRELATION_ID } )
         await baas.audit.log({baas, logger, level: 'info'
         , message: `SFTP [GET] VALIDATED (${remoteValidatedFiles.validatedRemoteFiles.length}) remote files for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] with details of [${JSON.stringify(remoteValidatedFiles.validatedRemoteFiles).replace(/[\/\(\)\']/g, "' + char(39) + '" )}] and loaded them into the database.`, correlationId: CORRELATION_ID})

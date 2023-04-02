@@ -23,7 +23,7 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/src/refactor-synapse-prd.js",
+            "program": "${workspaceFolder}/src/refactor-synctera-prd-bulk.js",
             "outputCapture": "std"
         }
     ]
