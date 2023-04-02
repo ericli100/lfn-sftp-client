@@ -214,6 +214,7 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.processing.SEND_SFTP_NOT_ENCRYPTED = true    // also, set the GPG false flag on the sftp config above ^^
     config.processing.ENABLE_REPORT_PROCESSING = false
     config.processing.ENABLE_SHAREPOINT_PROCESSING = true
+    config.processing.ENABLE_INLINE_REMOTE_DELETE = true // remove files as they are validated and stored in the DB
    
     return config
 }

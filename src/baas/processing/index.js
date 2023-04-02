@@ -27,6 +27,7 @@ var ENABLE_OUTBOUND_PROCESSING_FROM_DB
 var ENABLE_OUTBOUND_EMAIL_PROCESSING
 var ENABLE_FILE_RECEIPT_PROCESSING
 var ENABLE_REMOTE_DELETE = false // = !!CONFIG.processing.ENABLE_OUTBOUND_EMAIL_PROCESSING || false
+var ENABLE_INLINE_REMOTE_DELETE = false
 var ENABLE_NOTIFICATION
 var DISABLE_INBOUND_FILE_SPLIT = false
 var DISABLE_FILE_SPLIT_WIRES = false
@@ -72,6 +73,8 @@ async function main( {vendorName, environment, PROCESSING_DATE, baas, logger, CO
     if (CONFIG.processing.ENABLE_SHAREPOINT_PROCESSING == true) { ENABLE_SHAREPOINT_PROCESSING = true}
     if (CONFIG.processing.ENABLE_REPORT_PROCESSING == true) { ENABLE_REPORT_PROCESSING = true }
     if (CONFIG.processing.ENABLE_BULK_PROCESSING == true) { ENABLE_BULK_PROCESSING = true }
+    if (CONFIG.processing.ENABLE_INLINE_REMOTE_DELETE == true) { ENABLE_INLINE_REMOTE_DELETE = true }
+    
 
     baas.logger = logger;
 
@@ -565,6 +568,11 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
                 await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: file.entityId, correlationId })
                 await baas.sql.file.setIsVaultValidated({entityId: file.entityId, contextOrganizationId: config.contextOrganizationId, correlationId})
                 await baas.audit.log({baas, logger, level: 'verbose', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] with SHA256 Hash [${sha256_VALIDATION}] set the baas.files.isVaultValidated flag to true`, effectedEntityId: file.entityId, correlationId })
+            
+                // *** DELETE SFTP FILE INLINE AFTER STORAGE AND VALIDATION
+                let inlineValidateRemoteFiles = []
+                inlineValidateRemoteFiles.push(file)
+                if(ENABLE_REMOTE_DELETE && ENABLE_INLINE_REMOTE_DELETE) await removeRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: config, arrayOfValidatedFiles: inlineValidateRemoteFiles, correlationId: correlationId })
             } else {
                 await baas.audit.log({baas, logger, level: 'warn', message: `${VENDOR_NAME}: SFTP file [${file.filename}] for environment [${ENVIRONMENT}] with SHA256 Hash [${sha256_VALIDATION}] FAILED the SHA256 validation for the vaulted file!`, effectedEntityId: file.entityId, correlationId })
             }
