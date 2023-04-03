@@ -359,3 +359,11 @@ module.exports.decryptFile = ( {VENDOR, ENVIRONMENT, sourceFilePath, destination
 module.exports.isArmoredCheck = (sourceFilePath) => {
     return isArmoredCheck(sourceFilePath)
 }
+
+
+/*
+
+Large file processing: https://www.loginradius.com/blog/engineering/using-pgp-encryption-with-nodejs/
+
+
+*/
