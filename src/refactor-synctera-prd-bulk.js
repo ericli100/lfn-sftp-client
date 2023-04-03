@@ -119,10 +119,10 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     // config.folderMappings.push({ type: 'get', source: '/secure_file_delivery', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed'})
     // config.folderMappings.push({ type: 'get', source: '/encrypted/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
     // config.folderMappings.push({ type: 'get', source: '/encrypted', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`,  usePGP:true, actionAfterGet: 'processed'})
-    // config.folderMappings.push({ type: 'get', source: '/encrypted/outbound/txns', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
-    // config.folderMappings.push({ type: 'get', source: '/encrypted/sfd/transaction', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
+    config.folderMappings.push({ type: 'get', source: '/encrypted/outbound/txns', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
+    config.folderMappings.push({ type: 'get', source: '/encrypted/sfd/transaction', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.txns.inbound`, usePGP:true, actionAfterGet: 'processed' })
     config.folderMappings.push({ type: 'get', source: '/encrypted/sfd', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed' })
-    // config.folderMappings.push({ type: 'get', source: '/encrypted/sfd/miscellaneous', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed' })
+    config.folderMappings.push({ type: 'get', source: '/encrypted/sfd/miscellaneous', destination: `${VENDOR_NAME}.${ENVIRONMENT}.sfd.inbound`, usePGP:true, actionAfterGet: 'processed' })
     // ONHOLD NO AGREEMENT - config.folderMappings.push({ type: 'get', source: '/encrypted/wire/outbound', destination: `${VENDOR_NAME}.${ENVIRONMENT}.wire.outbound`, usePGP:true, actionAfterGet: 'processed' })
 
     config.destinationFolders = [] // - '/ach', '/ach/inbound', '/ach/outbound', '/ach/outbound/processed', '/ach/inbound/processed','/fis', '/samples', '/secure_file_delivery', '/test', '/samples']
