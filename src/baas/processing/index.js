@@ -78,71 +78,71 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
 
     baas.logger = logger;
 
-    // ******************************************
-    // ** PROCESS ERRORS and SEND NOTIFICATIONS
-    // ******************************************
-    if (ENABLE_NOTIFICATION) {
-        let effectedOrganizationId = baas.processing.EFFECTED_ORGANIZATION_ID
+    // // ******************************************
+    // // ** PROCESS ERRORS and SEND NOTIFICATIONS
+    // // ******************************************
+    // if (ENABLE_NOTIFICATION) {
+    //     let effectedOrganizationId = baas.processing.EFFECTED_ORGANIZATION_ID
 
-        let isBulk = false;
-        if (CONFIG.processing.ENABLE_BULK_PROCESSING == true) isBulk = true;
+    //     let isBulk = false;
+    //     if (CONFIG.processing.ENABLE_BULK_PROCESSING == true) isBulk = true;
 
-        let processingErrorFiles = await baas.sql.file.getProcessingErrorFiles({ contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId, isBulk })
-        if (processingErrorFiles.length > 0) {
-            for (let errFile of processingErrorFiles) {
-                await baas.audit.log({ baas, logger, level: 'error', message: `${VENDOR_NAME}: baas.sql.file.getProcessingErrorFiles() [${ENVIRONMENT}] File Needs to be [isRejected] == 1 to stop alerting! The errorProcessingFile:[${JSON.stringify(errFile)}]!`, correlationId: CORRELATION_ID, effectedOrganizationId: baas.processing.EFFECTED_ORGANIZATION_ID, effectedEntityId: errFile.entityId })
-            }
-        }
+    //     let processingErrorFiles = await baas.sql.file.getProcessingErrorFiles({ contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId, isBulk })
+    //     if (processingErrorFiles.length > 0) {
+    //         for (let errFile of processingErrorFiles) {
+    //             await baas.audit.log({ baas, logger, level: 'error', message: `${VENDOR_NAME}: baas.sql.file.getProcessingErrorFiles() [${ENVIRONMENT}] File Needs to be [isRejected] == 1 to stop alerting! The errorProcessingFile:[${JSON.stringify(errFile)}]!`, correlationId: CORRELATION_ID, effectedOrganizationId: baas.processing.EFFECTED_ORGANIZATION_ID, effectedEntityId: errFile.entityId })
+    //         }
+    //     }
 
-        let auditErrors = await baas.sql.audit.getUnprocessedErrors({ effectedOrganizationId, contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID })
+    //     let auditErrors = await baas.sql.audit.getUnprocessedErrors({ effectedOrganizationId, contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID })
 
-        if (auditErrors.length > 0) {
-            // construct the message
-            let message = 'SFTP PROCESSING ERRORS:\n\n'
-            let auditIdNotificationArray = []
-            for (let errorMessage of auditErrors) {
-                auditIdNotificationArray.push(errorMessage.auditId)
-                message += `** [errorMessage - auditId:${errorMessage.auditId}] ***********************************************\n\n`
-                message += `    effectiveDate (UTC):{ ${errorMessage.effectiveDate} }\n`
-                message += `    category:${errorMessage.category} level:${errorMessage.level} correlationId:${errorMessage.correlationId} effectedEntityId:${errorMessage.effectedEntityId.trim()} \n`
-                message += `    message:{ ${errorMessage.message} }\n`
-                message += `\n\n`
-            }
+    //     if (auditErrors.length > 0) {
+    //         // construct the message
+    //         let message = 'SFTP PROCESSING ERRORS:\n\n'
+    //         let auditIdNotificationArray = []
+    //         for (let errorMessage of auditErrors) {
+    //             auditIdNotificationArray.push(errorMessage.auditId)
+    //             message += `** [errorMessage - auditId:${errorMessage.auditId}] ***********************************************\n\n`
+    //             message += `    effectiveDate (UTC):{ ${errorMessage.effectiveDate} }\n`
+    //             message += `    category:${errorMessage.category} level:${errorMessage.level} correlationId:${errorMessage.correlationId} effectedEntityId:${errorMessage.effectedEntityId.trim()} \n`
+    //             message += `    message:{ ${errorMessage.message} }\n`
+    //             message += `\n\n`
+    //         }
 
-            // send email notification
-            let emailSent
-            if (ENABLE_EMAIL_NOTIFICATION) {
-                let subject = 'SFTP PROCESSING ERRORS'
-                emailSent = await baas.notification.sendEmailNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, subject, message, correlationId: CORRELATION_ID })
-            } else {
-                emailSent = true;
-            }
+    //         // send email notification
+    //         let emailSent
+    //         if (ENABLE_EMAIL_NOTIFICATION) {
+    //             let subject = 'SFTP PROCESSING ERRORS'
+    //             emailSent = await baas.notification.sendEmailNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, subject, message, correlationId: CORRELATION_ID })
+    //         } else {
+    //             emailSent = true;
+    //         }
 
-            let teamsSent
-            if (ENABLE_TEAMS_NOTIFICATION) {
-                // send teams notification
-                teamsSent = await baas.notification.sendTeamsNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
-            } else {
-                teamsSent = true
-            }
+    //         let teamsSent
+    //         if (ENABLE_TEAMS_NOTIFICATION) {
+    //             // send teams notification
+    //             teamsSent = await baas.notification.sendTeamsNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
+    //         } else {
+    //             teamsSent = true
+    //         }
 
-            let slackSent
-            if (ENABLE_SLACK_NOTIFICATION) {
-                // send slack notification
-                slackSent = await baas.notification.sendSlackNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
-            } else {
-                slackSent = true
-            }
+    //         let slackSent
+    //         if (ENABLE_SLACK_NOTIFICATION) {
+    //             // send slack notification
+    //             slackSent = await baas.notification.sendSlackNotification({ baas, VENDOR: VENDOR_NAME, ENVIRONMENT, message, correlationId: CORRELATION_ID })
+    //         } else {
+    //             slackSent = true
+    //         }
 
-            if (emailSent && teamsSent && slackSent) {
-                //set the Error Audit messages [isNotificationSent] = 1
-                for (let auditId of auditIdNotificationArray) {
-                    // set the audit to notified
-                    await baas.sql.audit.setNotificationSent({ entityId: auditId, contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID })
-                }
-            }
-        }
-    }
+    //         if (emailSent && teamsSent && slackSent) {
+    //             //set the Error Audit messages [isNotificationSent] = 1
+    //             for (let auditId of auditIdNotificationArray) {
+    //                 // set the audit to notified
+    //                 await baas.sql.audit.setNotificationSent({ entityId: auditId, contextOrganizationId: baas.processing.CONTEXT_ORGANIZATION_ID })
+    //             }
+    //         }
+    //     }
+    // }
 
     if (ENABLE_BULK_PROCESSING) {
         await baas.audit.log({ baas, logger, level: 'warn', message: `** BULK PROCESSING ENABLED (large reports and non-money movement files) ** [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID })
