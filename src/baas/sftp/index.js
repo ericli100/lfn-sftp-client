@@ -449,7 +449,7 @@ async function deleteRemoteFile(config, remoteLocation, filename) {
         // return true if the file does not exist
         return existOnRemote;
     } catch (error) {
-        logger.error({ message: `The file [${filename}] was not successfully DELETED on the remote server [${REMOTE_HOST + ' ' + remoteLocation} ]!` })
+        logger.error({ message: `The file [${filename}] was not successfully DELETED on the remote server [${remoteLocation + ' ' + remoteLocation} ]!` })
         return false
     }
 }
