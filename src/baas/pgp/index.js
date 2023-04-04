@@ -149,6 +149,10 @@ async function encryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFileP
         return {isBinary: true}
     }
 
+    // need to check the size of the file. If over 300 MB, need to process as stream
+    const {size: fileSize} = fs.statSync( inputFile );
+    console.log('fileSize:', fileSize);
+
     // default writer, handle as text
     let sourceFile = fs.readFileSync(sourceFilePath, {encoding:'utf8', flag:'r'})
     let encryptedFile = await encrypt(VENDOR, ENVIRONMENT, eol.split(sourceFile).join(eol.lf))
