@@ -304,11 +304,13 @@ function Handler(mssql) {
         let sqlStatement = ''
 
         if(dataJSON) {
-            sqlStatement = `
-            UPDATE [baas].[files]
-                SET [dataJSON] = CAST('' AS varchar(MAX)) + '${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
-                    [correlationId] = '${correlationId}'
-            WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}' AND [contextOrganizationId] = '${contextOrganizationId}';`
+            sqlStatement = ``
+            // ** REMOVE THIS CODE - IT IS NOT NEEDED TO WRITE DATA TO: baas.files.dataJSON
+            
+            // `UPDATE [baas].[files]
+            //     SET [dataJSON] = CAST('' AS varchar(MAX)) + '${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
+            //         [correlationId] = '${correlationId}'
+            // WHERE [entityId] = '${entityId}' AND [tenantId] = '${tenantId}' AND [contextOrganizationId] = '${contextOrganizationId}';`
         }
 
         if(quickBalanceJSON) {
