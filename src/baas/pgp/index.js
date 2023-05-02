@@ -150,7 +150,7 @@ async function encryptFile(VENDOR, ENVIRONMENT, sourceFilePath, destinationFileP
     }
 
     // need to check the size of the file. If over 300 MB, need to process as stream
-    const {size: fileSize} = fs.statSync( inputFile );
+    const {size: fileSize} = fs.statSync( sourceFilePath );
     console.log('fileSize:', fileSize);
 
     // default writer, handle as text
