@@ -492,7 +492,10 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
                         inputFile: fullFilePath,
                         isOutbound: false,
                         isBulk: isBulk,
-                    }
+                        status: 'approved',
+                        assignedToName: 'Worker Process',
+                        assignedToEmail: 'workerprocess@lineage.com'
+                        }
 
                     if (inputFileObj.isOutbound == false) {
                         inputFileObj.source = config.server.host + ':' + config.server.port + file.sourcePath,
@@ -927,6 +930,15 @@ async function perEmailInboundProcessing({ baas, logger, config, client, working
                         inputFileObj.fileNameOutbound = determinedFileTypeId.fileNameOutbound
                         inputFileObj.overrideExtension = determinedFileTypeId.overrideExtension
                         inputFileObj.isTrace = determinedFileTypeId.isFedWireConfirmation
+                    }
+
+                    // Set status to "approved" for ODFI and RDFI files.
+                    // Currently only RDFI uses email delivery, therefore, there shouldn't be a case where isOutboundToFed is true
+                
+                    if (determineInputFileTypeId.isOutboundToFed || determineInputFileTypeId.isInboundFromFed) {
+                        inputFileObj.status = 'approved'
+                        inputFileObj.assignedToName =  'Worker Process',
+                        inputFileObj.assignedToEmail =  'workerprocess@lineage.com'
                     }
 
                     if (inputFileObj.isTrace) {
@@ -1367,6 +1379,8 @@ async function determineInputFileTypeId({ baas, inputFileObj, contextOrganizatio
         }
 
         if (matchedFileType.entityId) output.fileTypeId = matchedFileType.entityId.trim()
+        if (matchedFileType.isOutboundToFed) output.isOutboundToFed = matchedFileType.isOutboundToFed
+        if (matchedFileType.isInboundFromFed) output.isInboundFromFed = matchedFileType.isInboundFromFed
 
         if (output.fileTypeId) {
             output.fileNameFormat = matchedFileType.fileNameFormat

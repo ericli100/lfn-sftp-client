@@ -256,7 +256,8 @@ async function sftpConfig(VENDOR_NAME, ENVIRONMENT) {
     config.processing.ENABLE_REPORT_PROCESSING = false
     config.processing.ENABLE_SHAREPOINT_PROCESSING = true
     config.processing.ENABLE_INLINE_REMOTE_DELETE = false // remove files as they are validated and stored in the DB
-
+    config.processing.RDFI_USE_UI = false
+    config.processing.ODFI_USE_UI = false
     return config
 }
 

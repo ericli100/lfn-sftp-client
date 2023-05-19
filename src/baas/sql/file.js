@@ -110,7 +110,10 @@ function Handler(mssql) {
         }
     }
     
-    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isMultifile, parentEntityId, dataJSON, quickBalanceJSON, fileNameOutbound, isTrace, OMAD, IMAD, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent, isBulk, correlationId}){
+    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, 
+        sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isMultifile, parentEntityId, 
+        dataJSON, quickBalanceJSON, fileNameOutbound, isTrace, OMAD, IMAD, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, 
+        isEmailAdviceSent, isBulk, correlationId, status, assignedToName, assignedToEmail}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         if (!fileName) throw ('fileName required')
@@ -134,6 +137,9 @@ function Handler(mssql) {
         if (!isTrace) isTrace = '0'
         if (!OMAD) OMAD = '';
         if (!IMAD) IMAD = '';
+        if (!status) status = '';
+        if (!assignedToName) assignedToName = '';
+        if (!assignedToEmail) assignedToEmail = '';
 
         if (parentEntityId.length > 1) {
             // there was a parentEntityId set... it is a multifile
@@ -174,7 +180,10 @@ function Handler(mssql) {
                ,[IMAD]
                ,[correlationId]
                ,[isTrace]
-               ,[isBulk])
+               ,[isBulk]
+               ,[status]
+               ,[assignedToName]
+               ,[assignedToEmail])
          VALUES
                ('${entityId}'
                ,'${tenantId}'
@@ -205,6 +214,9 @@ function Handler(mssql) {
                ,'${correlationId}'
                ,'${isTrace}'
                ,'${isBulk}'
+               ,'${status}'
+               ,'${assignedToName}'
+               ,'${assignedToEmail}'
                );`
 
         if(effectiveDate) {
@@ -400,7 +412,7 @@ function Handler(mssql) {
         AND f.[hasProcessingErrors] = 0
         AND f.isRejected = 0
         AND f.isBulk = ${isBulk}
-        AND (f.[status] <> 'rejected' or f.[status] IS NULL);`
+        AND (f.[status] = 'approved');`
     
         let param = {}
         param.params = []
