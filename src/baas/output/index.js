@@ -518,7 +518,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
             ON f.fileTypeId = t.entityId AND f.tenantId = t.tenantId AND f.contextOrganizationId = t.contextOrganizationId
         WHERE f.[tenantId] = '${tenantId}'
         AND f.[isRejected] = 0
-        AND (f.[status] <> 'rejected' or f.[status] IS NULL)
+        AND (f.[status] = 'approved')
         AND f.[contextOrganizationId] = '${contextOrganizationId}'
         AND t.[fromOrganizationId] = '${fromOrganizationId}'
         AND t.[toOrganizationId] = '${toOrganizationId}'
@@ -789,17 +789,32 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                         attachments: attachment
                     }
                     
-                    if(file.isSentToDepositOperations == false) {
-                        try{
-                            let sendFileDelivery = await baas.email.sendEmail({ client, message: fileDeliveryMessage })
+                    // deliver none ODFI files
 
+                    if (!file.isSentToDepositOperations) {
+                        if (!file.isFedWire) {
+
+                            if (file.isSentToDepositOperations == false) {
+                                try{
+                                    let sendFileDelivery = await baas.email.sendEmail({ client, message: fileDeliveryMessage })
+        
+                                    await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
+        
+                                    // Set Status In DB
+                                    await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
+                                    await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                                } catch (fileDeliveryError) {
+                                    await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
+                                }
+                            }
+                        } else if (!CONFIG.processing.ODFI_USE_UI) {
+                            let sendFileDelivery = await baas.email.sendEmail({ client, message: fileDeliveryMessage })
+    
                             await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
 
                             // Set Status In DB
                             await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
                             await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
-                        } catch (fileDeliveryError) {
-                            await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
                         }
                     }
                 }
@@ -845,17 +860,32 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                     }
                     
                     if(file.isSentToDepositOperations == false) {
-                        try{
-                            let sendFileDelivery = await baas.email.sendEmail({ client: clientEmail, message: fileDeliveryMessage })
-
-                            await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
-
-                            // Set Status In DB
-                            await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
-                            await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
-                        } catch (fileDeliveryError) {
-                            await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
+                        if (!file.isFedWire) {
+                            try{
+                                let sendFileDelivery = await baas.email.sendEmail({ client: clientEmail, message: fileDeliveryMessage })
+    
+                                await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
+    
+                                // Set Status In DB
+                                await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
+                                await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                            } catch (fileDeliveryError) {
+                                await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
+                            }
+                        } else if (!CONFIG.processing.ODFI_USE_UI) {
+                            try{
+                                let sendFileDelivery = await baas.email.sendEmail({ client: clientEmail, message: fileDeliveryMessage })
+    
+                                await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
+    
+                                // Set Status In DB
+                                await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
+                                await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
+                            } catch (fileDeliveryError) {
+                                await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
+                            }
                         }
+                        
                     }
                 }
             }

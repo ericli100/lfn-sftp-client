@@ -41,6 +41,9 @@ var ENABLE_BULK_PROCESSING = false  // this is for large item processing... Repo
 var DELETE_WORKING_DIRECTORY = true // internal override for dev purposes
 var KEEP_PROCESSING_ON_ERROR = true
 
+var RDFI_USE_UI = false
+var ODFI_USE_UI = false
+
 // ** MAIN PROCESSING FUNCTION ** //
 /*
  All processing for the SFTP servers will go through this module. Any deviation from central
@@ -74,6 +77,9 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
     if (CONFIG.processing.ENABLE_REPORT_PROCESSING == true) { ENABLE_REPORT_PROCESSING = true }
     if (CONFIG.processing.ENABLE_BULK_PROCESSING == true) { ENABLE_BULK_PROCESSING = true }
     if (CONFIG.processing.ENABLE_INLINE_REMOTE_DELETE == true) { ENABLE_INLINE_REMOTE_DELETE = true }
+    if (CONFIG.processing.RDFI_USE_UI == true) { RDFI_USE_UI = true }
+    if (CONFIG.processing.ODFI_USE_UI == true) { ODFI_USE_UI = true }
+
 
 
     baas.logger = logger;
@@ -160,7 +166,8 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
         let inboundEmailsStatus = await getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID, PROCESSING_DATE })
     }
 
-    if (ENABLE_FTP_PULL) {
+    // if we use worker, continue to process FTP_PULL
+    if (!ODFI_USE_UI && ENABLE_FTP_PULL) {
         await baas.audit.log({ baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID })
         // ** GET FILES FROM EMAIL
         // -- SET CONFIG TO PARSE FROM EMAIL ADDRESS
@@ -935,10 +942,17 @@ async function perEmailInboundProcessing({ baas, logger, config, client, working
                     // Set status to "approved" for ODFI and RDFI files.
                     // Currently only RDFI uses email delivery, therefore, there shouldn't be a case where isOutboundToFed is true
                 
-                    if (determineInputFileTypeId.isOutboundToFed || determineInputFileTypeId.isInboundFromFed) {
-                        inputFileObj.status = 'approved'
-                        inputFileObj.assignedToName =  'Worker Process',
-                        inputFileObj.assignedToEmail =  'workerprocess@lineage.com'
+                    if (determinedFileTypeId.isInboundFromFed) {
+                        if (RDFI_USE_UI) {
+                            // Stop processing this file if we should use the UI to process RDFI
+                            continue
+                            
+                        } else {
+                            inputFileObj.status = 'approved'
+                            inputFileObj.assignedToName =  'Worker Process',
+                            inputFileObj.assignedToEmail =  'workerprocess@lineage.com'
+                        }
+                        
                     }
 
                     if (inputFileObj.isTrace) {
@@ -961,6 +975,13 @@ async function perEmailInboundProcessing({ baas, logger, config, client, working
 
                     inputFileOutput = await baas.input.file(inputFileObj)
                     fileEntityId = inputFileOutput.fileEntityId
+
+                    // If it is a trace file, we need to get the parent file and set its status to complete.
+                    // Need to wait until now so we have the entityId
+                    if (inputFileObj.isTrace) {
+                        // TODO: EL - set trace file's parent file status to 'frontend completed'
+                    }
+
                     if (!file.entityId) file.entityId = fileEntityId;
                     audit.entityId = fileEntityId
 

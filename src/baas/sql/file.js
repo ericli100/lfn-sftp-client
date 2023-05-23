@@ -1242,6 +1242,7 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
+                ,[status] = 'frontend completed'
             WHERE [entityId] = '${entityId}' 
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
