@@ -49,6 +49,9 @@ var ODFI_USE_UI = false
  All processing for the SFTP servers will go through this module. Any deviation from central
  processing will need to be done through configuration of what is passed into the function.
 */
+
+
+// NOTE EL 2. Main Processing
 async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CONFIG, CORRELATION_ID }) {
 
     //**********************************/
@@ -163,10 +166,15 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
     }
 
     if (ENABLE_INBOUND_EMAIL_PROCESSING) {
+
+
+        // NOTE EL 3*. (next step is 9) We will get inbound email files regardless of the value of ODFI_USE_UI and RDFI_USE_UI
+        // because trace file are delivered via email. We also want to pull in RDFI file (with status of imported) when RDFI_USE_UI is true.
+
         let inboundEmailsStatus = await getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID, PROCESSING_DATE })
     }
 
-    // if we use worker, continue to process FTP_PULL
+    // NOTE EL 4*. (next step is 5) if we use worker, continue to process FTP_PULL.
     if (!ODFI_USE_UI && ENABLE_FTP_PULL) {
         await baas.audit.log({ baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID })
         // ** GET FILES FROM EMAIL
@@ -211,6 +219,7 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
             })
         }
 
+        // NOTE EL 5. Get sftp files, this saves the files to DB
         let remoteValidatedFiles = await getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, remoteFileList: remoteFiles, correlationId: CORRELATION_ID })
         await baas.audit.log({
             baas, logger, level: 'info'
@@ -233,8 +242,14 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
 
     //await validateACHQuickBalanceJSON ({ baas, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID, contextOrganizationId: CONFIG.contextOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId })
 
+    
     if (ENABLE_OUTBOUND_PROCESSING_FROM_DB) {
+
+        // NOTE EL. -- this is an NOOP
         await processOutboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT, CONFIG, PROCESSING_DATE, CORRELATION_ID)
+
+        // NOTE EL 13*. Get unprocessed files from DB and send them to organization via SFTP, sets "frontend completed"
+        // src/baas/output/index.js
 
         // **********************************************
         // ** Download Files from DB and SFTP Outbound **
@@ -243,14 +258,20 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
     }
 
     if (ENABLE_OUTBOUND_EMAIL_PROCESSING) {
+
+        // NOTE EL 15*. get Outboud Email Files, this is currently a NOOP
+
         let outboundEmailsStatus = await getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID })
     }
 
     if (ENABLE_FILE_RECEIPT_PROCESSING) {
+
+        // NOTE EL 16*. Process file receipt, which creates a "report" file and send to sftp
         // a.k.a. File Activity File
         let fileActivityFileStatus = await baas.output.processfileReceipt({ baas, logger, CONFIG, mssql: baas.sql, contextOrganizationId: CONFIG.contextOrganizationId, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId, correlationId: CORRELATION_ID })
     }
 
+    // NOTE EL 17*. download Files From Organization Send To DepositOps 
     if (CONFIG.processing.ENABLE_MANUAL_DB_DOWNLOAD) {
         await baas.audit.log({ baas, logger, level: 'info', message: `MANUAL FILE DOWNLOAD STARTED [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID })
 
@@ -329,6 +350,8 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
     // **   SharePoint Processing               ***
     // ********************************************
     if (ENABLE_SHAREPOINT_PROCESSING) {
+
+        // NOTE EL 18*. Process files from DB to SharePoint
         let sharepointProcessingResults = await processFilesFromDBToSharePoint({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, PROCESSING_DATE, correlationId: CORRELATION_ID })
     }
 
@@ -499,6 +522,7 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
                         inputFile: fullFilePath,
                         isOutbound: false,
                         isBulk: isBulk,
+                        // NOTE EL 6. Set all remote sftp'ed files to approved, and mark them with assignedTo
                         status: 'approved',
                         assignedToName: 'Worker Process',
                         assignedToEmail: 'workerprocess@lineage.com'
@@ -512,6 +536,7 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
                             inputFileObj.destination = config.server.host + ':' + config.server.port + file.destinationPath
                     }
 
+                    // NOTE EL 7. Save ftp'ed files to database.
                     inputFileOutput = await baas.input.file(inputFileObj)
                     fileEntityId = inputFileOutput.fileEntityId
                     if (!file.entityId) file.entityId = fileEntityId;
@@ -572,9 +597,9 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
                 let sha256_VALIDATION = await baas.sql.file.generateSHA256(fullFilePath + '.VALIDATION')
 
                 if (sha256 == sha256_VALIDATION) {
-                    // okay... we are 100% validated. We pulled the file, 
-                    // decrypted it, encrypted with our key, wrote it to 
-                    // the DB, downloaded it, decrypted it 
+                    // okay... we are 100% validated. We pulled the file,
+                    // decrypted it, encrypted with our key, wrote it to
+                    // the DB, downloaded it, decrypted it
                     // and validated the sha256 hash.
 
                     // *************************************************************
@@ -625,6 +650,7 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
     return output
 }
 
+// NOTE EL 9: Get all email files. This also save the files in DB.
 async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, correlationId, PROCESSING_DATE }) {
     if (!baas) throw ('processing.getInboundEmailFiles() requires [baas]!')
     if (!config) throw ('processing.getInboundEmailFiles() requires [config]!')
@@ -725,6 +751,7 @@ async function getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
                     let email = mailInFolder[j]
 
                     try {
+                        // NOTE EL 10. Process and save individual Emailed files.
                         await perEmailInboundProcessing({ baas, logger, config, client, workingDirectory, email, moveToFolder, correlationId, PROCESSING_DATE })
                     } catch (perEmailProcessingError) {
                         let errorMessage = {}
@@ -939,23 +966,25 @@ async function perEmailInboundProcessing({ baas, logger, config, client, working
                         inputFileObj.isTrace = determinedFileTypeId.isFedWireConfirmation
                     }
 
-                    // Set status to "approved" for ODFI and RDFI files.
                     // Currently only RDFI uses email delivery, therefore, there shouldn't be a case where isOutboundToFed is true
-                
+
                     if (determinedFileTypeId.isInboundFromFed) {
+                        // NOTE EL 11. Save RDFI file. Set status based on if RDFI_USE_UI is true. "Imported" will NOT be picked up by the later worker step.
+                        // still process the RDFI file, but set its status to "imported", which requires user's approval.
                         if (RDFI_USE_UI) {
-                            // Stop processing this file if we should use the UI to process RDFI
-                            continue
-                            
+                            inputFileObj.status = 'imported'
+
                         } else {
                             inputFileObj.status = 'approved'
                             inputFileObj.assignedToName =  'Worker Process',
                             inputFileObj.assignedToEmail =  'workerprocess@lineage.com'
                         }
-                        
+
                     }
 
+                    // NOTE EL 12. Save trace file's status to "approved" so it will be picked up later.
                     if (inputFileObj.isTrace) {
+                        inputFileObj.status = 'approved'
                         // update the LF on the file and split multiples
                         await baas.wire.splitWireNewLines({ inputFile: inputFileObj.inputFile })
                     }
@@ -979,7 +1008,7 @@ async function perEmailInboundProcessing({ baas, logger, config, client, working
                     // If it is a trace file, we need to get the parent file and set its status to complete.
                     // Need to wait until now so we have the entityId
                     if (inputFileObj.isTrace) {
-                        // TODO: EL - set trace file's parent file status to 'frontend completed'
+                        // TODO - set trace file's parent file status to 'frontend completed', skipped for current iteration.
                     }
 
                     if (!file.entityId) file.entityId = fileEntityId;
@@ -1052,9 +1081,9 @@ async function perEmailInboundProcessing({ baas, logger, config, client, working
                 sha256_VALIDATION = await baas.sql.file.generateSHA256(fullFilePath + '.VALIDATION')
 
                 if (sha256 == sha256_VALIDATION) {
-                    // okay... we are 100% validated. We pulled the file, 
-                    // decrypted it, encrypted with our key, wrote it to 
-                    // the DB, downloaded it, decrypted it 
+                    // okay... we are 100% validated. We pulled the file,
+                    // decrypted it, encrypted with our key, wrote it to
+                    // the DB, downloaded it, decrypted it
                     // and validated the sha256 hash.
 
                     // *************************************************************
@@ -1104,7 +1133,7 @@ async function perEmailInboundProcessing({ baas, logger, config, client, working
 
                 // // if the attachement is an ACH file, send an advice to the internal distribution list
                 // if(isAchApprovedRecipient && isAchApprovedSender){
-                //    await send_ach_advice (fileName, "baas.ach.advice@lineagebank.com", false) 
+                //    await send_ach_advice (fileName, "baas.ach.advice@lineagebank.com", false)
                 // }
 
                 if (DEBUG) console.log('Message UID:', msgUID, `[baas.processing.perEmailInboundProcessing()] Wrote attachment [${attachment.fileName}].`)
@@ -1328,7 +1357,7 @@ async function determineInputFileTypeId({ baas, inputFileObj, contextOrganizatio
         }
 
         // ****************************************************************
-        // ** This section if for sending Fed reports for Recon purposes ** 
+        // ** This section if for sending Fed reports for Recon purposes **
         // ****************************************************************
         if (!output.isFedWireConfirmation && !output.isFedWire && !output.isACH && !output.isAchConfirmation && matchedHeadersCSV === false && FILE_TYPE_MATCH !== 'CSV_BALANCES' && FILE_TYPE_MATCH !== 'CSV_FILEACTIVITY') {
             // check this gate and set the flag
@@ -1545,7 +1574,7 @@ async function getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         // TODO: pull the necessary notification from the DB
         // Process the files in the returned array
 
-        // let content = 
+        // let content =
         // `
         // From Node.js - This is a test message that was sent via the Microsoft Graph API endpoint.
 
@@ -1555,9 +1584,9 @@ async function getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, co
         // *****************************************************************************************
         // `
 
-        // let message = { 
-        //     subject: 'Test Message from MS Graph - getOutboudEmailFiles()', 
-        //     body: { contentType: 'Text', content: content }, 
+        // let message = {
+        //     subject: 'Test Message from MS Graph - getOutboudEmailFiles()',
+        //     body: { contentType: 'Text', content: content },
         //     toRecipients: [{ emailAddress: { address: 'admins@lineagebank.com' } }],
         // }
 
@@ -1654,9 +1683,9 @@ async function processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT,
             }
 
             try {
-                // **************************** //         
+                // **************************** //
                 // ** PERFORM ACH PROCESSING ** //
-                // **************************** //  
+                // **************************** //
 
                 if (file.isACH) {
                     try {
@@ -1731,9 +1760,9 @@ async function processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT,
                     }
                 }
 
-                // ***************************** //  
+                // ***************************** //
                 // ** PERFORM WIRE PROCESSING ** //
-                // ***************************** //  
+                // ***************************** //
                 if (file.isFedWire) {
                     try {
                         await baas.audit.log({ baas, logger, level: 'info', message: `${VENDOR_NAME}: processing FEDWIRE file [${file.fileName}] for environment [${ENVIRONMENT}]...`, correlationId, effectedEntityId: file.entityId })
@@ -1799,7 +1828,7 @@ async function processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT,
                             quickBalanceJSON.creditCount = parsedWire.wires.length
 
                             if (parsedWire.hasMultipleWires == true) {
-                                if (!DISABLE_FILE_SPLIT_WIRES) { // feature flag for file split wires 
+                                if (!DISABLE_FILE_SPLIT_WIRES) { // feature flag for file split wires
                                     // prevent the processing of the Parent file, let the Child files be processed instead
                                     await baas.sql.file.setIsReceiptProcessed({ entityId: file.entityId, contextOrganizationId, isReceiptProcessed: 1, correlationId })
                                     await baas.sql.file.setIsSentToDepositOperations({ entityId: file.entityId, contextOrganizationId, isSentToDepositOperations: 1, correlationId })
@@ -1859,9 +1888,9 @@ async function processInboundFilesFromDB(baas, logger, VENDOR_NAME, ENVIRONMENT,
 
 async function processFilesFromDBToSharePoint({ baas, logger, VENDOR_NAME, ENVIRONMENT, config, PROCESSING_DATE, correlationId }) {
 
-    // *********************************** //         
+    // *********************************** //
     // ** PERFORM SHAREPOINT PROCESSING ** //
-    // *********************************** //  
+    // *********************************** //
 
 
     await baas.audit.log({ baas, logger, level: 'info', message: `SHAREPOINT Processing started from the DB for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId })
@@ -2181,9 +2210,9 @@ async function splitOutMultifileWIRE({ baas, logger, VENDOR_NAME, ENVIRONMENT, P
         sha256_VALIDATION = await baas.sql.file.generateSHA256(childFilePath + '.VALIDATION')
 
         if (sha256 == sha256_VALIDATION) {
-            // okay... we are 100% validated. We pulled the file, 
-            // decrypted it, encrypted with our key, wrote it to 
-            // the DB, downloaded it, decrypted it 
+            // okay... we are 100% validated. We pulled the file,
+            // decrypted it, encrypted with our key, wrote it to
+            // the DB, downloaded it, decrypted it
             // and validated the sha256 hash.
 
             await baas.audit.log({ baas, logger, level: 'verbose', message: `${VENDOR_NAME}: [baas.processing.splitOutMultifileWIRE()] SFTP file [${childFilePath}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: parentEntityId, correlationId })
@@ -2392,9 +2421,9 @@ async function splitOutMultifileACH({ baas, logger, VENDOR_NAME, ENVIRONMENT, PR
         sha256_VALIDATION = await baas.sql.file.generateSHA256(splitFilePath + '.VALIDATION')
 
         if (sha256 == sha256_VALIDATION) {
-            // okay... we are 100% validated. We pulled the file, 
-            // decrypted it, encrypted with our key, wrote it to 
-            // the DB, downloaded it, decrypted it 
+            // okay... we are 100% validated. We pulled the file,
+            // decrypted it, encrypted with our key, wrote it to
+            // the DB, downloaded it, decrypted it
             // and validated the sha256 hash.
 
             await baas.audit.log({ baas, logger, level: 'verbose', message: `${VENDOR_NAME}: [baas.processing.splitOutMultifileACH()] SFTP file [${splitFileName}] for environment [${ENVIRONMENT}] from the DB matched the SHA256 Hash [${sha256_VALIDATION}] locally and is validated 100% intact in the File Vault. File was added to the validatedRemoteFiles array.`, effectedEntityId: parentEntityId, correlationId })

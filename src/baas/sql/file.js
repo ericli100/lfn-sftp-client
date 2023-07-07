@@ -10,7 +10,7 @@ function Handler(mssql) {
     Handler.exists = async function exists(sha256, returnId = false, toOrganizationId = undefined) {
         if (!sha256) throw ('sha256 required')
         let tenantId = process.env.PRIMAY_TENANT_ID
-    
+
         let sqlStatement
 
         if(toOrganizationId){
@@ -25,11 +25,11 @@ function Handler(mssql) {
             WHERE [sha256] = '${sha256}'
             AND [tenantId] = '${tenantId}';`
         }
-    
+
         let param = {}
         param.params = []
         param.tsql = sqlStatement
-        
+
         try {
             let results = await mssql.sqlQuery(param);
             if(DEBUG) console.log(results)
@@ -40,7 +40,7 @@ function Handler(mssql) {
                 } else {
                     return undefined
                 }
-                
+
             } else {
                 return results.rowsAffected != 0
             }
@@ -54,17 +54,17 @@ function Handler(mssql) {
         if (!fileNameOutbound) throw ('fileNameOutbound required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
-    
+
         let sqlStatement = `SELECT [fileNameOutbound]
         FROM [baas].[files]
         WHERE [fileNameOutbound] = '${fileNameOutbound}'
         AND [contextOrganizationId] = '${contextOrganizationId}'
         AND [tenantId] = '${tenantId}';`
-    
+
         let param = {}
         param.params = []
         param.tsql = sqlStatement
-        
+
         try {
             let results = await mssql.sqlQuery(param);
             if(DEBUG) console.log(results)
@@ -84,17 +84,17 @@ function Handler(mssql) {
         if (!fileName) throw ('fileName required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
-    
+
         let sqlStatement = `SELECT [fileName]
         FROM [baas].[files]
         WHERE [fileName] = '${fileName}'
         AND [contextOrganizationId] = '${contextOrganizationId}'
         AND [tenantId] = '${tenantId}';`
-    
+
         let param = {}
         param.params = []
         param.tsql = sqlStatement
-        
+
         try {
             let results = await mssql.sqlQuery(param);
             if(DEBUG) console.log(results)
@@ -109,10 +109,10 @@ function Handler(mssql) {
             throw err
         }
     }
-    
-    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary, 
-        sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isMultifile, parentEntityId, 
-        dataJSON, quickBalanceJSON, fileNameOutbound, isTrace, OMAD, IMAD, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, 
+
+    Handler.insert = async function insert({entityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileType, fileName, fileBinary,
+        sizeInBytes, sha256, isOutbound, source, destination, isProcessed, hasProcessingErrors, effectiveDate, isMultifile, parentEntityId,
+        dataJSON, quickBalanceJSON, fileNameOutbound, isTrace, OMAD, IMAD, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP,
         isEmailAdviceSent, isBulk, correlationId, status, assignedToName, assignedToEmail}){
         if (!entityId) throw ('entityId required')
         if (!contextOrganizationId) throw ('contextOrganizationId required')
@@ -228,7 +228,7 @@ function Handler(mssql) {
                  AND [contextOrganizationId] = '${contextOrganizationId}';
             `
         }
-    
+
         return sqlStatement
     }
 
@@ -318,7 +318,7 @@ function Handler(mssql) {
         if(dataJSON) {
             sqlStatement = ``
             // ** REMOVE THIS CODE - IT IS NOT NEEDED TO WRITE DATA TO: baas.files.dataJSON
-            
+
             // `UPDATE [baas].[files]
             //     SET [dataJSON] = CAST('' AS varchar(MAX)) + '${JSON.stringify(dataJSON).replace(/[\/\(\)\']/g, "' + char(39) + '" )}',
             //         [correlationId] = '${correlationId}'
@@ -354,7 +354,7 @@ function Handler(mssql) {
         const hashSum = crypto.createHash('sha256');
         hashSum.update(fileBuffer);
         const sha256 = hashSum.digest('hex');
-    
+
         return sha256
     }
 
@@ -365,7 +365,7 @@ function Handler(mssql) {
         if (isBulk === true) isBulk = '1'
 
         let tenantId = process.env.PRIMAY_TENANT_ID
-    
+
         let sqlStatement = `
         SELECT f.[entityId]
             ,t.[fromOrganizationId]
@@ -413,11 +413,11 @@ function Handler(mssql) {
         AND f.isRejected = 0
         AND f.isBulk = ${isBulk}
         AND (f.[status] = 'approved');`
-    
+
         let param = {}
         param.params = []
         param.tsql = sqlStatement
-        
+
         try {
             let results = await mssql.sqlQuery(param);
             output = results.data
@@ -436,7 +436,8 @@ function Handler(mssql) {
 
         if (!isBulk || isBulk == false) isBulk = '0'
         if (isBulk === true) isBulk = '1'
-    
+
+        // NOTE EL 18.1 Get Unprocessed SharePoint files. Notice the status gate.
         let sqlStatement = `
         SELECT f.[entityId]
             ,t.[fromOrganizationId]
@@ -494,12 +495,12 @@ function Handler(mssql) {
         AND f.[isMultifileParent] = 0
         AND f.isRejected = 0
         AND f.isBulk = ${isBulk}
-        AND (f.[status] <> 'rejected' or f.[status] IS NULL);`
-    
+        AND f.[status] = "approved";`
+
         let param = {}
         param.params = []
         param.tsql = sqlStatement
-        
+
         try {
             let results = await mssql.sqlQuery(param);
             output = results.data
@@ -538,12 +539,12 @@ function Handler(mssql) {
         AND f.isProcessed = 0
         AND f.isRejected = 0
         AND f.isBulk = ${isBulk}
-        AND (f.[status] <> 'rejected' or f.[status] IS NULL);`
-    
+        AND f.[status] = "approved";`
+
         let param = {}
         param.params = []
         param.tsql = sqlStatement
-        
+
         try {
             let results = await mssql.sqlQuery(param);
             output = results.data
@@ -562,7 +563,7 @@ function Handler(mssql) {
 
         // override this
         toOrganizationId = fromOrganizationId;
-    
+
         let sqlStatement = `
         SELECT f.[entityId]
             ,f.[dataJSON]
@@ -581,12 +582,12 @@ function Handler(mssql) {
         AND f.isProcessed = 1
         AND t.isACH = 1
         AND f.isRejected = 0
-        AND (f.[status] <> 'rejected' or f.[status] IS NULL);`
-    
+        AND f.[status] = "approved";`
+
         let param = {}
         param.params = []
         param.tsql = sqlStatement
-        
+
         try {
             let results = await mssql.sqlQuery(param);
             output = results.data
@@ -597,6 +598,7 @@ function Handler(mssql) {
 
         return output
     }
+
 
     Handler.getUnprocessedOutboundSftpFiles = async function getUnprocessedOutboundSftpFiles({contextOrganizationId, fromOrganizationId, toOrganizationId, isBulk}){
         let output = {}
@@ -609,7 +611,8 @@ function Handler(mssql) {
 
         if (!isBulk || isBulk == false) isBulk = '0'
         if (isBulk === true) isBulk = '1'
-    
+
+        // NOTE EL 14. Get Unprocessed Outbound sftp files. Changed the status guard to "approved"
         let sqlStatement = `
             SELECT f.[entityId]
                 ,f.[contextOrganizationId]
@@ -642,12 +645,12 @@ function Handler(mssql) {
                 ,f.[isTrace]
             FROM [baas].[files] f
             INNER JOIN [baas].[fileTypes] t
-                ON f.fileTypeId = t.entityId 
-                AND f.tenantId = t.tenantId 
+                ON f.fileTypeId = t.entityId
+                AND f.tenantId = t.tenantId
                 AND f.contextOrganizationId = t.contextOrganizationId
             WHERE f.[tenantId] = '${tenantId}'
             AND f.isRejected = 0
-            AND (f.[status] <> 'rejected' or f.[status] IS NULL)
+            AND f.[status] = "approved"
             AND f.[contextOrganizationId] = '${contextOrganizationId}'
             AND t.[fromOrganizationId] = '${fromOrganizationId}'
             AND t.[toOrganizationId] = '${toOrganizationId}'
@@ -656,11 +659,11 @@ function Handler(mssql) {
             AND f.[isProcessed] = 1
             AND f.isBulk = ${isBulk}
             AND f.[hasProcessingErrors] = 0;`
-    
+
         let param = {}
         param.params = []
         param.tsql = sqlStatement
-        
+
         try {
             let results = await mssql.sqlQuery(param);
             output = results.data
@@ -685,14 +688,14 @@ function Handler(mssql) {
             UPDATE [baas].[files]
             SET [isSharePointSynced] = 1
                 ,[sharePointSyncDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -700,7 +703,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -720,14 +723,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -735,7 +738,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -755,14 +758,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -770,7 +773,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -789,14 +792,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -804,7 +807,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -823,14 +826,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -838,7 +841,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -858,14 +861,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -873,7 +876,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -893,14 +896,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -908,7 +911,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -928,14 +931,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -943,7 +946,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -963,14 +966,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -978,7 +981,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -998,14 +1001,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -1013,7 +1016,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -1033,14 +1036,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -1048,7 +1051,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -1067,14 +1070,15 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+                ,[status] = 'frontend completed'
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -1082,7 +1086,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -1101,14 +1105,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -1116,7 +1120,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -1138,14 +1142,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -1153,7 +1157,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -1172,14 +1176,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -1187,7 +1191,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -1207,14 +1211,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -1222,7 +1226,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -1243,14 +1247,14 @@ function Handler(mssql) {
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
                 ,[status] = 'frontend completed'
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -1258,7 +1262,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -1277,14 +1281,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -1292,7 +1296,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -1312,14 +1316,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -1327,7 +1331,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 
@@ -1347,14 +1351,14 @@ function Handler(mssql) {
                 ,[correlationId] = '${correlationId}'
                 ,[mutatedBy] = '${mutatedBy}'
                 ,[mutatedDate] = (SELECT getutcdate())
-            WHERE [entityId] = '${entityId}' 
+            WHERE [entityId] = '${entityId}'
             AND [tenantId] = '${tenantId}'
             AND [contextOrganizationId] = '${contextOrganizationId}';`
 
             let param = {}
             param.params = []
             param.tsql = sqlStatement
-            
+
             try {
                 let results = await mssql.sqlQuery(param);
                 output = results.data
@@ -1362,7 +1366,7 @@ function Handler(mssql) {
                 console.error(err)
                 throw err
             }
-    
+
             return output
     }
 

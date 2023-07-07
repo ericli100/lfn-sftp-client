@@ -36,7 +36,7 @@ function achTypeCheck( transaction ) {
             transactionCredit = transaction.amount
             transactionDebit = 0
             break;
-        
+
         case 41:
                 // 41 GL Automated Return or NOC
                 isCredit = true
@@ -52,7 +52,7 @@ function achTypeCheck( transaction ) {
             transactionCredit = transaction.amount
             transactionDebit = 0
             break;
-        
+
         case 52:
             // 52 Loan Deposit (Credit)
             isCredit = true
@@ -68,7 +68,7 @@ function achTypeCheck( transaction ) {
             transactionCredit = 0
             transactionDebit = transaction.amount
             break;
-        
+
         case 27:
             // 27 Checking Withdrawal (Debit)
             isCredit = false
@@ -108,7 +108,7 @@ function achTypeCheck( transaction ) {
             transactionCredit = transaction.amount
             transactionDebit = 0
             break;
-    
+
         case 43:
             // 43 Pre-Note: GL Deposit (Credit)
             isCredit = true
@@ -140,7 +140,7 @@ function achTypeCheck( transaction ) {
             transactionCredit = 0
             transactionDebit = transaction.amount
             break;
-        
+
         case 38:
             // 38 Pre-Note: Share Withdrawal (Debit)
             isCredit = false
@@ -148,7 +148,7 @@ function achTypeCheck( transaction ) {
             transactionCredit = 0
             transactionDebit = transaction.amount
             break;
-        
+
         case 48:
             // 48 Pre-Note: GL Withdrawal (Credit)
             isCredit = true
@@ -156,7 +156,7 @@ function achTypeCheck( transaction ) {
             transactionCredit = transaction.amount
             transactionDebit = 0
             break;
-        
+
         case 26:
             // 26 SYNAPSE TEST (Debit) -- Consider throwing an error
             isCredit = false
@@ -164,7 +164,7 @@ function achTypeCheck( transaction ) {
             transactionCredit = 0
             transactionDebit = transaction.amount
             break;
-        
+
         case 36:
             // 36 SYNAPSE TEST (Credit) RETURN -- Consider throwing an error
             isCredit = false
@@ -223,7 +223,7 @@ async function getFileTypeId( sqlDataRows, fileInfo ){
             output.fileTypes.push(fileTypes)
         }
     }
-    
+
     output.status = 'NO_MATCH'
     return output
 }
@@ -241,7 +241,7 @@ async function findFileTypeId({ baas, contextOrganizationId, fromOrganizationId,
      AND [fromOrganizationId] = '${fromOrganizationId}'
      AND [toOrganizationId] = '${toOrganizationId}'
      AND [fileTypeMatch] = '${fileTypeMatch}';`
-    
+
     let param = {}
     param.params = []
     param.tsql = sqlStatement
@@ -261,7 +261,7 @@ async function populateLookupCache({ baas, sql, inputFile, contextOrganizationId
     output.fileSize = fileSize;
 
     output.fileName = path.basename( inputFile )
-    
+
     output.fileExtension = path.extname( inputFile ).substring(1, path.extname( inputFile ).length)
 
     fileSelect.fileExtension = output.fileExtension
@@ -278,7 +278,7 @@ async function populateLookupCache({ baas, sql, inputFile, contextOrganizationId
     let fileTypeId = await sql.executeTSQL( fileTypeSQL )//'603c2e56cf800000'
 
     try{
-        fileTypeId = await getFileTypeId( fileTypeId[0].data, fileSelect ) // fileTypeId[0].data[0].entityId.trim() 
+        fileTypeId = await getFileTypeId( fileTypeId[0].data, fileSelect ) // fileTypeId[0].data[0].entityId.trim()
     } catch (err) {
         let errorMessage = {}
         errorMessage.message = err.toString()
@@ -286,7 +286,7 @@ async function populateLookupCache({ baas, sql, inputFile, contextOrganizationId
         console.error('ERROR: the fileType does not exist, we set it to an unknown type and loaded it in the DB. We will fix it in post.')
         output.fileTypeId = '99999999999999999999'
     }
-    
+
     if (typeof fileTypeId === 'object') {
         // there were multiple things returned
         if (!fileTypeId) {
@@ -301,7 +301,7 @@ async function populateLookupCache({ baas, sql, inputFile, contextOrganizationId
     // - entityBatchTypeId
     let entityBatchTypeSQL = await sql.entityType.find({entityType: 'Batch', contextOrganizationId: contextOrganizationId})
     let entityBatchTypeId = await sql.executeTSQL( entityBatchTypeSQL )
-    entityBatchTypeId = entityBatchTypeId[0].data[0].entityId.trim() 
+    entityBatchTypeId = entityBatchTypeId[0].data[0].entityId.trim()
     output.entityBatchTypeId = entityBatchTypeId
 
     // - entityTransactionTypeId
@@ -335,7 +335,7 @@ async function populateLookupCache({ baas, sql, inputFile, contextOrganizationId
             if(achJSON.IATBatches) combinedBatches = combinedBatches.concat(achJSON.IATBatches)
             jsonBatchData.batches = combinedBatches
             jsonBatchData.isIAT = true;
-            output.jsonBatchData = jsonBatchData  
+            output.jsonBatchData = jsonBatchData
         }
 
     }
@@ -348,8 +348,8 @@ async function createFileEntitySQL({ sql, fileEntityId, correlationId, contextOr
 
     // FILE HEADER PROCESSING *********
     let entityInsert = {
-        entityId: fileEntityId, 
-        contextOrganizationId: contextOrganizationId, 
+        entityId: fileEntityId,
+        contextOrganizationId: contextOrganizationId,
         entityTypeId: fileTypeId,
         correlationId: correlationId,
     }
@@ -362,12 +362,12 @@ async function createFileEntitySQL({ sql, fileEntityId, correlationId, contextOr
     return output
 }
 
-async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, 
-    fileName, fileSize, sha256, isMultifile, parentEntityId, effectiveDate, isOutbound, correlationId, source, destination, 
-    fileNameOutbound, isTrace, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent, 
+async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId,
+    fileName, fileSize, sha256, isMultifile, parentEntityId, effectiveDate, isOutbound, correlationId, source, destination,
+    fileNameOutbound, isTrace, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent,
     status, assignedToName, assignedToEmail } ){
     let output = {}
-    
+
     let fileInsert = {
         entityId: fileEntityId,
         contextOrganizationId: contextOrganizationId,
@@ -384,15 +384,15 @@ async function createFileSQL( {sql, fileEntityId, contextOrganizationId, fromOrg
         destination: destination,
         effectiveDate: effectiveDate,
         fileNameOutbound: fileNameOutbound,
-        isMultifile: isMultifile, 
+        isMultifile: isMultifile,
         parentEntityId: parentEntityId,
         isTrace: isTrace,
         isReceiptProcessed,
         isSentToDepositOperations,
         isSentViaSFTP,
         isEmailAdviceSent,
-        status, 
-        assignedToName, 
+        status,
+        assignedToName,
         assignedToEmail
     }
 
@@ -468,8 +468,8 @@ async function createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizatio
     let output = {}
 
     let batchEntityInsert = {
-        entityId: fileBatchEntityId, 
-        contextOrganizationId: contextOrganizationId, 
+        entityId: fileBatchEntityId,
+        contextOrganizationId: contextOrganizationId,
         entityTypeId: entityBatchTypeId,
         correlationId: correlationId,
     }
@@ -509,17 +509,17 @@ async function createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizati
     }
 
     let batchInsert = {
-        entityId: fileBatchEntityId, 
-        contextOrganizationId: contextOrganizationId, 
-        fromOrganizationId: fromOrganizationId, 
-        toOrganizationId: toOrganizationId, 
-        fileId: fileEntityId, 
-        batchSubId: batch.batchControl.batchNumber, 
-        batchType: updatedBatchType, 
-        batchName: batchName, 
-        batchCredits: batch.batchControl.totalCredit, 
-        batchDebits: batch.batchControl.totalDebit, 
-        dataJSON: dataJSON, 
+        entityId: fileBatchEntityId,
+        contextOrganizationId: contextOrganizationId,
+        fromOrganizationId: fromOrganizationId,
+        toOrganizationId: toOrganizationId,
+        fileId: fileEntityId,
+        batchSubId: batch.batchControl.batchNumber,
+        batchType: updatedBatchType,
+        batchName: batchName,
+        batchCredits: batch.batchControl.totalCredit,
+        batchDebits: batch.batchControl.totalDebit,
+        dataJSON: dataJSON,
         correlationId: correlationId,
     }
     let sqlBatch = await sql.fileBatch.insert( batchInsert )
@@ -536,8 +536,8 @@ async function createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, 
     let output = {}
 
     let transactionEntityInsert = {
-        entityId: fileTransactionEntityId, 
-        contextOrganizationId: contextOrganizationId, 
+        entityId: fileTransactionEntityId,
+        contextOrganizationId: contextOrganizationId,
         entityTypeId: entityTransactionTypeId,
         correlationId: correlationId,
     }
@@ -585,19 +585,19 @@ async function createBatchTransactionSQL( {sql, batch, transaction, achType, jso
 
     // TODO: Account ID Mapping in the future ( create UPSERT )
     let transactionInsert = {
-        entityId: fileTransactionEntityId, 
-        contextOrganizationId: contextOrganizationId, 
-        batchId: fileBatchEntityId, 
-        fromAccountId: '', 
-        toAccountId: '', 
-        paymentRelatedInformation: '', 
-        originationDate: jsonFileData.fileHeader.fileCreationDate, 
-        effectiveDate: effectiveDate, 
-        transactionType: transaction.transactionCode, 
-        tracenumber: transaction.traceNumber, 
-        transactionCredit: achType.transactionCredit, 
-        transactionDebit: achType.transactionDebit, 
-        dataJSON: transaction, 
+        entityId: fileTransactionEntityId,
+        contextOrganizationId: contextOrganizationId,
+        batchId: fileBatchEntityId,
+        fromAccountId: '',
+        toAccountId: '',
+        paymentRelatedInformation: '',
+        originationDate: jsonFileData.fileHeader.fileCreationDate,
+        effectiveDate: effectiveDate,
+        transactionType: transaction.transactionCode,
+        tracenumber: transaction.traceNumber,
+        transactionCredit: achType.transactionCredit,
+        transactionDebit: achType.transactionDebit,
+        dataJSON: transaction,
         correlationId: correlationId,
         originalTracenumber: originalTracenumber,
     }
@@ -613,7 +613,7 @@ async function createBatchTransactionSQL( {sql, batch, transaction, achType, jso
 }
 
 function isNumeric(str) {
-    if (typeof str != "string") return false // we only process strings!  
+    if (typeof str != "string") return false // we only process strings!
     return !isNaN(str) && // use type coercion to parse the _entirety_ of the string (`parseFloat` alone does not do this)...
            !isNaN(parseFloat(str)) // ...and ensure strings of whitespace fail
   }
@@ -632,7 +632,7 @@ async function achFixKnownErrors( {baas, fileEntityId, inputFile, achParseError,
     // SYNAPSE ACH FIX: 001
     if (achParseError.stdout.includes('(CIE) ServiceClassCode header SCC is not valid for this batch\'s type: 225')) {
         isErrorMatched = true
-        /* 
+        /*
         BROKEN
         5225SynapsePay*QA                       1465396710CIEDEBIT           220625   1064109560000003
         822500000200073923090000000002090000000000001465396710                         064109560000003
@@ -649,7 +649,7 @@ async function achFixKnownErrors( {baas, fileEntityId, inputFile, achParseError,
         knownErrorPrefix = '!> ***** achFixKnownErrors: [SYNAPSE ACH FIX: 001]'
         await baas.audit.log({baas, logger: baas.logger, level: 'verbose', message: `${knownErrorPrefix} Attempting fix on ACH file [${inputFile}] -- Error Type:[(CIE) ServiceClassCode header SCC is not valid for this batch type: 225]...`, correlationId})
         let errorLines = achParseError.stdout.split('line:')
-        
+
         for(const errLine of errorLines){
             let errSplit = errLine.split(' ')
             if(isNumeric(errSplit[0])) {
@@ -716,7 +716,7 @@ async function processLineByLine( {inputFile, fixFileArray} ) {
         input: fs.createReadStream(inputFile),
         crlfDelay: Infinity
       });
-  
+
       rl.on('line', (line) => {
         currentLine++
         let matchedLine = fixFileArray.filter(function(o){ return o.linenumber==currentLine;})
@@ -733,7 +733,7 @@ async function processLineByLine( {inputFile, fixFileArray} ) {
             writeStream.write(`${line}${EOL}`);
         }
       });
-  
+
       await events.once(rl, 'close');
 
       fs.renameSync( inputFile, inputFile + '.ORIGINAL' )
@@ -749,7 +749,7 @@ async function processLineByLine( {inputFile, fixFileArray} ) {
 async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, fileEntityId, fileTypeId, correlationId} ) {
     if(!inputFile) throw('baas.input.ach: inputFile is required!')
     let fileName = path.basename( inputFile )
-   
+
     await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${VENDOR}: processing ACH file [${ fileName }]...`, correlationId, effectedEntityId: fileEntityId})
 
     if(!contextOrganizationId) throw('baas.input.ach: contextOrganizationId is required!')
@@ -806,7 +806,7 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
 
     // create the SQL statements for the transaction
     let sqlStatements = []
-    
+
     const cache = await populateLookupCache( { baas, sql, inputFile, contextOrganizationId, fromOrganizationId, toOrganizationId, correlationId, achJSON } )
     let entityBatchTypeId = cache.entityBatchTypeId
     let entityTransactionTypeId = cache.entityTransactionTypeId
@@ -828,11 +828,11 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
         for (const batch of jsonBatchData.batches) {
             // create the fileBatch Entries:
             let fileBatchEntityId
-    
+
             // insert the batch entityId
             // let sqlBatchEntitySQL = await createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} )
             // sqlStatements.push( sqlBatchEntitySQL.param )
-    
+
             // insert the batch
             let current_batch_id = path.basename( inputFile ).toUpperCase() + '-' + batch.batchHeader.standardEntryClassCode.toUpperCase() + '-' + batch.batchControl.batchNumber
 
@@ -847,51 +847,51 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
                 let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, batchType: 'ACH', correlationId } )
                 sqlStatements.push( batchSQL.param )
             }
-    
+
             // TRANSACTION DETAIL PROCESSING *********
             let DebitBatchRunningTotal = 0
             let CreditBatchRunningTotal = 0
-            
+
             // loop over the transactions for processing
             for (const transaction of batch.entryDetails) {
                 let fileTransactionEntityId = baas.id.generate();
-    
+
                 // create the transaction entity
                 // let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
                 // sqlStatements.push( batchTransactionEntitySQL.param )
-        
+
                 // transaction processing
                 let achType = achTypeCheck( transaction )
-    
+
                 // keep the running total for validation at the end
                 CreditBatchRunningTotal += achType.transactionCredit
                 DebitBatchRunningTotal += achType.transactionDebit
-    
+
                 if(achType.isCredit) {
                     output.creditCount = output.creditCount + 1;
                     output.totalCredits = output.totalCredits + achType.transactionCredit
                 }
-    
+
                 if(achType.isDebit) {
                     output.debitCount = output.debitCount + 1;
                     output.totalDebits = output.totalDebits + achType.transactionDebit
                 }
-    
+
                 // TODO: lookup the fromAccountId ( this is the RDFI end user account based on isOutbound value)
                 // TODO: lookup the toAccountId ( this is the destination for the BaaS money movement based on the Immediate Origin - jsonFileData.fileHeader.immediateOrigin)
                 // TODO: get the ABA list from the FRB - import into the DB
-    
+
                 // create the batch transaction entry
                 let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
                 sqlStatements.push( batchTransactionSQL.param )
 
-                
+
             }
-    
+
             // these totals should match, best to fail the whole task if it does not balance here
             if (CreditBatchRunningTotal != batch.batchControl.totalCredit) throw('baas.input.ach batch total from the individual credit transacitons does not match the batch.batchControl.totalCredit! Aborting because something is wrong.')
             if (DebitBatchRunningTotal != batch.batchControl.totalDebit) throw('baas.input.ach batch total from the individual debit transacitons does not match the batch.batchControl.totalDebit! Aborting because something is wrong.')
-        } 
+        }
     }
 
     if(jsonBatchData.isIAT) { // IAT ACH file ( INTERNATIONAL - Needs OFAC check )
@@ -899,51 +899,51 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
         for (const batch of jsonBatchData.batches) {
             // create the fileBatch Entries:
             let fileBatchEntityId = baas.id.generate();
-    
+
             // insert the batch entityId
             // let sqlBatchEntitySQL = await createBatchEntitySQL( {sql, fileBatchEntityId, contextOrganizationId, entityBatchTypeId, correlationId} )
             // sqlStatements.push( sqlBatchEntitySQL.param )
-    
+
             // insert the batch
             let batchSQL = await createBatchSQL( {sql, batch, fileBatchEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileEntityId, inputFile, batchType: 'ACH', correlationId } )
             sqlStatements.push( batchSQL.param )
-    
+
             // TRANSACTION DETAIL PROCESSING *********
             let DebitBatchRunningTotal = 0
             let CreditBatchRunningTotal = 0
-            
+
             if(batch.IATEntryDetails) {
                 // loop over the IAT transactions for processing
                 for (const transaction of batch.IATEntryDetails) {
                     let fileTransactionEntityId = baas.id.generate();
-        
+
                     // create the transaction entity
                     // let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
                     // sqlStatements.push( batchTransactionEntitySQL.param )
-            
+
                     // transaction processing
                     let achType = achTypeCheck( transaction )
-        
+
                     // keep the running total for validation at the end
                     CreditBatchRunningTotal += achType.transactionCredit
                     DebitBatchRunningTotal += achType.transactionDebit
 
                     output.hasIAT = true
-        
+
                     if(achType.isCredit) {
                         output.creditCount = output.creditCount + 1;
                         output.totalCredits = output.totalCredits + achType.transactionCredit
                     }
-        
+
                     if(achType.isDebit) {
                         output.debitCount = output.debitCount + 1;
                         output.totalDebits = output.totalDebits + achType.transactionDebit
                     }
-        
+
                     // TODO: lookup the fromAccountId ( this is the RDFI end user account based on isOutbound value)
                     // TODO: lookup the toAccountId ( this is the destination for the BaaS money movement based on the Immediate Origin - jsonFileData.fileHeader.immediateOrigin)
                     // TODO: get the ABA list from the FRB - import into the DB
-        
+
                     // create the batch transaction entry
                     let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
                     sqlStatements.push( batchTransactionSQL.param )
@@ -954,32 +954,32 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
                 // loop over the standard transactions for processing
                 for (const transaction of batch.entryDetails) {
                     let fileTransactionEntityId = baas.id.generate();
-        
+
                     // create the transaction entity
                     // let batchTransactionEntitySQL = await createBatchTransactionEntitySQL( { sql, fileTransactionEntityId, entityTransactionTypeId, contextOrganizationId, correlationId } )
                     // sqlStatements.push( batchTransactionEntitySQL.param )
-            
+
                     // transaction processing
                     let achType = achTypeCheck( transaction )
-        
+
                     // keep the running total for validation at the end
                     CreditBatchRunningTotal += achType.transactionCredit
                     DebitBatchRunningTotal += achType.transactionDebit
-        
+
                     if(achType.isCredit) {
                         output.creditCount = output.creditCount + 1;
                         output.totalCredits = output.totalCredits + achType.transactionCredit
                     }
-        
+
                     if(achType.isDebit) {
                         output.debitCount = output.debitCount + 1;
                         output.totalDebits = output.totalDebits + achType.transactionDebit
                     }
-        
+
                     // TODO: lookup the fromAccountId ( this is the RDFI end user account based on isOutbound value)
                     // TODO: lookup the toAccountId ( this is the destination for the BaaS money movement based on the Immediate Origin - jsonFileData.fileHeader.immediateOrigin)
                     // TODO: get the ABA list from the FRB - import into the DB
-        
+
                     // create the batch transaction entry
                     let batchTransactionSQL = await createBatchTransactionSQL( {sql, batch, transaction, achType, jsonFileData, fileTransactionEntityId, contextOrganizationId, fileBatchEntityId, correlationId} )
                     sqlStatements.push( batchTransactionSQL.param )
@@ -989,7 +989,7 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
             // these totals should match, best to fail the whole task if it does not balance here
             if (CreditBatchRunningTotal != batch.batchControl.totalCredit) throw('baas.input.ach batch total from the individual IAT credit transacitons does not match the batch.batchControl.totalCredit! Aborting because something is wrong.')
             if (DebitBatchRunningTotal != batch.batchControl.totalDebit) throw('baas.input.ach batch total from the individual IAT debit transacitons does not match the batch.batchControl.totalDebit! Aborting because something is wrong.')
-        } 
+        }
     }
 
     if (output.achJSON.ReturnEntries) {
@@ -1004,7 +1004,7 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
             }
         }
     }
-    
+
     // call SQL and run the SQL transaction to import the ach file to the database
     try{
         output.results = await sql.executeBulk( sqlStatements )
@@ -1012,7 +1012,7 @@ async function ach( {baas, VENDOR, ENVIRONMENT, sql, contextOrganizationId, from
         await baas.audit.log({baas, logger: baas.logger, level: 'error', message: `${VENDOR}: baas.input.ach() failed during sql.execute for [${fileName}] for environment [${ENVIRONMENT}] with error detail: [${ JSON.stringify( sqlProcessingError.message )}]`, correlationId, effectedEntityId: fileEntityId })
         throw( sqlProcessingError )
     }
-    
+
     await baas.audit.log({baas, logger: baas.logger, level: 'info', message: `${VENDOR}: processed ACH file [${fileName}].`, correlationId, effectedEntityId: fileEntityId })
 
     // output the status
@@ -1042,7 +1042,7 @@ async function fileVault({ baas, VENDOR, sql, contextOrganizationId, fileEntityI
     return output
 }
 
-async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, source, destination, effectiveDate, fileTypeId, overrideExtension, fileNameOutbound, isMultifile, isMultifileParent, parentEntityId, correlationId, fileEntityId, isTrace, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent, status } ) {    
+async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile, isOutbound, source, destination, effectiveDate, fileTypeId, overrideExtension, fileNameOutbound, isMultifile, isMultifileParent, parentEntityId, correlationId, fileEntityId, isTrace, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent, status } ) {
     if(!contextOrganizationId) throw('baas.input.file: contextOrganizationId is required!')
     if(!inputFile) throw('baas.input.file: inputFile is required!')
     if(!baas) throw('baas.input.file: baas module is required!')
@@ -1081,7 +1081,7 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
     if (!fileExistsInDB) {
         // create the SQL statements for the transaction
         let sqlStatements = []
-        
+
         let {size: fileSize} = fs.statSync( inputFile );
         let fileName = path.basename( inputFile )
 
@@ -1101,6 +1101,7 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
         sqlStatements.push( fileEntitySQL.param )
 
         // create the file record
+        // NOTE EL 8. Set status when save the file to DB
         let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, effectiveDate, correlationId, source, destination, fileNameOutbound, isMultifile, isMultifileParent, parentEntityId, isTrace, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent, status } )
         sqlStatements.push( fileSQL.param )
 

@@ -38,15 +38,19 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
     // Do not process the Parent files of a multifile breakout
 
     // we are pretty sensative to column name changes on this, keeping the TSQL here for now
+
+    // NOTE EL 16.1. Process file receipt SQL, notice the status guard. 
+    // TODO: EL need to confirm the guard is necessary.
+
     let sqlStatement = `
 	SELECT CONVERT(varchar, f.[effectiveDate], 111) AS [Date]
         ,t.accountNumber_TEMP [Account Number]
         ,t.accountDescription_TEMP [Account Name]
         ,IIF(t.[isOutboundToFed]=1, f.[fileName], f.[fileNameOutbound] ) [fileName]
-        ,[Incoming / Outgoing] =  
-            CASE t.[isOutboundToFed]  
-            WHEN 1 THEN 'Outgoing'   
-            ELSE 'Incoming'  
+        ,[Incoming / Outgoing] =
+            CASE t.[isOutboundToFed]
+            WHEN 1 THEN 'Outgoing'
+            ELSE 'Incoming'
         END
         ,f.[quickBalanceJSON]
         ,f.[entityId]
@@ -82,7 +86,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
     AND f.isRejected = 0
     AND f.[isTrace] = 0
     AND f.[isReceiptProcessed] = 0
-    AND (f.[status] <> 'rejected' or f.[status] IS NULL)
+    AND f.[status] = "approved"
     AND f.[isMultifileParent] = 0
     AND f.[contextOrganizationId] = '${contextOrganizationId}'
     AND ( t.[toOrganizationId] = '${toOrganizationId}' OR t.[fromOrganizationId] = '${fromOrganizationId}' )
@@ -104,7 +108,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
         // create a working buffer...
         // set a working directory
         let workingDirectory = await baas.processing.createWorkingDirectory(baas, CONFIG.vendor, CONFIG.environment, baas.logger, false, `_FILE_ACTIVITY_${CONFIG.vendor.toUpperCase()}`)
-        
+
         let finalOutput = ''
         let sendEmailsProcessedFiles = []
 
@@ -178,23 +182,23 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                     // there is not an {index}
                     break
                 }
-                
-            } while (await baas.sql.file.fileNameExists( tempNameCheck, CONFIG.contextOrganizationId ));    
+
+            } while (await baas.sql.file.fileNameExists( tempNameCheck, CONFIG.contextOrganizationId ));
             currentAccountFileName = currentAccountFileName.replace('{index}', fileIndex)
 
             // Place the CSV in the Output Body for the Email
             if(outputJSON == false) {
                 finalOutput += csv + '\n\n';
             }
-            
+
             // write the file to the working buffer
             writeCSV(workingDirectory, currentAccountFileName, csv)
 
             // look up the file type
-            let fileTypeId = await baas.input.findFileTypeId({baas, contextOrganizationId, fromOrganizationId: contextOrganizationId, toOrganizationId, fileTypeMatch: 'CSV_FILEACTIVITY' }) 
+            let fileTypeId = await baas.input.findFileTypeId({baas, contextOrganizationId, fromOrganizationId: contextOrganizationId, toOrganizationId, fileTypeMatch: 'CSV_FILEACTIVITY' })
 
             // create a file entry in the DB
-            let configDestination 
+            let configDestination
             for(let rule of CONFIG.folderMappings) {
                 if(rule.type == 'put' && rule.source == `${VENDOR_NAME}.${ENVIRONMENT}.fileReceipt`){
                     configDestination = rule
@@ -211,7 +215,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
             try{
                 // save the file SHA256 to the DB
-                inputFileStatus = await baas.input.file({ baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: inputFile, isOutbound: true, source: `lineage:/${configDestination.source}`, destination: `${configDestination.dbDestination}`, fileTypeId, correlationId })  
+                inputFileStatus = await baas.input.file({ baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId, fromOrganizationId, toOrganizationId, inputFile: inputFile, isOutbound: true, source: `lineage:/${configDestination.source}`, destination: `${configDestination.dbDestination}`, fileTypeId, correlationId })
                 fileEntityId = inputFileStatus.fileEntityId;
 
                 // encrypt it
@@ -219,7 +223,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
                 // vault it
                 fileVaultResult = await baas.input.fileVault({ baas, VENDOR: VENDOR_NAME, sql: baas.sql, contextOrganizationId, fileEntityId, pgpSignature: 'lineage', filePath: inputFile + '.gpg', fileVaultEntityId: fileEntityId, correlationId })
-                
+
                 // set the vault id
                 await baas.sql.file.updateFileVaultId({ entityId: fileEntityId, contextOrganizationId, fileVaultId: fileVaultResult.fileVaultEntityId })
 
@@ -239,7 +243,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                 // default to FALSE
                 // ******************************
                 // **  DANGER *******************
-                // ****************************** 
+                // ******************************
                 var SEND_SFTP_NOT_ENCRYPTED = false
 
                 if (CONFIG.processing.SEND_SFTP_NOT_ENCRYPTED) {
@@ -250,7 +254,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
                 let fileDescriptor = currentAccountFileName + ':\n';
                 fileDescriptor += '**********************************************************\n'
-                
+
                 finalOutput = fileDescriptor + finalOutput;
 
                 // send SFTP
@@ -259,7 +263,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                 let encryptedFileStream = fs.createReadStream(inputFile + '.gpg')
 
                 // let's write these bits on the remote SFTP server
-                
+
                 // does the file exist remotely after the push?
                 let fileIsOnRemote
                 // let's write these bits on the remote SFTP server
@@ -279,7 +283,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
                 if (fileIsOnRemote) {
                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.processfileReceipt() - file [${path.basename(inputFile)}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: fileEntityId, correlationId })
-                    
+
                     // delete the encrypted file
                     await baas.processing.deleteBufferFile(inputFile + '.gpg') // remove the local file now it is uploaded
                     console.warn('TODO: Switch to a 2 phase commit in case of failure.')
@@ -290,7 +294,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                 // need to look up the existing file by entity ID and get the name
                 let existingFileActivityFileSQL = await baas.sql.file.read({entityId: fileEntityId, contextOrganizationId})
                 let existingFileActivityFile = await baas.sql.executeTSQL(existingFileActivityFileSQL);
-              
+
                 let fileDescriptor = `[${existingFileActivityFile[0].data[0].fileName}]]:\n`;
                 fileDescriptor += '**********************************************************\n\n'
                 finalOutput = fileDescriptor + finalOutput;
@@ -300,7 +304,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                     throw new (`baas.output.processfileReceipt() failed, there was an existing File Activity File present but it had not been sent via SFTP for original FileNameOutbound:[${existingFileActivityFile[0].data[0].fileName}]. SHA256:[${sha256}]`)
                 }
             }
-           
+
             // delete the original file
             await baas.processing.deleteBufferFile(inputFile)
 
@@ -318,13 +322,13 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
             header += '*               F I L E   A C T I V I T Y   F I L E       Processor: 2.2.5\n'
             header += '**************************************************************************\n\n'
             header += `File Activity File for [${VENDOR_NAME.toUpperCase()}].[${ENVIRONMENT.toUpperCase()}]: \n\n`
-            header += `   Total Credits USD: $${ await baas.common.formatMoney({ amount: totalCreditsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
-            header += `   Total Credits Count: ${totalCreditCount} \n\n` 
-            header += `   Total Debits USD: $${ await baas.common.formatMoney({ amount: totalDebitsUSD.toString(), decimalPosition: 2, addComma: true }) } \n` 
+            header += `   Total Credits USD: $${ await baas.common.formatMoney({ amount: totalCreditsUSD.toString(), decimalPosition: 2, addComma: true }) } \n`
+            header += `   Total Credits Count: ${totalCreditCount} \n\n`
+            header += `   Total Debits USD: $${ await baas.common.formatMoney({ amount: totalDebitsUSD.toString(), decimalPosition: 2, addComma: true }) } \n`
             header += `   Total Debits Count: ${totalDebitCount} \n\n`
 
             let netOfDebitAndCredits = totalDebitsUSD - totalCreditsUSD
-            header += `   NET: $${ await baas.common.formatMoney({ amount: netOfDebitAndCredits.toString(), decimalPosition: 2, addComma: true }) } (debits-credits)\n\n` 
+            header += `   NET: $${ await baas.common.formatMoney({ amount: netOfDebitAndCredits.toString(), decimalPosition: 2, addComma: true }) } (debits-credits)\n\n`
             header += '**********************************************************************\n\n'
 
             finalOutput = header + finalOutput
@@ -334,7 +338,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                 let spacing = '  '
                 let leftJustify = '                    ' // 20 chars
                 for (let faf of output.outputData) {
-                    
+
                     finalOutput += spacing + `>> ${ faf['fileName'] }:\n`
                     finalOutput += spacing + `**********************************************\n`
                     finalOutput += spacing + `FRB File Direction: ${ faf['Incoming / Outgoing'].toUpperCase() }\n`
@@ -342,13 +346,13 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                         finalOutput += spacing + `Original File Name: ${ faf['fileNameOriginal'] }\n`
                     }
                     finalOutput += spacing + `Posting Date: ${ faf['Date'] }\n`
-                    
+
                     if(maskAccount) {
                         // finalOutput += spacing + `Account: **-****-****${ faf['Account Number'].substring(-4) } - ${ faf['Account Name'] }\n`
                     } else {
                         finalOutput += spacing + `Account: ${ faf['Account Number'] } - ${ faf['Account Name'] }\n`
                     }
-                    
+
                     finalOutput += spacing + `Credit Amount: $${ faf['Credit Amount'] }\n`
                     finalOutput += spacing + `Credit Count:  ${ faf['Credit Count'] }\n`
                     finalOutput += spacing + `Debit Amount:  $${ faf['Debit Amount'] }\n`
@@ -369,7 +373,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
                 finalOutput += '  Files had been updated to [isReceiptProcessed] = false\n'
                 finalOutput += '-------------------------------------------------------------\n'
             }
-    
+
             let receiptAdviceMessage = {
                 subject: `ENCRYPT: BaaS: FILE ACTIVITY ADVICE - [${CONFIG.vendor.toUpperCase()}].[${CONFIG.environment.toUpperCase()}]`,
                 body: { contentType: 'Text', content: finalOutput },
@@ -390,7 +394,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
         if (!KEEP_DECRYPTED_FILES) await baas.processing.deleteWorkingDirectory( workingDirectory )
 
         await baas.audit.log({baas, logger, level: 'info', message: `${VENDOR_NAME}: FILE RECEIPT - END PROCESSING for [${ENVIRONMENT}] generated the file activity report(s).`, correlationId  })
-        
+
         return output
     } catch (err) {
         let errorMessage = {}
@@ -526,7 +530,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
         if(!KEEP_DECRYPTED_FILES) {
             sqlStatement_from_organization += ` AND f.[isSentToDepositOperations] = 0 `
         }
-        
+
         sqlStatement_from_organization += `
         AND f.[isSentViaSFTP] = 0
         AND ( (f.[isProcessed] = 1 AND f.[hasProcessingErrors] = 0) OR f.[isForceOverrideProcessingErrors] = 1);`
@@ -573,7 +577,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
             let sha256_VALIDATION = await baas.sql.file.generateSHA256(fullFilePath)
             if (sha256_VALIDATION != file.sha256) {
                 await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - file [${outFileName}] SHA256 Check Failed! Stopping processing. [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
-                
+
                 if(!KEEP_PROCESSING_ON_ERROR) {
                     throw ('ERROR: baas.output.downloadFilesFromOrganizationSendToDepositOps() SHA256 CHECK FAILED!')
                 }
@@ -611,7 +615,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                         toRecipients: recipientsProcessingTo,
                         attachments: attachment
                     }
-                    
+
                     if(file.isSentToDepositOperations == false) {
                         let sendWiredvice = await baas.email.sendEmail({ client, message: wireAdviceMessage })
                         await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - Wire Advice Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsAdviceTo} ].`, effectedEntityId: file.entityId, correlationId })
@@ -657,7 +661,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                         toRecipients: recipientsProcessingTo,
                         attachments: attachment
                     }
-                    
+
                     if(file.isSentToDepositOperations == false) {
                         let tooLargeAttachment = false
                         try{
@@ -788,7 +792,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                         toRecipients: recipientsProcessingTo,
                         attachments: attachment
                     }
-                    
+
                     // deliver none ODFI files
 
                     if (!file.isSentToDepositOperations) {
@@ -797,9 +801,9 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                             if (file.isSentToDepositOperations == false) {
                                 try{
                                     let sendFileDelivery = await baas.email.sendEmail({ client, message: fileDeliveryMessage })
-        
+
                                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
-        
+
                                     // Set Status In DB
                                     await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
                                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
@@ -807,9 +811,9 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                                     await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
                                 }
                             }
-                        } else if (!CONFIG.processing.ODFI_USE_UI) {
+                        } else if (!CONFIG.processing.ODFI_USE_UI) { // NOTE 17.1. Only deliver ODFI When ODFI_USE_UI is false 
                             let sendFileDelivery = await baas.email.sendEmail({ client, message: fileDeliveryMessage })
-    
+
                             await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
 
                             // Set Status In DB
@@ -840,7 +844,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                     const fieldMetaData = {
                         entityId: file.entityId.trim()
                     }
-                    
+
                     const sharepointUploadResults = await baas.sharepoint.uploadSharePoint({client: clientSharepoint, filePath: fullFilePath, sharePointDestinationFolder: file.sharePointSyncPath, fieldMetaData })
                     fileDeliveryBody += `  sharepointLink: ${sharepointUploadResults.webUrl}\n`
 
@@ -858,26 +862,26 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                         replyTo: replyToAddress,
                         toRecipients: recipientsProcessingTo
                     }
-                    
+
                     if(file.isSentToDepositOperations == false) {
                         if (!file.isFedWire) {
                             try{
                                 let sendFileDelivery = await baas.email.sendEmail({ client: clientEmail, message: fileDeliveryMessage })
-    
+
                                 await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
-    
+
                                 // Set Status In DB
                                 await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
                                 await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
                             } catch (fileDeliveryError) {
                                 await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
                             }
-                        } else if (!CONFIG.processing.ODFI_USE_UI) {
+                        } else if (!CONFIG.processing.ODFI_USE_UI) {// NOTE 17.2. Only deliver ODFI When ODFI_USE_UI is false. Notice setFileSentToDepositOps sets status to "frontend completed" 
                             try{
                                 let sendFileDelivery = await baas.email.sendEmail({ client: clientEmail, message: fileDeliveryMessage })
-    
+
                                 await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
-    
+
                                 // Set Status In DB
                                 await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
                                 await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery for [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
@@ -885,7 +889,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                                 await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
                             }
                         }
-                        
+
                     }
                 }
             }
@@ -920,7 +924,7 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
                 }
             }
         }
-       
+
         await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: SFTP REMOTE FILES: baas.output.downloadFilesfromDBandSFTPToOrganization() - ** currentFilesOnRemoteSFTP: [${JSON.stringify(currentFilesOnRemoteSFTP)}] ** for environment [${CONFIG.environment}].`, correlationId })
     } catch (remoteListFilesError){
         console.error('Remote file SFTP logging error... skip...')
@@ -947,7 +951,7 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
         // default to FALSE
         // ******************************
         // **  DANGER *******************
-        // ****************************** 
+        // ******************************
         var SEND_SFTP_NOT_ENCRYPTED = false
 
         if (CONFIG.processing.SEND_SFTP_NOT_ENCRYPTED) {
@@ -1003,7 +1007,7 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
                 if (!remoteDestination) throw (`ERROR: we called baas.sftp.putRemoteDestinationFromConfig and it did not match a config value for file.destination:[${file.destination}]`)
 
                 // does the file exist remotely after the push?
-                let fileIsOnRemote 
+                let fileIsOnRemote
 
                 // let's write these bits on the remote SFTP server
                 if(SEND_SFTP_NOT_ENCRYPTED == true){
@@ -1023,6 +1027,7 @@ async function downloadFilesfromDBandSFTPToOrganization({ baas, CONFIG, correlat
                 if (fileIsOnRemote) {
                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was PUT on the remote SFTP server for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
                     await baas.processing.deleteBufferFile(fullFilePath + '.gpg') // remove the local file now it is uploaded
+                    // NOTE EL 13.1 Sets "frontend completed" status for RDFI file.
                     await baas.sql.file.setSentViaSFTP({ entityId: file.entityId, contextOrganizationId, correlationId })
                     await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesfromDBandSFTPToOrganization() - file [${outFileName}] was set as isSentViaSFTP using baas.sql.file.setSentViaSFTP() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
                 }

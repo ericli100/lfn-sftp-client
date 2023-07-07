@@ -16,12 +16,10 @@ if(!process.env.FLAKEID_WORKER) process.env['FLAKEID_WORKER'] = WORKERID;
 
 var path = require('path');
 const fs = require('fs');
-
 const moment = require('moment')
 let PROCESSING_DATE = moment().utc().format('YYYYMMDD') + 'T' + moment().utc().format('HHMMSS')
 
 const { transports, createLogger, format } = require('winston');
-
 const logger = createLogger({
     format: format.combine(
         format.timestamp(),
@@ -37,6 +35,8 @@ const logger = createLogger({
         new transports.File({ level: 'info', filename: path.resolve(`./logging/${VENDOR_NAME}/${ENVIRONMENT}/audit/${VENDOR_NAME}_${ENVIRONMENT}_${PROCESSING_DATE}.log`) })
     ]
 });
+
+// NOTE EL 1. Starting Point  
 
 async function main(){
     let args = {};
