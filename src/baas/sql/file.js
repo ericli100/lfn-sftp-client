@@ -1238,7 +1238,7 @@ function Handler(mssql) {
         if (!entityId) throw ('entityId required')
         let tenantId = process.env.PRIMAY_TENANT_ID
         if (!contextOrganizationId) throw ('contextOrganizationId required')
-
+        // NOTE EL 13.2 Sets "frontend completed" status for RDFI file.
         let sqlStatement = `
             UPDATE [baas].[files]
             SET [isSentViaSFTP] = 1,

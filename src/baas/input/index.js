@@ -1102,6 +1102,7 @@ async function file({ baas, VENDOR, sql, contextOrganizationId, fromOrganization
 
         // create the file record
         // NOTE EL 8. Set status when save the file to DB
+        // TODO EL: Format this
         let fileSQL = await createFileSQL( { sql, fileEntityId, contextOrganizationId, fromOrganizationId, toOrganizationId, fileTypeId, fileName, fileSize, sha256, isOutbound, effectiveDate, correlationId, source, destination, fileNameOutbound, isMultifile, isMultifileParent, parentEntityId, isTrace, isReceiptProcessed, isSentToDepositOperations, isSentViaSFTP, isEmailAdviceSent, status } )
         sqlStatements.push( fileSQL.param )
 

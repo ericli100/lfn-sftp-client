@@ -174,8 +174,8 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
         let inboundEmailsStatus = await getInboundEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID, PROCESSING_DATE })
     }
 
-    // NOTE EL 4*. (next step is 5) if we use worker, continue to process FTP_PULL.
-    if (!ODFI_USE_UI && ENABLE_FTP_PULL) {
+    // NOTE EL 4*. (next step is 5) Continue to process FTP_PULL.
+    if (ENABLE_FTP_PULL) {
         await baas.audit.log({ baas, logger, level: 'info', message: `SFTP Processing started for [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}]...`, correlationId: CORRELATION_ID })
         // ** GET FILES FROM EMAIL
         // -- SET CONFIG TO PARSE FROM EMAIL ADDRESS
@@ -237,12 +237,14 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
         // ****************************************************
         // ** Download Files from DB and Send to Deposit Ops **
         // ****************************************************
+
+        // NOTE EL 19: downloadFilesFromOrganizationSendToDepositOps
         await baas.output.downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, correlationId: CORRELATION_ID })
     }
 
     //await validateACHQuickBalanceJSON ({ baas, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID, contextOrganizationId: CONFIG.contextOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId })
 
-    
+
     if (ENABLE_OUTBOUND_PROCESSING_FROM_DB) {
 
         // NOTE EL. -- this is an NOOP
@@ -259,19 +261,19 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
 
     if (ENABLE_OUTBOUND_EMAIL_PROCESSING) {
 
-        // NOTE EL 15*. get Outboud Email Files, this is currently a NOOP
+        // NOTE EL 15. get Outboud Email Files, This is currently a NOOP
 
         let outboundEmailsStatus = await getOutboudEmailFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, config: CONFIG, correlationId: CORRELATION_ID })
     }
 
     if (ENABLE_FILE_RECEIPT_PROCESSING) {
 
-        // NOTE EL 16*. Process file receipt, which creates a "report" file and send to sftp
+        // NOTE EL 16*. Process file receipt, which creates a "report" file and send to sftp.
         // a.k.a. File Activity File
         let fileActivityFileStatus = await baas.output.processfileReceipt({ baas, logger, CONFIG, mssql: baas.sql, contextOrganizationId: CONFIG.contextOrganizationId, toOrganizationId: CONFIG.fromOrganizationId, fromOrganizationId: CONFIG.fromOrganizationId, correlationId: CORRELATION_ID })
     }
 
-    // NOTE EL 17*. download Files From Organization Send To DepositOps 
+    // NOTE EL 17. download Files From Organization Send To DepositOps. This is currently a NOOP
     if (CONFIG.processing.ENABLE_MANUAL_DB_DOWNLOAD) {
         await baas.audit.log({ baas, logger, level: 'info', message: `MANUAL FILE DOWNLOAD STARTED [${VENDOR_NAME}] for environment [${ENVIRONMENT}] on [${CONFIG.server.host}] for PROCESSING_DATE [${PROCESSING_DATE}].`, correlationId: CORRELATION_ID })
 
@@ -522,6 +524,7 @@ async function getRemoteSftpFiles({ baas, logger, VENDOR_NAME, ENVIRONMENT, conf
                         inputFile: fullFilePath,
                         isOutbound: false,
                         isBulk: isBulk,
+                        // TODO EL: If ODFI_UI, set it imported, otherwise, set it to approve.
                         // NOTE EL 6. Set all remote sftp'ed files to approved, and mark them with assignedTo
                         status: 'approved',
                         assignedToName: 'Worker Process',

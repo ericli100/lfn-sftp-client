@@ -39,8 +39,7 @@ async function processfileReceipt({ baas, logger, CONFIG, contextOrganizationId,
 
     // we are pretty sensative to column name changes on this, keeping the TSQL here for now
 
-    // NOTE EL 16.1. Process file receipt SQL, notice the status guard. 
-    // TODO: EL need to confirm the guard is necessary.
+    // NOTE EL 16.1. Process file receipt SQL, notice the status guard.
 
     let sqlStatement = `
 	SELECT CONVERT(varchar, f.[effectiveDate], 111) AS [Date]
@@ -620,6 +619,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                         let sendWiredvice = await baas.email.sendEmail({ client, message: wireAdviceMessage })
                         await baas.audit.log({ baas, logger: baas.logger, level: 'verbose', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - Wire Advice Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsAdviceTo} ].`, effectedEntityId: file.entityId, correlationId })
 
+                        // TODO EL: ONLY If !ODFI_USE_UI
                         let sendWireProcessing = await baas.email.sendEmail({ client, message: wireProcessingMessage })
                         await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - Wire Processing Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
 
@@ -665,6 +665,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                     if(file.isSentToDepositOperations == false) {
                         let tooLargeAttachment = false
                         try{
+                            // TODO: EL - Guard. !ODFI_USE_UI only
                             let sendACHProcessing = await baas.email.sendEmail({ client, message: achProcessingMessage })
                             await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - ACH Processing Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
                         } catch ( achProcessingEmailError ) {
@@ -682,6 +683,8 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                                 // the attachment + the body was too large.
                                 achAdvice = await baas.ach.achAdvice({ vendor: CONFIG.vendor, environment: CONFIG.environment, filename: fullFilePath, isOutbound: true, short: true })
                                 achProcessingMessage.body = { contentType: 'Text', content: instructions + achAdvice + footer }
+
+                                // TODO: EL - Guard. !ODFI_USE_UI only
                                 let sendACHProcessing = await baas.email.sendEmail({ client, message: achProcessingMessage })
                             } catch ( achProcessingEmailError ){
                                 if (achProcessingEmailError.statusCode == 413) {
@@ -745,6 +748,7 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
 
                         // Set Status In DB
                         if(!tooLargeAttachment){
+                            // NOTE EL 19.3, Sets "frontend completed"
                             await baas.sql.file.setFileSentToDepositOps({ entityId: file.entityId, contextOrganizationId: CONFIG.contextOrganizationId, correlationId })
                             await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - file [${outFileName}] was set as isFileSentToDepositOps=True using baas.sql.file.setFileSentToDepositOps() for environment [${CONFIG.environment}].`, effectedEntityId: file.entityId, correlationId })
                         }
@@ -793,8 +797,6 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                         attachments: attachment
                     }
 
-                    // deliver none ODFI files
-
                     if (!file.isSentToDepositOperations) {
                         if (!file.isFedWire) {
 
@@ -811,7 +813,9 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                                     await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
                                 }
                             }
-                        } else if (!CONFIG.processing.ODFI_USE_UI) { // NOTE 17.1. Only deliver ODFI When ODFI_USE_UI is false 
+                        } else if (!CONFIG.processing.ODFI_USE_UI) { 
+                            // TODO: EL Should NOT guard this. revert to the original logic. File delivery should not be guarded.
+                            // NOTE EL 19.1. Only deliver ODFI When ODFI_USE_UI is false
                             let sendFileDelivery = await baas.email.sendEmail({ client, message: fileDeliveryMessage })
 
                             await baas.audit.log({ baas, logger: baas.logger, level: 'info', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email Sent for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${recipientsProcessingTo} ].`, effectedEntityId: file.entityId, correlationId })
@@ -876,7 +880,9 @@ async function downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, cor
                             } catch (fileDeliveryError) {
                                 await baas.audit.log({ baas, logger: baas.logger, level: 'error', message: `${CONFIG.vendor}: baas.output.downloadFilesFromOrganizationSendToDepositOps() - File Delivery Email FAILED for [${outFileName}] for environment [${CONFIG.environment}] to recipients [ ${JSON.stringify(recipientsProcessingTo)} ] The file was likely too big to email! Needs SharePoint Delivery. Error:[${ JSON.stringify(fileDeliveryError) }]` , effectedEntityId: file.entityId, correlationId })
                             }
-                        } else if (!CONFIG.processing.ODFI_USE_UI) {// NOTE 17.2. Only deliver ODFI When ODFI_USE_UI is false. Notice setFileSentToDepositOps sets status to "frontend completed" 
+                        } else if (!CONFIG.processing.ODFI_USE_UI) {
+                            // TODO: EL Should not guard file delivery. Revert to the original logic.
+                            // NOTE EL 19.2. Only deliver ODFI When ODFI_USE_UI is false. Notice setFileSentToDepositOps sets status to "frontend completed"
                             try{
                                 let sendFileDelivery = await baas.email.sendEmail({ client: clientEmail, message: fileDeliveryMessage })
 
