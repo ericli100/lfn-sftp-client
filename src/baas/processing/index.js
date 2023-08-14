@@ -238,7 +238,7 @@ async function main({ vendorName, environment, PROCESSING_DATE, baas, logger, CO
         // ** Download Files from DB and Send to Deposit Ops **
         // ****************************************************
 
-        // NOTE EL 19: downloadFilesFromOrganizationSendToDepositOps
+        // NOTE EL 19*: downloadFilesFromOrganizationSendToDepositOps
         await baas.output.downloadFilesFromOrganizationSendToDepositOps({ baas, CONFIG, correlationId: CORRELATION_ID })
     }
 
